@@ -13,16 +13,31 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.fighthub-mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.anonymous.fighthub_mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.523642193245-qm8lur23n8h5fvrfdhp30s37ekoc3mbq"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "b6c40cf3-9312-4614-8f9b-ca6fdc41a779"
+      }
     }
   }
 }

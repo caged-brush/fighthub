@@ -84,7 +84,7 @@ const Login = () => {
         </TouchableOpacity>
       </View>
 
-      <Text className="text-gray-400 mt-4">Forgot your password?</Text>
+      <Text className="text-blue-500 mt-4">Forgot your password?</Text>
       <View className="mt-5">
         <CustomButton onPress={handleLogin}>
           <Text className="text-white font-bold text-lg">Log in</Text>

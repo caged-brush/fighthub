@@ -77,7 +77,7 @@ const Onboarding = () => {
     if (selectedDate) {
       setFighterInfo({
         ...fighterInfo,
-        dob: selectedDate.toISOString().split("T")[0],
+        dob: selectedDate.toLocaleDateString("en-CA"), // Format as "YYYY-MM-DD"
       });
     }
   };
@@ -146,8 +146,6 @@ const Onboarding = () => {
 
   return (
     <ScrollView className="p-6 mt-10">
-      <Text className="text-white">userId: {userId}</Text>
-      <Button title="logout" onPress={handleLogout} />
       {step === 1 && (
         <>
           <Text className="text-white font-extrabold text-xl">
@@ -155,17 +153,20 @@ const Onboarding = () => {
           </Text>
           <TouchableOpacity
             onPress={() => {
-              setShowDatePicker(true);
+              setShowDatePicker(!showDatePicker);
               console.log("TouchableOpacity pressed");
             }}
-            className="bg-slate-500 rounded-lg h-10 p-2"
+            style={{
+              backgroundColor: "#5a5a5a",
+              borderRadius: 10,
+              height: 40,
+              justifyContent: "center",
+              paddingHorizontal: 10,
+            }}
           >
-            <TextInput
-              editable={false}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="white"
-              value={fighterInfo.dob}
-            />
+            <Text style={{ color: "white", fontSize: 16 }}>
+              {fighterInfo.dob || "YYYY-MM-DD"}
+            </Text>
           </TouchableOpacity>
 
           {showDatePicker && (

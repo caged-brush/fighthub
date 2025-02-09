@@ -5,10 +5,13 @@ import { NavigationContainer } from "@react-navigation/native";
 import Signup from "./screens/Signup";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AuthContext, AuthProvider } from "./context/AuthContext"; // Use AuthProvider here
-import Welcome from "./screens/Welcome"; // Import Welcome
+import Dashboard from "./screens/Dashboard"; // Import Welcome
 import { useContext } from "react";
 import Login from "./screens/Login";
 import Onboarding from "./screens/Onboarding";
+import Config from "react-native-config";
+import Welcome from "./screens/Welcome";
+import { useFonts } from "expo-font";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId } = useContext(AuthContext); // Access AuthContext here
@@ -42,6 +45,11 @@ function AppNavigator() {
       >
         {userToken === null ? (
           <>
+            <Stack.Screen
+              name="Welcome"
+              component={Welcome}
+              options={{ headerShown: false }}
+            />
             <Stack.Screen name="Sign up" component={Signup} />
             <Stack.Screen name="Login" component={Login} />
           </>
@@ -54,8 +62,8 @@ function AppNavigator() {
           />
         ) : (
           <Stack.Screen
-            name="Welcome"
-            component={Welcome}
+            name="Dashboard"
+            component={Dashboard}
             options={{ headerShown: false }}
           />
         )}
@@ -65,9 +73,13 @@ function AppNavigator() {
 }
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    "CustomFont-regular": require("./fonts/PlaywriteAUSA-Regular.ttf"),
+    "CustomFont2-regular": require("./fonts/Jersey15-Regular.ttf"),
+  });
   return (
     <AuthProvider>
-      <StatusBar style="light" />
+      <StatusBar style="auto" />
       <AppNavigator />
     </AuthProvider>
   );

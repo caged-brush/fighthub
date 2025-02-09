@@ -5,6 +5,10 @@ import {
   TextInput,
   View,
   TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
 import CustomButton from "../component/CustomButton";
 import axios from "axios";
@@ -12,6 +16,7 @@ import { useContext, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
 
 export default function Signup() {
   const { signup } = useContext(AuthContext);
@@ -76,71 +81,78 @@ export default function Signup() {
   };
 
   return (
-    <ScrollView className="p-5">
-      {["fname", "lname", "email", "password", "confirmPassword"].map(
-        (field, index) => (
-          <View className="mt-5" key={index}>
-            <Text className="text-white">
-              {fieldLabels[field] ||
-                field.charAt(0).toUpperCase() + field.slice(1)}
-            </Text>
-            <View className="relative">
-              <TextInput
-                className="bg-slate-500 rounded-lg h-10 p-2 pr-12 text-white"
-                secureTextEntry={
-                  field === "password"
-                    ? !showPassword
-                    : field === "confirmPassword"
-                    ? !showConfirmPassword
-                    : false
-                }
-                onChangeText={(value) => handleChange(field, value)}
-                value={formData[field]}
-                placeholder={`Enter your ${fieldLabels[field] || field}`}
-                placeholderTextColor="gray"
-              />
-              {field.toLowerCase().includes("password") && (
-                <TouchableOpacity
-                  onPress={() =>
-                    field === "password"
-                      ? setShowPassword(!showPassword)
-                      : setShowConfirmPassword(!showConfirmPassword)
-                  }
-                  style={{
-                    position: "absolute",
-                    right: 10,
-                    top: "50%",
-                    transform: [{ translateY: -12 }],
-                  }}
-                >
-                  <Ionicons
-                    name={
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 20 }}>
+          {["fname", "lname", "email", "password", "confirmPassword"].map(
+            (field, index) => (
+              <View className="mt-5" key={index}>
+                <Text className="text-white">
+                  {fieldLabels[field] ||
+                    field.charAt(0).toUpperCase() + field.slice(1)}
+                </Text>
+                <View className="relative">
+                  <TextInput
+                    className="bg-slate-500 rounded-lg h-10 p-2 pr-12 text-white"
+                    secureTextEntry={
                       field === "password"
-                        ? showPassword
-                          ? "eye-off"
-                          : "eye"
-                        : showConfirmPassword
-                        ? "eye-off"
-                        : "eye"
+                        ? !showPassword
+                        : field === "confirmPassword"
+                        ? !showConfirmPassword
+                        : false
                     }
-                    size={24}
-                    color="white"
+                    onChangeText={(value) => handleChange(field, value)}
+                    value={formData[field]}
+                    placeholder={`Enter your ${fieldLabels[field] || field}`}
+                    placeholderTextColor="gray"
                   />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        )
-      )}
-      <View className="mt-5">
-        <CustomButton onPress={handleUserSignup}>
-          <Text className="text-white font-bold text-lg">Sign up</Text>
-        </CustomButton>
+                  {field.toLowerCase().includes("password") && (
+                    <TouchableOpacity
+                      onPress={() =>
+                        field === "password"
+                          ? setShowPassword(!showPassword)
+                          : setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      style={{
+                        position: "absolute",
+                        right: 10,
+                        top: "50%",
+                        transform: [{ translateY: -12 }],
+                      }}
+                    >
+                      <Ionicons
+                        name={
+                          field === "password"
+                            ? showPassword
+                              ? "eye-off"
+                              : "eye"
+                            : showConfirmPassword
+                            ? "eye-off"
+                            : "eye"
+                        }
+                        size={24}
+                        color="white"
+                      />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            )
+          )}
+          <View className="mt-5">
+            <CustomButton onPress={handleUserSignup}>
+              <Text className="text-white font-bold text-lg">Sign up</Text>
+            </CustomButton>
 
-        <CustomButton style={{ marginTop: 10 }} onPress={handleLogin}>
-          <Text className="text-white font-bold text-lg">Log in</Text>
-        </CustomButton>
-      </View>
-    </ScrollView>
+            <CustomButton style={{ marginTop: 10 }} onPress={handleLogin}>
+              <Text className="text-white font-bold text-lg">Log in</Text>
+            </CustomButton>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
