@@ -10,7 +10,7 @@ import passport from "passport";
 import session from "express-session";
 import pg from "pg";
 import bcrypt from "bcrypt";
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 5001;
 const app = express();
 const saltRounds = 10;
 const createToken = (id) => {
