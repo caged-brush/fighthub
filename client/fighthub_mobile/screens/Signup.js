@@ -16,7 +16,37 @@ import { useContext, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
+import { CLIENT_ID_ANDROID, CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
+import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+import * as Google from "expo-auth-session/providers/google";
+import { auth } from "../firebaseConfig";
+
+// const [request, response, promptAsync] = Google.useAuthRequest({
+//   iosClientId: CLIENT_ID_IOS,
+//   androidClientId: CLIENT_ID_ANDROID,
+//   webClientId: CLIENT_ID_WEB,
+// });
+
+// const redirectUri = Platform.select({
+//   ios: 'exp://10.50.99.238:8081',
+//   android: 'exp://10.50.99.238:8081',
+//   default: 'exp://10.50.99.238:8081', // or you can use a specific URL for the web
+// });
+
+const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
+
+const signIn = async () => {
+  const result = await promptAsync();
+  if (result?.type === "success") {
+    const { idToken, accessToken } = result.authentication;
+    const credential = GoogleAuthProvider.credential(idToken, accessToken);
+    signInWithCredential(auth, credential)
+      .then((userCredential) => {
+        console.log("User signed in:", userCredential.user);
+      })
+      .catch((error) => console.log("Error signing in:", error));
+  }
+};
 
 export default function Signup() {
   const { signup } = useContext(AuthContext);
@@ -41,7 +71,20 @@ export default function Signup() {
     confirmPassword: "Confirm Password",
   };
 
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: CLIENT_ID_IOS,
+    androidClientId: CLIENT_ID_ANDROID,
+    webClientId: CLIENT_ID_WEB,
+    scopes: ["profile", "email"],
+    redirectUri: redirectUri,
+  });
+  console.log("Redirect URI:", redirectUri);
+  console.log("Generated redirect URI:", request?.redirectUri);
+
   const handleChange = (name, value) => {
+    if (name === "email") {
+      value = value.charAt(0).toLowerCase() + value.slice(1); // Lowercase the first letter of email
+    }
     setFormData({ ...formData, [name]: value });
   };
 
@@ -54,7 +97,7 @@ export default function Signup() {
     }
 
     try {
-      const response = await axios.post("http://10.50.228.148:5000/register", {
+      const response = await axios.post("http://10.50.99.238:5001/register", {
         fname,
         lname,
         email,
@@ -78,6 +121,20 @@ export default function Signup() {
 
   const handleLogin = () => {
     navigation.navigate("Login");
+  };
+
+  const signIn = async () => {
+    const result = await promptAsync();
+    if (result?.type === "success") {
+      const { idToken, accessToken } = result.authentication;
+      const credential = GoogleAuthProvider.credential(idToken, accessToken);
+      signInWithCredential(auth, credential)
+        .then((userCredential) => {
+          console.log("User signed in:", userCredential.user);
+          // Optionally, handle successful sign-in and navigate or store the token
+        })
+        .catch((error) => console.log("Error signing in:", error));
+    }
   };
 
   return (
@@ -149,6 +206,12 @@ export default function Signup() {
 
             <CustomButton style={{ marginTop: 10 }} onPress={handleLogin}>
               <Text className="text-white font-bold text-lg">Log in</Text>
+            </CustomButton>
+
+            <CustomButton style={{ marginTop: 10 }} onPress={signIn}>
+              <Text className="text-white font-bold text-lg">
+                Sign up with Google
+              </Text>
             </CustomButton>
           </View>
         </ScrollView>

@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }) => {
       setUserId(null);
       AsyncStorage.removeItem("userToken");
       AsyncStorage.removeItem("userId");
+      AsyncStorage.setItem("isOnBoarded", "false");
       setIsOnBoarded(false);
       setIsLoading(false);
     } catch (error) {
@@ -68,6 +69,7 @@ export const AuthProvider = ({ children }) => {
   const checkOnBoardingStatus = async () => {
     try {
       const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
+      
       if (onBoardingStatus === "true") {
         setIsOnBoarded(true);
       }
@@ -119,6 +121,7 @@ export const AuthProvider = ({ children }) => {
         isLoading,
         userToken,
         completeOnboarding,
+        checkOnBoardingStatus,
         isOnBoarded,
         userId,
       }}

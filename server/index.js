@@ -31,9 +31,9 @@ app.use(
   cors({
     origin: [
       "http://localhost:3000",
-      "http://10.50.228.148:3000",
-      "http://10.50.228.148:8081",
-      "exp://10.50.228.148:8081",
+      "http://10.50.99.238:3000",
+      "http://10.50.99.238:8081",
+      "exp://10.50.99.238:8081",
     ],
   })
 );
@@ -218,6 +218,15 @@ app.put("/update-fighter", async (req, res) => {
     console.log(error);
 
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post("/fighter-info", async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const result = await db.query("SELECT * from user WHERE id=$1", [userId]);
+  } catch (error) {
+    console.log(error);
   }
 });
 

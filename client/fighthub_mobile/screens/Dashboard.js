@@ -10,7 +10,7 @@ export default function Dashboard() {
     logout();
   };
   return (
-    <View className="flex justify-center items-center mt-10">
+    <View className="flex justify-center items-center mt-20">
       <Pressable onPress={handleLogout}>
         <Text className="text-white">Logout</Text>
       </Pressable>
