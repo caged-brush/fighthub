@@ -224,7 +224,7 @@ app.put("/update-fighter", async (req, res) => {
 app.post("/fighter-info", async (req, res) => {
   const { userId } = req.body;
   try {
-    const result = await db.query("SELECT * from user WHERE id=$1", [userId]);
+    const result = await db.query("SELECT * from users WHERE id=$1", [userId]);
   } catch (error) {
     console.log(error);
   }
