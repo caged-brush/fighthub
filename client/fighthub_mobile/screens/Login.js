@@ -29,7 +29,7 @@ const Login = () => {
     const { email, password } = formData;
 
     try {
-      const response = await axios.post("http://10.50.228.148:5000/login", {
+      const response = await axios.post("http://10.50.99.238:5001/login", {
         email,
         password,
       });

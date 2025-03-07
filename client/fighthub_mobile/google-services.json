@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "897991379182",
+    "project_id": "fighthub-1b139",
+    "storage_bucket": "fighthub-1b139.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:897991379182:android:411d7917f7a19de0568bff",
+        "android_client_info": {
+          "package_name": "com.anonymous.fighthub_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDR7aE-BBtpxB3iAIqdwmy2rEbLXugLC54"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

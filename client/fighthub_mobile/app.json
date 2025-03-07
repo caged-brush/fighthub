@@ -2,6 +2,7 @@
   "expo": {
     "name": "fighthub_mobile",
     "slug": "fighthub_mobile",
+    "scheme": "fighthub_mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -14,14 +15,16 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.fighthub-mobile"
+      "bundleIdentifier": "com.anonymous.fighthub-mobile",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.anonymous.fighthub_mobile"
+      "package": "com.anonymous.fighthub_mobile",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,7 +35,10 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.523642193245-qm8lur23n8h5fvrfdhp30s37ekoc3mbq"
         }
-      ]
+      ],
+      "expo-build-properties",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth"
     ],
     "extra": {
       "eas": {
