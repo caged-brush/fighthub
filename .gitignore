@@ -1,0 +1,7 @@
+# .gitignore
+.env
+config/keys.js
+firebaseConfig.js
+google-servies.json
+keys.js
+GoogleService-Info.plist
