@@ -1,7 +1,7 @@
 # .gitignore
 .env
-/Users/suleimanjibril/Desktop/operation eagle square/eagle_square/client/fighthub_mobile/google-services.json
-/Users/suleimanjibril/Desktop/operation eagle square/eagle_square/client/fighthub_mobile/firebaseConfig.js
-/Users/suleimanjibril/Desktop/operation eagle square/eagle_square/client/fighthub_mobile/keys/keys.js
-/Users/suleimanjibril/Desktop/operation eagle square/eagle_square/client/fighthub_mobile/GoogleService-Info.plist
-/Users/suleimanjibril/Desktop/operation eagle square/eagle_square/server/.env
+client/fighthub_mobile/google-services.json
+client/fighthub_mobile/firebaseConfig.js
+client/fighthub_mobile/keys/keys.js
+client/fighthub_mobile/GoogleService-Info.plist
+server/.env
