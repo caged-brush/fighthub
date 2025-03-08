@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@react-navigation/bottom-tabs": "^7.2.1"
+    "@react-navigation/bottom-tabs": "^7.2.1",
+    "react-native-image-picker": "^8.2.0"
   }
 }
