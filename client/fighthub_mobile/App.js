@@ -5,7 +5,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import Signup from "./screens/Signup";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AuthContext, AuthProvider } from "./context/AuthContext"; // Use AuthProvider here
-import Dashboard from "./screens/Dashboard"; // Import Welcome
+import Dashboard from "./screens/App2"; // Import Welcome
 import { useContext } from "react";
 import Login from "./screens/Login";
 import Onboarding from "./screens/Onboarding";

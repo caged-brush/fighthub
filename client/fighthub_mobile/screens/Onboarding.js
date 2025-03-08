@@ -24,6 +24,7 @@ import muayThaiImg from "../images/muay_thai.jpg";
 import kickboxingImg from "../images/kickboxing.jpg";
 import judoImg from "../images/judo.jpg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 
 const Onboarding = () => {
   const { logout, completeOnboarding, userId } = useContext(AuthContext);
@@ -144,6 +145,29 @@ const Onboarding = () => {
     { style: "Judo", source: judoImg },
   ];
 
+  const handleImagePick = async () => {
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permissionResult.granted === false) {
+      alert("Permission to access the media library is required!");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setFighterInfo((prevState) => ({
+        ...prevState,
+        profile_url: result.assets[0].uri,
+      }));
+      console.log("Image selected:", result.assets[0].uri);
+    } else {
+      console.log("No image was selected");
+    }
+  };
   return (
     <ScrollView className="p-6 mt-10">
       {step === 1 && (
@@ -295,13 +319,42 @@ const Onboarding = () => {
             ))}
           </View>
           <View className="mt-10">
-            <CustomButton onPress={handleFinish}>
-              <Text className="text-white font-bold text-lg">Finish</Text>
+            <CustomButton onPress={handleNext}>
+              <Text className="text-white font-bold text-lg">Next</Text>
             </CustomButton>
             <CustomButton onPress={handleBack} style={{ marginTop: 10 }}>
               <Text className="text-white font-bold text-lg">Back</Text>
             </CustomButton>
           </View>
+        </>
+      )}
+      {step === 4 && (
+        <>
+          <Text className="text-white font-extrabold text-xl">
+            Upload Profile Picture
+          </Text>
+          <TouchableOpacity onPress={handleImagePick} style={{ marginTop: 20 }}>
+            <Text className="text-white text-lg mb-10">Select a Photo</Text>
+          </TouchableOpacity>
+
+          {fighterInfo.profile_url ? (
+            <Image
+              source={{ uri: fighterInfo.profile_url }}
+              style={{
+                width: 100,
+                height: 100,
+                borderRadius: 50,
+                marginTop: 20,
+              }}
+            />
+          ) : null}
+
+          <CustomButton onPress={handleFinish}>
+            <Text className="text-white font-bold text-lg">Finish</Text>
+          </CustomButton>
+          <CustomButton onPress={handleBack} style={{ marginTop: 10 }}>
+            <Text className="text-white font-bold text-lg">Back</Text>
+          </CustomButton>
         </>
       )}
     </ScrollView>
