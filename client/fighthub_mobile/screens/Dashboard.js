@@ -1,6 +1,8 @@
 import { useContext } from "react";
 import { Pressable, Text, View } from "react-native";
 import { AuthContext } from "../context/AuthContext";
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+
 
 export default function Dashboard() {
   const { logout, userId } = useContext(AuthContext);
