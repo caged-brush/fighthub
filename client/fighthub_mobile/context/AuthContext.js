@@ -15,11 +15,14 @@ export const AuthProvider = ({ children }) => {
     try {
       setUserToken(token);
       setUserId(userId);
-      AsyncStorage.setItem("userToken", token);
-      AsyncStorage.setItem("userId", userId);
+      await AsyncStorage.setItem("userToken", token);
+      await AsyncStorage.setItem("userId", userId);
+      await AsyncStorage.setItem("isOnBoarded", "false"); // Ensure it's set to false initially
+      setIsOnBoarded(false);
       setIsLoading(false);
     } catch (error) {
       console.log(error);
+      setIsLoading(false);
     }
   };
 
@@ -31,12 +34,19 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem("userToken", token);
       await AsyncStorage.setItem("userId", userId);
 
+      // Check if onboarding status exists, if not, default to false
       const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
-      setIsOnBoarded(onBoardingStatus === "true");
+      if (onBoardingStatus === null) {
+        await AsyncStorage.setItem("isOnBoarded", "false");
+        setIsOnBoarded(false);
+      } else {
+        setIsOnBoarded(onBoardingStatus === "true");
+      }
 
       setIsLoading(false);
     } catch (error) {
       console.log(error);
+      setIsLoading(false);
     }
   };
 
@@ -47,7 +57,6 @@ export const AuthProvider = ({ children }) => {
       setUserId(null);
       AsyncStorage.removeItem("userToken");
       AsyncStorage.removeItem("userId");
-      AsyncStorage.setItem("isOnBoarded", "false");
       setIsOnBoarded(false);
       setIsLoading(false);
     } catch (error) {
@@ -69,7 +78,7 @@ export const AuthProvider = ({ children }) => {
   const checkOnBoardingStatus = async () => {
     try {
       const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
-      
+
       if (onBoardingStatus === "true") {
         setIsOnBoarded(true);
       }
@@ -81,10 +90,10 @@ export const AuthProvider = ({ children }) => {
   const isLoggedIn = async () => {
     try {
       setIsLoading(true);
-      let userToken = await AsyncStorage.getItem("userToken");
-      let storedUserId = await AsyncStorage.getItem("userId");
-      let onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
-      let savedStep = await AsyncStorage.getItem("onboardingStep");
+      const userToken = await AsyncStorage.getItem("userToken");
+      const storedUserId = await AsyncStorage.getItem("userId");
+      const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
+      const savedStep = await AsyncStorage.getItem("onboardingStep");
 
       console.log("Retrieved userId:", storedUserId);
       console.log("Onboarding Status:", onBoardingStatus);
@@ -93,11 +102,11 @@ export const AuthProvider = ({ children }) => {
       setUserToken(userToken);
       setUserId(storedUserId);
 
-      // Validate onboarding status properly
-      if (onBoardingStatus === "true" && !savedStep) {
-        setIsOnBoarded(true); // Onboarding completed
+      // Ensure the onboarding status is properly set
+      if (onBoardingStatus === "true") {
+        setIsOnBoarded(true);
       } else {
-        setIsOnBoarded(false); // Onboarding not completed
+        setIsOnBoarded(false);
       }
 
       setIsLoading(false);

@@ -5,3 +5,4 @@ client/fighthub_mobile/firebaseConfig.js
 client/fighthub_mobile/keys/keys.js
 client/fighthub_mobile/GoogleService-Info.plist
 server/.env
+node_modules
