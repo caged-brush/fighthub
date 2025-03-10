@@ -4,17 +4,29 @@ import { AuthContext } from "../context/AuthContext";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Profile from "./Profile";
 import Settings from "./Settings"; // Import Settings page
-
+import Ionicons from "@expo/vector-icons/Ionicons";
 const myTabs = createBottomTabNavigator();
 
 export default function Dashboard() {
   return (
     <myTabs.Navigator
-      screenOptions={{
-        tabBarStyle: { backgroundColor: "#1f1f1f" }, // Customize tab bar color
-        tabBarActiveTintColor: "#fff", // Active tab text color
-        tabBarInactiveTintColor: "#888", // Inactive tab text color
-      }}
+      screenOptions={({ route }) => ({
+        tabBarStyle: { backgroundColor: "#1f1f1f" },
+        tabBarActiveTintColor: "#fff",
+        tabBarInactiveTintColor: "#888",
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === "Profile") {
+            iconName = focused ? "person" : "person-outline";
+          } else if (route.name === "Settings") {
+            iconName = focused ? "settings" : "settings-outline";
+          }
+
+          // Return the Ionicons component with the determined name and color
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+      })}
     >
       <myTabs.Screen
         name="Profile"

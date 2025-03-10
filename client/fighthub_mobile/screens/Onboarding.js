@@ -163,7 +163,7 @@ const Onboarding = () => {
         ...prevState,
         profile_url: result.assets[0].uri,
       }));
-      console.log("Image selected:", result.assets[0].uri);
+      // console.log("Image selected:", result.assets[0].uri);
     } else {
       console.log("No image was selected");
     }
