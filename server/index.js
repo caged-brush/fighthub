@@ -225,9 +225,31 @@ app.post("/fighter-info", async (req, res) => {
   const { userId } = req.body;
   try {
     const result = await db.query("SELECT * from users WHERE id=$1", [userId]);
-    if(result.rows.length>0){
+    if (result.rows.length > 0) {
       console.log(result.rows[0]);
-      res.status(200).json(result.rows[0])
+      res.status(200).json(result.rows[0]);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+app.put("/change-profile-pic", async (req, res) => {
+  const { profile_url, userId } = req.body;
+  try {
+    const result = await db.query(
+      "UPDATE users SET profile_picture_url=$1 WHERE id=$2 RETURNING *",
+      [profile_url, userId]
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({
+        message: "User not found",
+      });
+    } else {
+      res.status(200).json({
+        message: "Image changes successfully",
+        users: result.rows[0],
+      });
     }
   } catch (error) {
     console.log(error);
