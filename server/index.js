@@ -5,11 +5,16 @@ import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import path from "path";
 import bodyParser from "body-parser";
+import fs from "fs";
 import axios from "axios";
 import passport from "passport";
 import session from "express-session";
 import pg from "pg";
 import bcrypt from "bcrypt";
+import nodemailer from "nodemailer";
+import crypto from "crypto";
+import { error, info } from "console";
+import multer from "multer";
 const port = process.env.PORT || 5001;
 const app = express();
 const saltRounds = 10;
@@ -256,6 +261,110 @@ app.put("/change-profile-pic", async (req, res) => {
   }
 });
 
+const transport = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // Use SSL
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: "ognjmvnupvwbiljl",
+  },
+});
+
+app.post("/forgotPassword", async (req, res) => {
+  const { email } = req.body;
+  const code = Math.floor(100000 + Math.random() * 900000);
+
+  try {
+    const result = await db.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Email not found" });
+    }
+
+    await db.query(
+      "UPDATE users SET reset_code =$1,code_expires = NOW() + INTERVAL '15 minutes' WHERE email = $2",
+      [code, email]
+    );
+
+    const mailOptions = {
+      from: process.env.EMAIL_PASS,
+      to: email,
+      subject: "Your Password Reset Code",
+      text: `Your password reset code is: ${code}`,
+    };
+    transport.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.log("Email send error:", error);
+        return res.status(500).json({ message: "Failed to send email" });
+      }
+      console.log("Email sent:", info.response);
+      res.status(200).json({ message: "Verification code sent to your email" });
+    });
+    console.log(`Code send ${code}`);
+    //res.status(200).json({ message: "Verification code sent to your email" });
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+const uploadDir = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  "uploads"
+);
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir); // Use the absolute path to the 'uploads' folder
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
+
+app.post("/post", upload.single("media"), async (req, res) => {
+  const { user_id, caption } = req.body;
+  const media_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+  if (!media_url) {
+    return res.status(400).json({ error: "No media uploaded" });
+  }
+
+  try {
+    const result = await db.query(
+      "INSERT INTO posts (user_id, media_url, caption) VALUES ($1, $2, $3) RETURNING * ",
+      [user_id, media_url, caption]
+    );
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// Express route for fetching paginated posts
+app.get("/posts", async (req, res) => {
+  const { page = 1, limit = 10 } = req.query; // Default to page 1, limit 10
+  const offset = (page - 1) * limit; // Calculate the offset for the SQL query
+
+  try {
+    const result = await db.query(
+      "SELECT * FROM posts ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+      [limit, offset]
+    );
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error fetching posts" });
+  }
+});
+
+// app.post("resetPassword", passwordReset, (req, res) => {});
 app.listen(port, (req, res) => {
   console.log(`Server now listening on port ${port}`);
 });
