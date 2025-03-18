@@ -41,9 +41,18 @@ const Home = () => {
   // Handle pull-to-refresh
   const handleRefresh = async () => {
     setRefreshing(true);
-    setPage(1); // Reset to the first page
-    // Do not clear the posts array to keep previous data
-    await fetchPosts(); // Fetch the first batch of posts
+    setPage(1);
+    try {
+      const response = await axios.get(
+        `http://10.50.99.238:5001/posts?page=1&limit=10`
+      );
+      setPosts(response.data); // Replace existing posts instead of appending
+      setHasMore(response.data.length === 10);
+    } catch (error) {
+      console.error("Error refreshing posts:", error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -51,32 +60,46 @@ const Home = () => {
   }, [page]); // Make sure this is correctly updating
 
   // Render each post
+  const isValidUrl = (url) => {
+    try {
+      new URL(url);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
   const renderPost = ({ item }) => {
+    const mediaUri = `http://10.50.99.238:5001${item.media_url}`;
+
     return (
       <View
         style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: "#ccc" }}
       >
         <Text style={{ fontWeight: "bold" }}>{item.user_id}</Text>
-        {item.media_url && item.media_url.endsWith(".mp4") ? (
+        {item.media_url &&
+        item.media_url.endsWith(".mp4") &&
+        isValidUrl(mediaUri) ? (
           <Video
-            source={{ uri: item.media_url }}
+            source={{ uri: mediaUri }}
             style={{ width: "100%", height: 200 }}
             useNativeControls
             resizeMode="contain"
-            isLooping
+            repeat
           />
-        ) : (
+        ) : item.media_url && isValidUrl(mediaUri) ? (
           <Image
-            source={{ uri: item.media_url }}
+            source={{ uri: mediaUri }}
             style={{ width: "100%", height: 200, marginVertical: 10 }}
             resizeMode="contain"
           />
+        ) : (
+          <Text>Invalid media URL</Text> // Fallback for invalid URLs
         )}
         <Text>{item.caption}</Text>
       </View>
     );
   };
-
   // Fetch more posts when the user scrolls to the end
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {

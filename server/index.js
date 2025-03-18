@@ -346,6 +346,7 @@ app.post("/post", upload.single("media"), async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 });
+app.use("/uploads", express.static("uploads"));
 
 // Express route for fetching paginated posts
 app.get("/posts", async (req, res) => {
