@@ -15,6 +15,7 @@ import nodemailer from "nodemailer";
 import crypto from "crypto";
 import { error, info } from "console";
 import multer from "multer";
+import ffmpeg from "fluent-ffmpeg";
 const port = process.env.PORT || 5001;
 const app = express();
 const saltRounds = 10;
@@ -316,9 +317,10 @@ const uploadDir = path.join(
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadDir); // Use the absolute path to the 'uploads' folder
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + path.extname(file.originalname));
@@ -329,22 +331,42 @@ const upload = multer({ storage });
 
 app.post("/post", upload.single("media"), async (req, res) => {
   const { user_id, caption } = req.body;
-  const media_url = req.file ? `/uploads/${req.file.filename}` : null;
-
-  if (!media_url) {
+  if (!req.file) {
     return res.status(400).json({ error: "No media uploaded" });
   }
 
-  try {
-    const result = await db.query(
-      "INSERT INTO posts (user_id, media_url, caption) VALUES ($1, $2, $3) RETURNING * ",
-      [user_id, media_url, caption]
-    );
-    res.status(200).json(result.rows[0]);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Database error" });
-  }
+  const inputPath = req.file.path;
+  const outputFilename = `${Date.now()}.mp4`;
+  const outputPath = path.join(uploadDir, outputFilename);
+
+  // Convert the video to MP4 format using FFmpeg
+  ffmpeg(inputPath)
+    .output(outputPath)
+    .videoCodec("libx264") // Set codec to H.264
+    .audioCodec("aac") // Set audio codec
+    .on("end", async () => {
+      console.log("Video conversion complete:", outputPath);
+
+      // Delete the original file after conversion
+      fs.unlinkSync(inputPath);
+
+      try {
+        // Save to database
+        const result = await db.query(
+          "INSERT INTO posts (user_id, media_url, caption) VALUES ($1, $2, $3) RETURNING *",
+          [user_id, `/uploads/${outputFilename}`, caption]
+        );
+        res.status(200).json(result.rows[0]);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Database error" });
+      }
+    })
+    .on("error", (error) => {
+      console.error("FFmpeg error:", error);
+      res.status(500).json({ error: "Video processing failed" });
+    })
+    .run();
 });
 app.use("/uploads", express.static("uploads"));
 

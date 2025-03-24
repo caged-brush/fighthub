@@ -1,44 +1,60 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, Image, ActivityIndicator } from "react-native";
-import Video from "react-native-video";
+import { useVideoPlayer, VideoView } from "expo-video";
 import axios from "axios";
+
+// ✅ Move Video Post to its own component to avoid invalid hook calls
+const VideoPost = ({ mediaUri }) => {
+  const player = useVideoPlayer(mediaUri, (player) => {
+    player.loop = true;
+  });
+
+  return (
+    <View style={{ width: "100%", height: 300 }}>
+      <VideoView
+        player={player}
+        style={{ width: "100%", height: 300 }}
+        useNativeControls
+        resizeMode="contain"
+        onError={(error) => console.log("Video Error:", error)}
+        onLoadStart={() => console.log("Loading video...")}
+        onLoad={() => console.log("Video loaded successfully")}
+      />
+    </View>
+  );
+};
 
 const Home = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1); // Track current page
-  const [hasMore, setHasMore] = useState(true); // Check if there are more posts to load
-  const [refreshing, setRefreshing] = useState(false); // Track refreshing state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch posts when component mounts or when the page changes
   const fetchPosts = async () => {
-    if (loading) return; // Prevent multiple requests at the same time
+    if (loading) return;
 
     setLoading(true);
     try {
       const response = await axios.get(
         `http://10.50.99.238:5001/posts?page=${page}&limit=10`
       );
-      // Check if the new posts already exist in the current list
-
       const newPosts = response.data.filter(
         (newPost) =>
           !posts.some((existingPost) => existingPost.id === newPost.id)
       );
       setPosts((prevPosts) => [...newPosts, ...prevPosts]);
-      // Append new unique posts
       if (response.data.length < 10) {
-        setHasMore(false); // If fewer posts are returned, there are no more to load
+        setHasMore(false);
       }
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
       setLoading(false);
-      setRefreshing(false); // Stop refreshing when data is loaded
+      setRefreshing(false);
     }
   };
 
-  // Handle pull-to-refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     setPage(1);
@@ -46,7 +62,7 @@ const Home = () => {
       const response = await axios.get(
         `http://10.50.99.238:5001/posts?page=1&limit=10`
       );
-      setPosts(response.data); // Replace existing posts instead of appending
+      setPosts(response.data);
       setHasMore(response.data.length === 10);
     } catch (error) {
       console.error("Error refreshing posts:", error);
@@ -57,9 +73,8 @@ const Home = () => {
 
   useEffect(() => {
     fetchPosts();
-  }, [page]); // Make sure this is correctly updating
+  }, [page]);
 
-  // Render each post
   const isValidUrl = (url) => {
     try {
       new URL(url);
@@ -77,16 +92,11 @@ const Home = () => {
         style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: "#ccc" }}
       >
         <Text style={{ fontWeight: "bold" }}>{item.user_id}</Text>
+
         {item.media_url &&
         item.media_url.endsWith(".mp4") &&
         isValidUrl(mediaUri) ? (
-          <Video
-            source={{ uri: mediaUri }}
-            style={{ width: "100%", height: 200 }}
-            useNativeControls
-            resizeMode="contain"
-            repeat
-          />
+          <VideoPost mediaUri={mediaUri} /> // ✅ Use the separate VideoPost component
         ) : item.media_url && isValidUrl(mediaUri) ? (
           <Image
             source={{ uri: mediaUri }}
@@ -94,33 +104,33 @@ const Home = () => {
             resizeMode="contain"
           />
         ) : (
-          <Text>Invalid media URL</Text> // Fallback for invalid URLs
+          <Text>Invalid media URL</Text>
         )}
+
         <Text>{item.caption}</Text>
       </View>
     );
   };
-  // Fetch more posts when the user scrolls to the end
+
   const loadMore = useCallback(() => {
     if (!loading && hasMore) {
-      setPage((prevPage) => prevPage + 1); // Increment the page number
+      setPage((prevPage) => prevPage + 1);
     }
   }, [loading, hasMore]);
 
   return (
-    <View style={{ flex: 1, padding: 10 }}>
+    <View style={{ flex: 1, padding: 20 }}>
       <FlatList
         data={posts}
         renderItem={renderPost}
-        keyExtractor={(item) => item.id.toString()} // Assuming each post has a unique 'id'
-        onEndReached={loadMore} // Trigger the loading of more posts when the user reaches the bottom
-        onEndReachedThreshold={0.5} // Trigger 50% from the bottom
+        keyExtractor={(item) => item.id.toString()}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
         ListFooterComponent={
           loading ? <ActivityIndicator size="large" color="gray" /> : null
-        } // Show loading indicator while fetching more posts
-        // Implementing pull-to-refresh
-        onRefresh={handleRefresh} // Trigger fetch when user pulls to refresh
-        refreshing={refreshing} // Show refresh indicator while refreshing
+        }
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
       />
     </View>
   );
