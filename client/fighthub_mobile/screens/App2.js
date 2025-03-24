@@ -7,6 +7,7 @@ import Settings from "./Settings"; // Import Settings page
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Home from "./Home";
 import Upload from "./Upload";
+import VideoScreen from "./Video";
 const myTabs = createBottomTabNavigator();
 
 export default function Dashboard() {
@@ -26,6 +27,8 @@ export default function Dashboard() {
           } else if (route.name === "Home") {
             iconName = focused ? "home" : "home-outline";
           } else if (route.name === "Upload") {
+            iconName = focused ? "add" : "add-outline";
+          } else if (route.name === "Video") {
             iconName = focused ? "add" : "add-outline";
           }
 
@@ -52,6 +55,11 @@ export default function Dashboard() {
       <myTabs.Screen
         name="Settings"
         component={Settings}
+        options={{ headerShown: false }}
+      />
+      <myTabs.Screen
+        name="Videos"
+        component={VideoScreen}
         options={{ headerShown: false }}
       />
     </myTabs.Navigator>
