@@ -328,11 +328,17 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-
 app.post("/post", upload.single("media"), async (req, res) => {
   const { user_id, caption } = req.body;
+  console.log(req.body, req.file);
   if (!req.file) {
     return res.status(400).json({ error: "No media uploaded" });
+  }
+
+  // Check if the file is a video
+  const fileType = req.file.mimetype.split("/")[0];
+  if (fileType !== "video") {
+    return res.status(400).json({ error: "Uploaded file is not a video" });
   }
 
   const inputPath = req.file.path;
@@ -368,6 +374,7 @@ app.post("/post", upload.single("media"), async (req, res) => {
     })
     .run();
 });
+
 app.use("/uploads", express.static("uploads"));
 
 // Express route for fetching paginated posts

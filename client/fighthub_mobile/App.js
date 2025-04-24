@@ -18,8 +18,6 @@ function AppNavigator() {
   console.log("User Token:", userToken);
   console.log("User ID:", userId);
   console.log("Is OnBoarded:", isOnBoarded);
-  
-  
 
   const BottomTab = createBottomTabNavigator();
   const Stack = createNativeStackNavigator();

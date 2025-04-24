@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { Pressable, Text, View } from "react-native";
 import { AuthContext } from "../context/AuthContext";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { StatusBar } from "expo-status-bar";
 import Profile from "./Profile";
 import Settings from "./Settings"; // Import Settings page
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -55,11 +56,6 @@ export default function Dashboard() {
       <myTabs.Screen
         name="Settings"
         component={Settings}
-        options={{ headerShown: false }}
-      />
-      <myTabs.Screen
-        name="Videos"
-        component={VideoScreen}
         options={{ headerShown: false }}
       />
     </myTabs.Navigator>

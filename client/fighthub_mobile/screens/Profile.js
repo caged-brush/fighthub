@@ -1,6 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useContext } from "react";
-import { Pressable, Text, View, ScrollView, RefreshControl } from "react-native";
+import {
+  Pressable,
+  Text,
+  View,
+  ScrollView,
+  RefreshControl,
+} from "react-native";
 import { AuthContext } from "../context/AuthContext";
 import { Image } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -123,6 +129,9 @@ const Profile = () => {
       <View className="flex items-center justify-center">
         <CustomButton className="w-96">
           <Text className="font-bold text-white">Edit profile</Text>
+        </CustomButton>
+        <CustomButton className="w-96" onPress={handleLogout}>
+          <Text className="font-bold text-white">Logout</Text>
         </CustomButton>
       </View>
     </ScrollView>

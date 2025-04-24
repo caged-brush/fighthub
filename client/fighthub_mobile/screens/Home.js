@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, Image, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  Image,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import axios from "axios";
+import { StatusBar } from "expo-status-bar";
 
-// ✅ Move Video Post to its own component to avoid invalid hook calls
 const VideoPost = ({ mediaUri }) => {
   const player = useVideoPlayer(mediaUri, (player) => {
     player.loop = true;
@@ -30,6 +37,7 @@ const Home = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [userProfiles, setUserProfiles] = useState({});
 
   const fetchPosts = async () => {
     if (loading) return;
@@ -47,6 +55,11 @@ const Home = () => {
       if (response.data.length < 10) {
         setHasMore(false);
       }
+
+      // Fetch user profiles for the new posts
+      newPosts.forEach((post) => {
+        getUserProfile(post.user_id);
+      });
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
@@ -64,10 +77,43 @@ const Home = () => {
       );
       setPosts(response.data);
       setHasMore(response.data.length === 10);
+      // Fetch user profiles for the refreshed posts
+      response.data.forEach((post) => {
+        getUserProfile(post.user_id);
+      });
     } catch (error) {
       console.error("Error refreshing posts:", error);
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const getUserProfile = async (userId) => {
+    if (userProfiles[userId]) return; // If profile is already fetched, don't fetch again
+    try {
+      const response = await axios.post(
+        "http://10.50.99.238:5001/fighter-info",
+        { userId }
+      );
+      console.log(`Fetched profile for userId ${userId}:`, response.data);
+      if (response.data) {
+        setUserProfiles((prevProfiles) => ({
+          ...prevProfiles,
+          [userId]: {
+            fname: response.data.fname || "",
+            lname: response.data.lname || "",
+            wins: response.data.wins || 0.0,
+            losses: response.data.losses || 0.0,
+            draws: response.data.draws || 0.0,
+            style: response.data.fight_style || "",
+            weight: response.data.weight || 0.0,
+            height: response.data.height || 0.0,
+            profileUrl: response.data.profile_picture_url,
+          },
+        }));
+      }
+    } catch (error) {
+      console.log(`Error fetching profile for userId ${userId}:`, error);
     }
   };
 
@@ -86,17 +132,45 @@ const Home = () => {
 
   const renderPost = ({ item }) => {
     const mediaUri = `http://10.50.99.238:5001${item.media_url}`;
+    const profile = userProfiles[item.user_id];
+    // console.log(profile);
 
     return (
       <View
-        style={{ padding: 10, borderBottomWidth: 1, borderBottomColor: "#ccc" }}
+        style={{
+          padding: 20,
+          borderBottomWidth: 1,
+          marginTop: 10,
+          borderBottomColor: "#ccc",
+        }}
       >
-        <Text style={{ fontWeight: "bold" }}>{item.user_id}</Text>
+        {/* <Text style={{ color: "white" }}>{item.user_id}</Text> */}
+        <View
+          style={{ flexDirection: "row", alignItems: "center", marginTop: 20 }}
+        >
+          {profile?.profileUrl && (
+            <Image
+              source={{ uri: profile.profileUrl }}
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 25, // Half of width/height for a perfect circle
+                marginRight: 10, // Space between image and text
+              }}
+              resizeMode="cover"
+            />
+          )}
+          {profile?.fname && (
+            <Text style={{ color: "white", fontSize: 16, fontWeight: "bold" }}>
+              {profile.fname} {profile.lname}
+            </Text>
+          )}
+        </View>
 
         {item.media_url &&
         item.media_url.endsWith(".mp4") &&
         isValidUrl(mediaUri) ? (
-          <VideoPost mediaUri={mediaUri} /> // ✅ Use the separate VideoPost component
+          <VideoPost mediaUri={mediaUri} />
         ) : item.media_url && isValidUrl(mediaUri) ? (
           <Image
             source={{ uri: mediaUri }}
@@ -107,7 +181,7 @@ const Home = () => {
           <Text>Invalid media URL</Text>
         )}
 
-        <Text>{item.caption}</Text>
+        <Text style={{ color: "white" }}>{item.caption}</Text>
       </View>
     );
   };
@@ -119,7 +193,12 @@ const Home = () => {
   }, [loading, hasMore]);
 
   return (
-    <View style={{ flex: 1, padding: 20 }}>
+    <View style={{ flex: 1, padding: 20, backgroundColor: "black" }}>
+      {Platform.OS === "ios" ? (
+        <StatusBar style="light" backgroundColor="black" />
+      ) : (
+        <StatusBar style="light" />
+      )}
       <FlatList
         data={posts}
         renderItem={renderPost}
