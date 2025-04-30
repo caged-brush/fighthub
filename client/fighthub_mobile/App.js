@@ -12,6 +12,7 @@ import Onboarding from "./screens/Onboarding";
 import Config from "react-native-config";
 import Welcome from "./screens/Welcome";
 import { useFonts } from "expo-font";
+import ChatScreen from "./screens/ChatScreen";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId } = useContext(AuthContext); // Access AuthContext here
@@ -61,11 +62,23 @@ function AppNavigator() {
             options={{ headerShown: false }}
           />
         ) : (
-          <Stack.Screen
-            name="Dashboard"
-            component={Dashboard}
-            options={{ headerShown: false }}
-          />
+          <>
+            <Stack.Screen
+              name="Dashboard"
+              component={Dashboard}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ChatScreen"
+              component={ChatScreen}
+              options={({ route }) => ({
+                title: route.params?.recipientName || "Chat",
+                headerShown: true,
+                headerStyle: { backgroundColor: "black" },
+                headerTintColor: "white",
+              })}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

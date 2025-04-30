@@ -16,6 +16,9 @@ import crypto from "crypto";
 import { error, info } from "console";
 import multer from "multer";
 import ffmpeg from "fluent-ffmpeg";
+import { ServerClient } from "postmark";
+import { createServer } from "http";
+import { Server } from "socket.io";
 const port = process.env.PORT || 5001;
 const app = express();
 const saltRounds = 10;
@@ -33,16 +36,29 @@ app.use(
   })
 );
 
-app.use(
-  cors({
+const httpServer = new createServer(app);
+const io = new Server(httpServer, {
+  cors: {
     origin: [
       "http://localhost:3000",
       "http://10.50.99.238:3000",
       "http://10.50.99.238:8081",
       "exp://10.50.99.238:8081",
     ],
-  })
-);
+    methods: ["GET", "POST"],
+  },
+});
+
+// app.use(
+//   cors({
+//     origin: [
+//       "http://localhost:3000",
+//       "http://10.50.99.238:3000",
+//       "http://10.50.99.238:8081",
+//       "exp://10.50.99.238:8081",
+//     ],
+//   })
+// );
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -137,6 +153,26 @@ app.post("/register", validateUserInput, async (req, res) => {
     }
   } catch (err) {
     console.log(err);
+  }
+});
+
+const client = new ServerClient("9bf142ca-fc38-478d-8335-2930de26728a");
+
+app.post("/mailer", async (req, res) => {
+  try {
+    const result = await client.sendEmail({
+      From: "jibrilahmeds20@mytru.ca",
+      To: "jibrilahmeds20@mytru.ca",
+      Subject: "Test",
+      TextBody: "Hello from Postmark!",
+    });
+
+    res.status(200).json({ message: "Email sent successfully", result });
+  } catch (error) {
+    console.error("Error sending email:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to send email", error: error.message });
   }
 });
 
@@ -395,6 +431,115 @@ app.get("/posts", async (req, res) => {
 });
 
 // app.post("resetPassword", passwordReset, (req, res) => {});
-app.listen(port, (req, res) => {
+// app.listen(port, (req, res) => {
+//   console.log(`Server now listening on port ${port}`);
+// });
+
+app.get("/users", async (req, res) => {
+  const { exclude } = req.query; // e.g., ?exclude=user1
+
+  try {
+    const query = exclude
+      ? "SELECT id, fname FROM users WHERE id != $1"
+      : "SELECT id, fname FROM users";
+
+    const values = exclude ? [exclude] : [];
+
+    const { rows } = await db.query(query, values);
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+const users = new Map();
+
+io.on("connection", (socket) => {
+  console.log(`User ${socket.id} connected`);
+
+  socket.on("join", async (userId) => {
+    if (!users.has(userId)) {
+      users.set(userId, new Set());
+    }
+    users.get(userId).add(socket.id);
+    console.log(`User ${userId} registered with socket id ${socket.id}`);
+
+    // Fetch users from the database
+    try {
+      const result = await db.query("SELECT * FROM users");
+      const userList = result.rows.map((user) => ({
+        id: user.id,
+        name: user.fname + " " + user.lname,
+      }));
+
+      io.emit(
+        "users",
+        userList.filter((user) => user.id !== userId)
+      );
+    } catch (error) {
+      console.error("Error fetching users from database:", error);
+    }
+  });
+
+  socket.on("load-messages", async ({ userId, recipientId }) => {
+    try {
+      const result = await db.query(
+        `SELECT * FROM messages WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id =$1) ORDER BY timestamp ASC`,
+        [userId, recipientId]
+      );
+      io.to(socket.id).emit("message-history", result.rows);
+    } catch (err) {
+      console.error("Error loading messaging history:", err);
+    }
+  });
+
+  socket.on("private-message", async ({ recipientId, message, senderId }) => {
+    let savedMessage;
+    try {
+      const result = await db.query(
+        "INSERT INTO messages (sender_id,recipient_id,message) VALUES ($1,$2,$3) RETURNING id, message, sender_id, timestamp",
+        [senderId, recipientId, message]
+      );
+      savedMessage = result.rows[0]; // Correctly assign the first row of the result
+    } catch (err) {
+      console.error("Error saving message to DB:", err);
+      return; // Exit if there's an error
+    }
+
+    const payload = {
+      id: savedMessage.id,
+      message: savedMessage.message,
+      senderId: savedMessage.sender_id, // Ensure you use the correct property name
+      timestamp: savedMessage.timestamp,
+    };
+
+    const recipientSockets = users.get(recipientId);
+    if (recipientSockets) {
+      for (const socketId of recipientSockets) {
+        io.to(socketId).emit("private-message", payload);
+      }
+    }
+  });
+
+  // const senderSockets = users.get(senderId);
+  // if (senderSockets) {
+  //   for (const socketId of senderSockets) {
+  //     io.to(socketId).emit("private-message", payload);
+  //   }
+  // }
+
+  socket.on("disconnect", () => {
+    console.log(`User ${socket.id} disconnected`);
+    for (const [userId, socketSet] of users.entries()) {
+      socketSet.delete(socket.id);
+      if (socketSet.size === 0) {
+        users.delete(userId);
+      }
+    }
+  });
+});
+
+httpServer.listen(port, () => {
   console.log(`Server now listening on port ${port}`);
 });

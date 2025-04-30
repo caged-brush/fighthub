@@ -9,6 +9,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import Home from "./Home";
 import Upload from "./Upload";
 import VideoScreen from "./Video";
+import Message from "./Message";
+import UserListScreen from "./Message";
 const myTabs = createBottomTabNavigator();
 
 export default function Dashboard() {
@@ -31,6 +33,8 @@ export default function Dashboard() {
             iconName = focused ? "add" : "add-outline";
           } else if (route.name === "Video") {
             iconName = focused ? "add" : "add-outline";
+          } else if (route.name === "Inbox") {
+            iconName = focused ? "chatbubble" : "chatbubble-outline";
           }
 
           // Return the Ionicons component with the determined name and color
@@ -46,6 +50,11 @@ export default function Dashboard() {
       <myTabs.Screen
         name="Upload"
         component={Upload}
+        options={{ headerShown: false }}
+      />
+      <myTabs.Screen
+        name="Inbox"
+        component={UserListScreen}
         options={{ headerShown: false }}
       />
       <myTabs.Screen
