@@ -156,7 +156,7 @@ app.post("/register", validateUserInput, async (req, res) => {
   }
 });
 
-const client = new ServerClient("9bf142ca-fc38-478d-8335-2930de26728a");
+const client = new ServerClient(process.env.POSTMARK_TOKEN);
 
 app.post("/mailer", async (req, res) => {
   try {
