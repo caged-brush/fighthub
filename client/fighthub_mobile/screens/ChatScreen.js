@@ -16,6 +16,7 @@ import CustomButton from "../component/CustomButton";
 // Set the URL for your backend server here
 const socket = io("http://10.50.99.238:5001");
 
+
 const ChatScreen = () => {
   const route = useRoute();
   const { recipientId, recipientName } = route.params;
