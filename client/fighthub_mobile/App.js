@@ -73,6 +73,7 @@ function AppNavigator() {
               component={ChatScreen}
               options={({ route }) => ({
                 title: route.params?.recipientName || "Chat",
+                headerBackTitle: "Contacts",
                 headerShown: true,
                 headerStyle: { backgroundColor: "black" },
                 headerTintColor: "white",

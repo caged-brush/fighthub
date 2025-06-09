@@ -5,9 +5,11 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
+  Image,
 } from "react-native";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 const UserListScreen = () => {
   const [users, setUsers] = useState([]);
@@ -33,6 +35,7 @@ const UserListScreen = () => {
   return (
     <View style={styles.container}>
       <FlatList
+      style={styles.listContainer}
         data={users}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
@@ -43,9 +46,29 @@ const UserListScreen = () => {
                 recipientId: item.id,
                 recipientName: item.fname,
               })
-            } // use fname not name
+            }
           >
-            <Text style={styles.userText}>{item.fname}</Text>
+            <View style={styles.userRow}>
+              {item.profile_picture_url ? (
+                <Image
+                  source={{ uri: item.profile_picture_url }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <Ionicons
+                  name="person"
+                  size={40}
+                  color="gray"
+                  style={styles.avatar}
+                />
+              )}
+              <View>
+                <Text style={styles.userText}>{item.fname}</Text>
+                <Text style={styles.lastMessage} numberOfLines={1}>
+                  {item.last_message || "No messages yet."}
+                </Text>
+              </View>
+            </View>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
@@ -59,24 +82,42 @@ const UserListScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor:"black",
     padding: 16,
+  },
+  listContainer:{
+    marginTop:30
+  },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   userItem: {
     padding: 16,
-    backgroundColor: "#f0f0f0",
     borderRadius: 8,
     marginBottom: 12,
   },
   userText: {
     fontSize: 18,
-    color: "#333",
+    color: "white",
   },
   emptyText: {
     marginTop: 20,
     textAlign: "center",
     fontSize: 16,
     color: "gray",
+  },
+  avatar: {
+    width: 50,
+    height: 50,
+    borderRadius: 30,
+    marginRight: 12,
+  },
+  lastMessage: {
+    color: "gray",
+    fontSize: 14,
+    marginTop: 4,
+    maxWidth: 220,
   },
 });
 

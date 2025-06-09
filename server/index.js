@@ -128,6 +128,7 @@ const db = new pg.Client({
 
 db.connect();
 
+
 app.post("/register", validateUserInput, async (req, res) => {
   const { fname, lname, email, password } = req.body;
 
@@ -367,48 +368,67 @@ const upload = multer({ storage });
 app.post("/post", upload.single("media"), async (req, res) => {
   const { user_id, caption } = req.body;
   console.log(req.body, req.file);
+
   if (!req.file) {
     return res.status(400).json({ error: "No media uploaded" });
   }
 
-  // Check if the file is a video
   const fileType = req.file.mimetype.split("/")[0];
-  if (fileType !== "video") {
-    return res.status(400).json({ error: "Uploaded file is not a video" });
+  const inputPath = req.file.path;
+
+  // If it's a video, process with FFmpeg
+  if (fileType === "video") {
+    const outputFilename = `${Date.now()}.mp4`;
+    const outputPath = path.join(uploadDir, outputFilename);
+
+    ffmpeg(inputPath)
+      .output(outputPath)
+      .videoCodec("libx264")
+      .audioCodec("aac")
+      .on("end", async () => {
+        console.log("Video conversion complete:", outputPath);
+
+        // Delete the original video file after conversion
+        fs.unlinkSync(inputPath);
+
+        try {
+          const result = await db.query(
+            "INSERT INTO posts (user_id, media_url, caption) VALUES ($1, $2, $3) RETURNING *",
+            [user_id, `/uploads/${outputFilename}`, caption]
+          );
+          res.status(200).json(result.rows[0]);
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({ error: "Database error" });
+        }
+      })
+      .on("error", (error) => {
+        console.error("FFmpeg error:", error);
+        res.status(500).json({ error: "Video processing failed" });
+      })
+      .run();
   }
 
-  const inputPath = req.file.path;
-  const outputFilename = `${Date.now()}.mp4`;
-  const outputPath = path.join(uploadDir, outputFilename);
+  // If it's an image, no conversion needed — store directly
+  else if (fileType === "image") {
+    try {
+      const result = await db.query(
+        "INSERT INTO posts (user_id, media_url, caption) VALUES ($1, $2, $3) RETURNING *",
+        [user_id, `/uploads/${req.file.filename}`, caption]
+      );
+      res.status(200).json(result.rows[0]);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Database error" });
+    }
+  }
 
-  // Convert the video to MP4 format using FFmpeg
-  ffmpeg(inputPath)
-    .output(outputPath)
-    .videoCodec("libx264") // Set codec to H.264
-    .audioCodec("aac") // Set audio codec
-    .on("end", async () => {
-      console.log("Video conversion complete:", outputPath);
-
-      // Delete the original file after conversion
-      fs.unlinkSync(inputPath);
-
-      try {
-        // Save to database
-        const result = await db.query(
-          "INSERT INTO posts (user_id, media_url, caption) VALUES ($1, $2, $3) RETURNING *",
-          [user_id, `/uploads/${outputFilename}`, caption]
-        );
-        res.status(200).json(result.rows[0]);
-      } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Database error" });
-      }
-    })
-    .on("error", (error) => {
-      console.error("FFmpeg error:", error);
-      res.status(500).json({ error: "Video processing failed" });
-    })
-    .run();
+  // If unsupported type
+  else {
+    // Delete the file
+    fs.unlinkSync(inputPath);
+    return res.status(400).json({ error: "Unsupported media type" });
+  }
 });
 
 app.use("/uploads", express.static("uploads"));
@@ -440,15 +460,38 @@ app.get("/users", async (req, res) => {
 
   try {
     const query = exclude
-      ? "SELECT id, fname FROM users WHERE id != $1"
-      : "SELECT id, fname FROM users";
+      ? `
+        SELECT 
+          u.id, 
+          u.fname, 
+          u.profile_picture_url,
+          (
+            SELECT m.message
+            FROM messages m
+            WHERE 
+              (m.sender_id = u.id AND m.recipient_id = $1)
+              OR (m.sender_id = $1 AND m.recipient_id = u.id)
+            ORDER BY m.timestamp DESC
+            LIMIT 1
+          ) AS last_message
+        FROM users u
+        WHERE u.id != $1
+      `
+      : `
+        SELECT 
+          u.id, 
+          u.fname, 
+          u.profile_picture_url,
+          NULL AS last_message
+        FROM users u
+      `;
 
     const values = exclude ? [exclude] : [];
 
     const { rows } = await db.query(query, values);
     res.json(rows);
   } catch (err) {
-    console.error("Error fetching users:", err);
+    console.error("Error fetching users with last message:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

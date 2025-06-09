@@ -12,10 +12,11 @@ import { format } from "date-fns";
 import io from "socket.io-client";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import Feather from '@expo/vector-icons/Feather';
 
 // Set the URL for your backend server here
 const socket = io("http://10.50.99.238:5001");
-
 
 const ChatScreen = () => {
   const route = useRoute();
@@ -115,7 +116,7 @@ const ChatScreen = () => {
                     : style.receiverBubble
                 }
               >
-                {item.sender}: {item.text}
+                {item.text}
               </Text>
               <Text style={{ fontSize: 10, color: "#FFFFFF", marginTop: 2 }}>
                 {item.timestamp ? format(new Date(item.timestamp), "p") : ""}
@@ -126,7 +127,7 @@ const ChatScreen = () => {
       />
 
       <View
-        style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}
+        style={{ flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom:15 }}
       >
         <TextInput
           value={input}
@@ -143,10 +144,8 @@ const ChatScreen = () => {
             color: "white",
           }}
         />
-
-        <CustomButton onPress={sendMessage}>
-          <Text className="text-white">Send</Text>
-        </CustomButton>
+        <Feather name="send" size={30} color="gray" onPress={sendMessage} />
+       
       </View>
     </View>
   );
