@@ -13,20 +13,39 @@ const Settings = () => {
   });
 
   const handleProfilePictureChange = async () => {
+    const formData = new FormData();
+
+    formData.append("userId", fighterInfo.userId);
+    formData.append("profile_picture", {
+      uri: fighterInfo.profile_url,
+      name: "profile.jpg", // or get name from result.assets[0].fileName
+      type: "image/jpeg", // adjust based on actual type if needed
+    });
+
     try {
       const response = await axios.put(
         "http://10.50.99.238:5001/change-profile-pic",
-        { userId: fighterInfo.userId, profile_url: fighterInfo.profile_url }
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
       );
+
       if (response.data) {
-        // console.log("Profile picture updated:", response.data);
         setFighterInfo((prevState) => ({
           ...prevState,
-          profile_url: response.data.profile_url,
+          profile_url: `http://10.50.99.238:5001/${response.data.users.profile_picture_url}`,
+          // updated URL
         }));
+        console.log(
+          "Updated image URL:",
+          response.data.users.profile_picture_url
+        );
       }
     } catch (error) {
-      console.log(error);
+      console.error("Upload failed:", error.response?.data || error.message);
     }
   };
 
@@ -48,11 +67,12 @@ const Settings = () => {
         ...prevState,
         profile_url: result.assets[0].uri,
       }));
-    //   console.log("Image selected:", result.assets[0].uri);
+      //   console.log("Image selected:", result.assets[0].uri);
     } else {
       console.log("No image was selected");
     }
   };
+
   return (
     <View className="p-6 mt-10">
       <Text className="text-black font-extrabold text-xl">

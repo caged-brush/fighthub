@@ -1,20 +1,25 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { useContext } from "react";
+import React, { useCallback, useEffect, useState, useContext } from "react";
 import {
   Pressable,
   Text,
   View,
   ScrollView,
   RefreshControl,
+  Image,
 } from "react-native";
-import { AuthContext } from "../context/AuthContext";
-import { Image } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import axios from "axios";
-import { createDrawerNavigator } from "@react-navigation/drawer";
+import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 
-const drawer = createDrawerNavigator();
+const isValidUrl = (url) => {
+  return (
+    typeof url === "string" &&
+    url.length > 0 &&
+    (url.startsWith("http://") || url.startsWith("https://"))
+  );
+};
+
 const Profile = () => {
   const { logout, userId } = useContext(AuthContext);
 
@@ -37,13 +42,17 @@ const Profile = () => {
   };
 
   const getUserProfile = async () => {
-    const id = userId;
     try {
       const response = await axios.post(
         "http://10.50.99.238:5001/fighter-info",
-        { userId: id }
+        { userId }
       );
       if (response.data) {
+        const baseUrl = "http://10.50.99.238:5001";
+        const picUrl = response.data.profile_picture_url
+          ? baseUrl + response.data.profile_picture_url
+          : "";
+
         setFighterInfo({
           fname: response.data.fname || "",
           lname: response.data.lname || "",
@@ -53,11 +62,11 @@ const Profile = () => {
           style: response.data.fight_style || "",
           weight: response.data.weight || 0.0,
           height: response.data.height || 0.0,
-          profileUrl: response.data.profile_picture_url,
+          profileUrl: picUrl,
         });
       }
     } catch (error) {
-      console.log(error);
+      console.log("Error fetching user profile:", error);
     }
   };
 
@@ -65,10 +74,9 @@ const Profile = () => {
     getUserProfile();
   }, [userId]);
 
-  // Pull-to-refresh handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await getUserProfile(); // Fetch profile data
+    await getUserProfile();
     setRefreshing(false);
   }, [userId]);
 
@@ -79,7 +87,7 @@ const Profile = () => {
       }
     >
       <View className="flex flex-row p-10 mt-20">
-        {fighterInfo.profileUrl ? (
+        {isValidUrl(fighterInfo.profileUrl) ? (
           <Image
             source={{ uri: fighterInfo.profileUrl }}
             style={{
@@ -106,6 +114,7 @@ const Profile = () => {
             <Ionicons name="person" size={50} color="black" />
           </View>
         )}
+
         <View className="flex flex-col ml-16">
           <Pressable onPress={handleLogout}>
             <Text className="text-red-500">Logout</Text>

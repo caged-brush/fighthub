@@ -128,7 +128,6 @@ const db = new pg.Client({
 
 db.connect();
 
-
 app.post("/register", validateUserInput, async (req, res) => {
   const { fname, lname, email, password } = req.body;
 
@@ -218,51 +217,51 @@ app.post("/login", validateUserInput, async (req, res) => {
   }
 });
 
-app.put("/update-fighter", async (req, res) => {
-  const {
-    userId,
-    dob,
-    weight_class,
-    wins,
-    losses,
-    draws,
-    profile_url,
-    height,
-    weight,
-    fight_style,
-  } = req.body;
+// app.put("/update-fighter", async (req, res) => {
+//   const {
+//     userId,
+//     dob,
+//     weight_class,
+//     wins,
+//     losses,
+//     draws,
+//     profile_url,
+//     height,
+//     weight,
+//     fight_style,
+//   } = req.body;
 
-  try {
-    const result = await db.query(
-      "UPDATE users SET weight_class = $1, date_of_birth = $2, wins = $3, losses = $4, draws = $5, profile_picture_url = $6, height = $7, weight = $8, fight_style =$9 WHERE id = $10 RETURNING *",
-      [
-        weight_class,
-        dob,
-        wins,
-        losses,
-        draws,
-        profile_url,
-        height,
-        weight,
-        fight_style,
-        userId,
-      ]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    } else {
-      res.status(200).json({
-        message: "Fighter details updated successfully",
-        users: result.rows[0],
-      });
-      console.log("Fight info: ", req.body);
-    }
-  } catch (error) {
-    console.log(error);
+//   try {
+//     const result = await db.query(
+//       "UPDATE users SET weight_class = $1, date_of_birth = $2, wins = $3, losses = $4, draws = $5, profile_picture_url = $6, height = $7, weight = $8, fight_style =$9 WHERE id = $10 RETURNING *",
+//       [
+//         weight_class,
+//         dob,
+//         wins,
+//         losses,
+//         draws,
+//         profile_url,
+//         height,
+//         weight,
+//         fight_style,
+//         userId,
+//       ]
+//     );
+//     if (result.rows.length === 0) {
+//       return res.status(404).json({ message: "User not found" });
+//     } else {
+//       res.status(200).json({
+//         message: "Fighter details updated successfully",
+//         users: result.rows[0],
+//       });
+//       console.log("Fight info: ", req.body);
+//     }
+//   } catch (error) {
+//     console.log(error);
 
-    res.status(500).json({ message: "Server error" });
-  }
-});
+//     res.status(500).json({ message: "Server error" });
+//   }
+// });
 
 app.post("/fighter-info", async (req, res) => {
   const { userId } = req.body;
@@ -277,27 +276,27 @@ app.post("/fighter-info", async (req, res) => {
   }
 });
 
-app.put("/change-profile-pic", async (req, res) => {
-  const { profile_url, userId } = req.body;
-  try {
-    const result = await db.query(
-      "UPDATE users SET profile_picture_url=$1 WHERE id=$2 RETURNING *",
-      [profile_url, userId]
-    );
-    if (result.rows.length === 0) {
-      res.status(404).json({
-        message: "User not found",
-      });
-    } else {
-      res.status(200).json({
-        message: "Image changes successfully",
-        users: result.rows[0],
-      });
-    }
-  } catch (error) {
-    console.log(error);
-  }
-});
+// app.put("/change-profile-pic", async (req, res) => {
+//   const { profile_url, userId } = req.body;
+//   try {
+//     const result = await db.query(
+//       "UPDATE users SET profile_picture_url=$1 WHERE id=$2 RETURNING *",
+//       [profile_url, userId]
+//     );
+//     if (result.rows.length === 0) {
+//       res.status(404).json({
+//         message: "User not found",
+//       });
+//     } else {
+//       res.status(200).json({
+//         message: "Image changes successfully",
+//         users: result.rows[0],
+//       });
+//     }
+//   } catch (error) {
+//     console.log(error);
+//   }
+// });
 
 const transport = nodemailer.createTransport({
   host: "smtp.gmail.com",
@@ -365,6 +364,92 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png/;
+  const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mime = allowedTypes.test(file.mimetype);
+  if (ext && mime) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only image files are allowed!"));
+  }
+};
+
+// Use multer middleware to handle single file upload with field name "profile_picture"
+// Backend (change-profile-pic endpoint)
+app.put(
+  "/change-profile-pic",
+  upload.single("profile_picture"),
+  async (req, res) => {
+    const userId = req.body.userId; // still accessible via req.body with multer
+    const profile_url = req.file ? `/uploads/${req.file.filename}` : null;
+    // Full URL
+
+    if (!userId || !profile_url) {
+      return res
+        .status(400)
+        .json({ message: "userId and profile_picture are required" });
+    }
+
+    try {
+      const result = await db.query(
+        "UPDATE users SET profile_picture_url = $1 WHERE id = $2 RETURNING *",
+        [profile_url, userId]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      res.status(200).json({
+        message: "Image changed successfully",
+        users: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Error updating profile picture:", error);
+      res.status(500).json({ message: "Server error" });
+    }
+  }
+);
+
+// Backend (fighter-info endpoint)
+app.post("/fighter-info", async (req, res) => {
+  const { userId } = req.body;
+
+  try {
+    const result = await db.query("SELECT * FROM users WHERE id = $1", [
+      userId,
+    ]);
+
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      const profilePictureUrl = user.profile_picture_url
+        ? `http://10.50.99.238:5001${user.profile_picture_url}`
+        : null; // Full URL
+
+      const fighterInfo = {
+        fname: user.first_name,
+        lname: user.last_name,
+        wins: user.wins,
+        losses: user.losses,
+        draws: user.draws,
+        fight_style: user.fight_style,
+        weight: user.weight,
+        height: user.height,
+        profile_picture_url: profilePictureUrl,
+      };
+
+      res.status(200).json(fighterInfo);
+    } else {
+      res.status(404).json({ message: "User not found" });
+    }
+  } catch (error) {
+    console.error("Error fetching fighter info:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 app.post("/post", upload.single("media"), async (req, res) => {
   const { user_id, caption } = req.body;
   console.log(req.body, req.file);

@@ -6,10 +6,13 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  TouchableOpacity,
+  StyleSheet,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import axios from "axios";
 import { StatusBar } from "expo-status-bar";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 const VideoPost = ({ mediaUri }) => {
   const player = useVideoPlayer(mediaUri, (player) => {
@@ -17,12 +20,12 @@ const VideoPost = ({ mediaUri }) => {
   });
 
   return (
-    <View style={{ width: "100%", height: 300 }}>
+    <View style={{ width: "100%", height: 350, backgroundColor: "black" }}>
       <VideoView
         player={player}
-        style={{ width: "100%", height: 300 }}
+        style={{ width: "100%", height: 350 }}
         useNativeControls
-        resizeMode="contain"
+        resizeMode="cover"
         onError={(error) => console.log("Video Error:", error)}
         onLoadStart={() => console.log("Loading video...")}
         onLoad={() => console.log("Video loaded successfully")}
@@ -51,15 +54,11 @@ const Home = () => {
         (newPost) =>
           !posts.some((existingPost) => existingPost.id === newPost.id)
       );
-      setPosts((prevPosts) => [...newPosts, ...prevPosts]);
+      setPosts((prevPosts) => [...prevPosts, ...newPosts]);
       if (response.data.length < 10) {
         setHasMore(false);
       }
-
-      // Fetch user profiles for the new posts
-      newPosts.forEach((post) => {
-        getUserProfile(post.user_id);
-      });
+      newPosts.forEach((post) => getUserProfile(post.user_id));
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
@@ -77,10 +76,7 @@ const Home = () => {
       );
       setPosts(response.data);
       setHasMore(response.data.length === 10);
-      // Fetch user profiles for the refreshed posts
-      response.data.forEach((post) => {
-        getUserProfile(post.user_id);
-      });
+      response.data.forEach((post) => getUserProfile(post.user_id));
     } catch (error) {
       console.error("Error refreshing posts:", error);
     } finally {
@@ -89,26 +85,21 @@ const Home = () => {
   };
 
   const getUserProfile = async (userId) => {
-    if (userProfiles[userId]) return; // If profile is already fetched, don't fetch again
+    if (userProfiles[userId]) return;
     try {
       const response = await axios.post(
         "http://10.50.99.238:5001/fighter-info",
         { userId }
       );
-      console.log(`Fetched profile for userId ${userId}:`, response.data);
       if (response.data) {
         setUserProfiles((prevProfiles) => ({
           ...prevProfiles,
           [userId]: {
             fname: response.data.fname || "",
             lname: response.data.lname || "",
-            wins: response.data.wins || 0.0,
-            losses: response.data.losses || 0.0,
-            draws: response.data.draws || 0.0,
-            style: response.data.fight_style || "",
-            weight: response.data.weight || 0.0,
-            height: response.data.height || 0.0,
-            profileUrl: response.data.profile_picture_url,
+            profileUrl: response.data.profile_picture_url
+              ? `http://10.50.99.238:5001${response.data.profile_picture_url}`
+              : null,
           },
         }));
       }
@@ -125,7 +116,7 @@ const Home = () => {
     try {
       new URL(url);
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   };
@@ -133,40 +124,34 @@ const Home = () => {
   const renderPost = ({ item }) => {
     const mediaUri = `http://10.50.99.238:5001${item.media_url}`;
     const profile = userProfiles[item.user_id];
-    // console.log(profile);
 
     return (
-      <View
-        style={{
-          padding: 20,
-          borderBottomWidth: 1,
-          marginTop: 10,
-          borderBottomColor: "#ccc",
-        }}
-      >
-        {/* <Text style={{ color: "white" }}>{item.user_id}</Text> */}
-        <View
-          style={{ flexDirection: "row", alignItems: "center", marginTop: 20 }}
-        >
-          {profile?.profileUrl && (
+      <View style={styles.postCard}>
+        {/* Header: Profile Pic + Username + Options */}
+        <View style={styles.postHeader}>
+          {profile?.profileUrl && isValidUrl(profile.profileUrl) ? (
             <Image
-              source={{ uri: profile.profileUrl }}
-              style={{
-                width: 50,
-                height: 50,
-                borderRadius: 25, // Half of width/height for a perfect circle
-                marginRight: 10, // Space between image and text
-              }}
+              source={{ uri: `${profile.profileUrl}?t=${Date.now()}` }}
+              style={styles.profilePic}
               resizeMode="cover"
             />
+          ) : (
+            <Ionicons
+              name="person-circle-outline"
+              size={50}
+              color="#ff3b30"
+              style={{ marginRight: 10 }}
+            />
           )}
-          {profile?.fname && (
-            <Text style={{ color: "white", fontSize: 16, fontWeight: "bold" }}>
-              {profile.fname} {profile.lname}
-            </Text>
-          )}
+          <Text style={styles.username}>
+            {profile?.fname} {profile?.lname}
+          </Text>
+          <TouchableOpacity style={{ marginLeft: "auto" }}>
+            <Ionicons name="ellipsis-horizontal" size={24} color="#ff3b30" />
+          </TouchableOpacity>
         </View>
 
+        {/* Media */}
         {item.media_url &&
         item.media_url.endsWith(".mp4") &&
         isValidUrl(mediaUri) ? (
@@ -174,14 +159,39 @@ const Home = () => {
         ) : item.media_url && isValidUrl(mediaUri) ? (
           <Image
             source={{ uri: mediaUri }}
-            style={{ width: "100%", height: 200, marginVertical: 10 }}
-            resizeMode="contain"
+            style={styles.postImage}
+            resizeMode="cover"
           />
         ) : (
-          <Text>Invalid media URL</Text>
+          <Text style={{ color: "#666", padding: 10 }}>Invalid media URL</Text>
         )}
 
-        <Text style={{ color: "white" }}>{item.caption}</Text>
+        {/* Actions (like, comment, share) */}
+        <View style={styles.actionsRow}>
+          <Ionicons
+            name="heart-outline"
+            size={28}
+            color="#ff3b30"
+            style={{ marginRight: 15 }}
+          />
+          <Ionicons
+            name="chatbubble-outline"
+            size={28}
+            color="#ff3b30"
+            style={{ marginRight: 15 }}
+          />
+          <Ionicons name="paper-plane-outline" size={28} color="#ff3b30" />
+        </View>
+
+        {/* Caption */}
+        <View style={styles.captionContainer}>
+          <Text style={styles.caption}>{item.caption}</Text>
+        </View>
+
+        {/* Timestamp */}
+        <Text style={styles.timestamp}>
+          {new Date(item.created_at).toLocaleString()}
+        </Text>
       </View>
     );
   };
@@ -193,9 +203,9 @@ const Home = () => {
   }, [loading, hasMore]);
 
   return (
-    <View style={{ flex: 1, padding: 20, backgroundColor: "black" }}>
+    <View style={styles.container}>
       {Platform.OS === "ios" ? (
-        <StatusBar style="light" backgroundColor="black" />
+        <StatusBar style="light" />
       ) : (
         <StatusBar style="light" />
       )}
@@ -206,13 +216,76 @@ const Home = () => {
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
-          loading ? <ActivityIndicator size="large" color="gray" /> : null
+          loading ? <ActivityIndicator size="large" color="#aaa" /> : null
         }
         onRefresh={handleRefresh}
         refreshing={refreshing}
+        showsVerticalScrollIndicator={false}
       />
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000", // black background
+    paddingHorizontal: 10,
+    paddingVertical:20
+  },
+  postCard: {
+    backgroundColor: "#111", // dark card
+    marginVertical: 10,
+    borderRadius: 10,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  postHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+  },
+  profilePic: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    marginRight: 10,
+    backgroundColor: "#333",
+  },
+  username: {
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#fff", // white username text
+  },
+  caption: {
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#fff", // white username text
+  },
+  postImage: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#222",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  captionContainer: {
+    paddingHorizontal: 10,
+    paddingBottom: 8,
+  },
+
+  timestamp: {
+    color: "#aaa",
+    fontSize: 12,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+});
 
 export default Home;
