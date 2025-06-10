@@ -516,6 +516,28 @@ app.post("/post", upload.single("media"), async (req, res) => {
   }
 });
 
+app.post("/like", async (req, res) => {
+  const { user_id, post_id } = req.body;
+
+  try {
+    const existingResult = await db.query(
+      "SELECT * from likes WHERE user_id=$1 and post_id=$2",
+      [user_id, post_id]
+    );
+    if (existingResult.rows.length > 0) {
+      return res.status(200).json({ message: "Post already liked" });
+    }
+
+    await db.query("INSERT into likes (user_id,post_id) VALUES ($1,$2)", [
+      user_id,
+      post_id,
+    ]);
+    return res.status(200).json({ message: "Post liked successfully" });
+  } catch (error) {
+    console.error(error);
+  }
+});
+
 app.use("/uploads", express.static("uploads"));
 
 // Express route for fetching paginated posts
