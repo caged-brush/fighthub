@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import axios from "axios";
 import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { AuthContext } from "../context/AuthContext";
 
 const VideoPost = ({ mediaUri }) => {
   const player = useVideoPlayer(mediaUri, (player) => {
@@ -41,6 +42,8 @@ const Home = () => {
   const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [userProfiles, setUserProfiles] = useState({});
+  const { userId } = useContext(AuthContext);
+  const [likedPosts, setLikedPosts] = useState({});
 
   const fetchPosts = async () => {
     if (loading) return;
@@ -112,6 +115,60 @@ const Home = () => {
     fetchPosts();
   }, [page]);
 
+  const handleLike = async (postId) => {
+    //console.log("user_id:", userId, "post id:", postId);
+    const isLiked = likedPosts[postId];
+
+    try {
+      if (isLiked) {
+        await axios.post(`http://10.50.99.238:5001/unlike`, {
+          userId,
+          postId,
+        });
+      } else {
+        await axios.post(`http://10.50.99.238:5001/like`, {
+          userId,
+          postId,
+        });
+      }
+
+      setLikedPosts((prev) => ({
+        ...prev,
+        [postId]: !isLiked,
+      }));
+
+      //console.log(response.data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    const fetchLikedPosts = async () => {
+      try {
+        const response = await axios.post(
+          "http://10.50.99.238:5001/liked-posts",
+          {
+            userId,
+          }
+        );
+
+        const likedMap = {};
+        response.data.likedPostIds.forEach((postId) => {
+          likedMap[postId] = true;
+        });
+
+        setLikedPosts(likedMap);
+      } catch (error) {
+        console.error("Error fetching liked posts:", error);
+      }
+    };
+
+    if (userId) {
+      fetchLikedPosts();
+    }
+  }, [userId]);
+
   const isValidUrl = (url) => {
     try {
       new URL(url);
@@ -168,12 +225,15 @@ const Home = () => {
 
         {/* Actions (like, comment, share) */}
         <View style={styles.actionsRow}>
-          <Ionicons
-            name="heart-outline"
-            size={28}
-            color="#ff3b30"
-            style={{ marginRight: 15 }}
-          />
+          <TouchableOpacity onPress={() => handleLike(item.id)}>
+            <Ionicons
+              name={likedPosts[item.id] ? "heart" : "heart-outline"}
+              size={28}
+              color="#ff3b30"
+              style={{ marginRight: 15 }}
+            />
+          </TouchableOpacity>
+
           <Ionicons
             name="chatbubble-outline"
             size={28}
@@ -231,7 +291,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000", // black background
     paddingHorizontal: 10,
-    paddingVertical:20
+    paddingVertical: 20,
   },
   postCard: {
     backgroundColor: "#111", // dark card

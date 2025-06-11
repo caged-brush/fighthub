@@ -36,6 +36,8 @@ app.use(
   })
 );
 
+app.use(express.json());
+
 const httpServer = new createServer(app);
 const io = new Server(httpServer, {
   cors: {
@@ -517,24 +519,60 @@ app.post("/post", upload.single("media"), async (req, res) => {
 });
 
 app.post("/like", async (req, res) => {
-  const { user_id, post_id } = req.body;
+  const { userId, postId } = req.body;
+  //console.log(userId, postId);
 
   try {
     const existingResult = await db.query(
       "SELECT * from likes WHERE user_id=$1 and post_id=$2",
-      [user_id, post_id]
+      [userId, postId]
     );
     if (existingResult.rows.length > 0) {
       return res.status(200).json({ message: "Post already liked" });
     }
 
     await db.query("INSERT into likes (user_id,post_id) VALUES ($1,$2)", [
-      user_id,
-      post_id,
+      userId,
+      postId,
     ]);
     return res.status(200).json({ message: "Post liked successfully" });
   } catch (error) {
     console.error(error);
+  }
+});
+
+app.post("/unlike", async (req, res) => {
+  const { userId, postId } = req.body;
+  console.log("userID:", userId, "postId:", postId);
+
+  try {
+    const check = await db.query(
+      "DELETE FROM likes WHERE user_id=$1 AND post_id=$2 RETURNING *",
+      [userId, postId]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: "No post to unlike" });
+    }
+    return res.status(200).json({ message: "Post unliked successfully" });
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+app.post("/liked-posts", async (req, res) => {
+  const { userId } = req.body;
+
+  try {
+    const result = await db.query(
+      "SELECT post_id FROM likes WHERE user_id = $1",
+      [userId]
+    );
+
+    const likedPostIds = result.rows.map((row) => row.post_id);
+    res.json({ likedPostIds });
+  } catch (error) {
+    console.error("Error fetching liked posts:", error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
