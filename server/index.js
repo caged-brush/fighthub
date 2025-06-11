@@ -559,6 +559,58 @@ app.post("/unlike", async (req, res) => {
   }
 });
 
+app.post("/like-count", async (req, res) => {
+  const { postId } = req.body;
+  console.log(postId);
+
+  try {
+    const result = await db.query(
+      "SELECT COUNT(*) FROM likes WHERE post_id=$1",
+      [postId]
+    );
+
+    const likeCount = parseInt(result.rows[0].count, 10);
+    return res.status(200).json({ likes: likeCount });
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+app.post("/like-counts", async (req, res) => {
+  const { postIds } = req.body; // expects an array of post IDs
+  console.log("Batch postIds:", postIds);
+
+  if (!Array.isArray(postIds) || postIds.length === 0) {
+    return res.status(400).json({ error: "postIds must be a non-empty array" });
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT post_id, COUNT(*) AS count
+       FROM likes
+       WHERE post_id = ANY($1)
+       GROUP BY post_id`,
+      [postIds]
+    );
+
+    // Initialize counts to 0 for all requested postIds
+    const counts = {};
+    postIds.forEach((id) => {
+      counts[id] = 0;
+    });
+
+    // Fill counts from query result
+    result.rows.forEach((row) => {
+      counts[row.post_id] = parseInt(row.count, 10);
+    });
+
+    return res.status(200).json(counts);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+});
+
 app.post("/liked-posts", async (req, res) => {
   const { userId } = req.body;
 

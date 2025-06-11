@@ -44,6 +44,7 @@ const Home = () => {
   const [userProfiles, setUserProfiles] = useState({});
   const { userId } = useContext(AuthContext);
   const [likedPosts, setLikedPosts] = useState({});
+  const [likeCounts, setLikeCounts] = useState({});
 
   const fetchPosts = async () => {
     if (loading) return;
@@ -57,11 +58,25 @@ const Home = () => {
         (newPost) =>
           !posts.some((existingPost) => existingPost.id === newPost.id)
       );
-      setPosts((prevPosts) => [...prevPosts, ...newPosts]);
+      // Instead of replacing posts blindly
+      setPosts((prevPosts) => {
+        const existingIds = new Set(prevPosts.map((p) => p.id));
+        const newUniquePosts = response.data.filter(
+          (post) => !existingIds.has(post.id)
+        );
+        return [...prevPosts, ...newUniquePosts];
+      });
+
       if (response.data.length < 10) {
         setHasMore(false);
       }
-      newPosts.forEach((post) => getUserProfile(post.user_id));
+      newPosts.forEach((post) => {
+        getUserProfile(post.user_id);
+      });
+
+      const postIds = response.data.map((post) => post.id); // All posts, not just new
+
+      fetchBatchLikes(postIds);
     } catch (error) {
       console.error("Error fetching posts:", error);
     } finally {
@@ -69,6 +84,13 @@ const Home = () => {
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (posts.length > 0) {
+      const postIds = posts.map((post) => post.id);
+      fetchBatchLikes(postIds);
+    }
+  }, [posts]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -79,7 +101,12 @@ const Home = () => {
       );
       setPosts(response.data);
       setHasMore(response.data.length === 10);
-      response.data.forEach((post) => getUserProfile(post.user_id));
+      response.data.forEach((post) => {
+        getUserProfile(post.user_id);
+      });
+
+      const postIds = response.data.map((post) => post.id);
+      fetchBatchLikes(postIds);
     } catch (error) {
       console.error("Error refreshing posts:", error);
     } finally {
@@ -116,7 +143,6 @@ const Home = () => {
   }, [page]);
 
   const handleLike = async (postId) => {
-    //console.log("user_id:", userId, "post id:", postId);
     const isLiked = likedPosts[postId];
 
     try {
@@ -125,49 +151,71 @@ const Home = () => {
           userId,
           postId,
         });
+
+        setLikeCounts((prev) => ({
+          ...prev,
+          [postId]: Math.max((prev[postId] || 1) - 1, 0),
+        }));
       } else {
         await axios.post(`http://10.50.99.238:5001/like`, {
           userId,
           postId,
         });
+
+        setLikeCounts((prev) => ({
+          ...prev,
+          [postId]: (prev[postId] || 0) + 1,
+        }));
       }
 
       setLikedPosts((prev) => ({
         ...prev,
         [postId]: !isLiked,
       }));
-
-      //console.log(response.data);
     } catch (error) {
       console.error(error);
     }
   };
 
-  useEffect(() => {
-    const fetchLikedPosts = async () => {
-      try {
-        const response = await axios.post(
-          "http://10.50.99.238:5001/liked-posts",
-          {
-            userId,
-          }
-        );
+  const fetchBatchLikes = async (postIds) => {
+    if (!postIds.length) return;
 
-        const likedMap = {};
-        response.data.likedPostIds.forEach((postId) => {
-          likedMap[postId] = true;
-        });
+    try {
+      // Batch fetch like counts
+      const likeCountResp = await axios.post(
+        "http://10.50.99.238:5001/like-counts",
+        { postIds }
+      );
 
-        setLikedPosts(likedMap);
-      } catch (error) {
-        console.error("Error fetching liked posts:", error);
-      }
-    };
+      // Batch fetch liked posts by this user
+      const likedPostsResp = await axios.post(
+        "http://10.50.99.238:5001/liked-posts",
+        { userId, postIds }
+      );
 
-    if (userId) {
-      fetchLikedPosts();
+      // Use response data directly
+      const newLikeCounts = likeCountResp.data || {};
+
+      const likedPostIds = likedPostsResp.data.likedPostIds || [];
+
+      // Map liked posts to boolean object
+      const newLikedPosts = {};
+      likedPostIds.forEach((id) => {
+        newLikedPosts[id] = true;
+      });
+
+      setLikeCounts((prev) => ({ ...prev, ...newLikeCounts }));
+      setLikedPosts((prev) => ({ ...prev, ...newLikedPosts }));
+    } catch (error) {
+      console.error("Error batch fetching likes:", error);
     }
-  }, [userId]);
+  };
+
+  useEffect(() => {
+    if (userId) {
+      fetchPosts();
+    }
+  }, [page, userId]);
 
   const isValidUrl = (url) => {
     try {
@@ -225,14 +273,16 @@ const Home = () => {
 
         {/* Actions (like, comment, share) */}
         <View style={styles.actionsRow}>
-          <TouchableOpacity onPress={() => handleLike(item.id)}>
-            <Ionicons
-              name={likedPosts[item.id] ? "heart" : "heart-outline"}
-              size={28}
-              color="#ff3b30"
-              style={{ marginRight: 15 }}
-            />
-          </TouchableOpacity>
+          <View style={styles.likeContainer}>
+            <TouchableOpacity onPress={() => handleLike(item.id)}>
+              <Ionicons
+                name={likedPosts[item.id] ? "heart" : "heart-outline"}
+                size={28}
+                color="#ff3b30"
+              />
+            </TouchableOpacity>
+            <Text style={styles.likeText}>{likeCounts[item.id] ?? 0}</Text>
+          </View>
 
           <Ionicons
             name="chatbubble-outline"
@@ -272,7 +322,7 @@ const Home = () => {
       <FlatList
         data={posts}
         renderItem={renderPost}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         ListFooterComponent={
@@ -345,6 +395,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     paddingHorizontal: 10,
     paddingBottom: 10,
+  },
+  likeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 20, // spacing from the next icon
+  },
+  likeText: {
+    color: "#fff",
+    fontSize: 14,
+    marginLeft: 6, // space between heart and count
   },
 });
 
