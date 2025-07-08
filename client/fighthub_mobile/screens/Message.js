@@ -20,7 +20,7 @@ const UserListScreen = () => {
     const fetchUsers = async () => {
       try {
         const response = await fetch(
-          `http://10.50.99.238:5001/users?exclude=${userId}`
+          `http://10.50.107.251:5001/users?exclude=${userId}`
         );
         const data = await response.json();
         setUsers(data);

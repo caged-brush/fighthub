@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useContext } from "react";
+import { ip } from "../Constants";
 import {
   Pressable,
   Text,
@@ -11,6 +12,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
+import { useRoute } from "@react-navigation/native";
 
 const isValidUrl = (url) => {
   return (
@@ -21,8 +23,10 @@ const isValidUrl = (url) => {
 };
 
 const Profile = () => {
+  const route = useRoute();
   const { logout, userId } = useContext(AuthContext);
-
+  const profileUserId = route.params?.profileUserId ?? userId;
+  const viewingOwnProfile = profileUserId === userId;
   const [fighterInfo, setFighterInfo] = useState({
     fname: "",
     lname: "",
@@ -35,6 +39,7 @@ const Profile = () => {
     profileUrl: "",
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [showFollow, setShowFollow] = useState(false);
 
   const handleLogout = () => {
     console.log("Logging out");
@@ -43,12 +48,11 @@ const Profile = () => {
 
   const getUserProfile = async () => {
     try {
-      const response = await axios.post(
-        "http://10.50.99.238:5001/fighter-info",
-        { userId }
-      );
+      const response = await axios.post(`${ip}/fighter-info`, {
+        userId: profileUserId || userId,
+      });
       if (response.data) {
-        const baseUrl = "http://10.50.99.238:5001";
+        const baseUrl = ip;
         const picUrl = response.data.profile_picture_url
           ? baseUrl + response.data.profile_picture_url
           : "";
@@ -72,13 +76,13 @@ const Profile = () => {
 
   useEffect(() => {
     getUserProfile();
-  }, [userId]);
+  }, [profileUserId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await getUserProfile();
     setRefreshing(false);
-  }, [userId]);
+  }, [profileUserId]);
 
   return (
     <ScrollView
@@ -116,6 +120,11 @@ const Profile = () => {
         )}
 
         <View className="flex flex-col ml-16">
+          {!viewingOwnProfile && (
+            <CustomButton className="w-96">
+              <Text className="font-bold text-white">Follow</Text>
+            </CustomButton>
+          )}
           <Pressable onPress={handleLogout}>
             <Text className="text-red-500">Logout</Text>
           </Pressable>

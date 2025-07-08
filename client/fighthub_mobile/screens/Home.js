@@ -14,6 +14,7 @@ import axios from "axios";
 import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AuthContext } from "../context/AuthContext";
+import { useNavigation } from "@react-navigation/native";
 
 const VideoPost = ({ mediaUri }) => {
   const player = useVideoPlayer(mediaUri, (player) => {
@@ -46,13 +47,15 @@ const Home = () => {
   const [likedPosts, setLikedPosts] = useState({});
   const [likeCounts, setLikeCounts] = useState({});
 
+  const navigation = useNavigation();
+
   const fetchPosts = async () => {
     if (loading) return;
 
     setLoading(true);
     try {
       const response = await axios.get(
-        `http://10.50.99.238:5001/posts?page=${page}&limit=10`
+        `http://10.50.107.251:5001/posts?page=${page}&limit=10`
       );
       const newPosts = response.data.filter(
         (newPost) =>
@@ -97,7 +100,7 @@ const Home = () => {
     setPage(1);
     try {
       const response = await axios.get(
-        `http://10.50.99.238:5001/posts?page=1&limit=10`
+        `http://10.50.107.251:5001/posts?page=1&limit=10`
       );
       setPosts(response.data);
       setHasMore(response.data.length === 10);
@@ -118,7 +121,7 @@ const Home = () => {
     if (userProfiles[userId]) return;
     try {
       const response = await axios.post(
-        "http://10.50.99.238:5001/fighter-info",
+        "http://10.50.107.251:5001/fighter-info",
         { userId }
       );
       if (response.data) {
@@ -128,7 +131,7 @@ const Home = () => {
             fname: response.data.fname || "",
             lname: response.data.lname || "",
             profileUrl: response.data.profile_picture_url
-              ? `http://10.50.99.238:5001${response.data.profile_picture_url}`
+              ? `http://10.50.107.251:5001${response.data.profile_picture_url}`
               : null,
           },
         }));
@@ -147,7 +150,7 @@ const Home = () => {
 
     try {
       if (isLiked) {
-        await axios.post(`http://10.50.99.238:5001/unlike`, {
+        await axios.post(`http://10.50.107.251:5001/unlike`, {
           userId,
           postId,
         });
@@ -157,7 +160,7 @@ const Home = () => {
           [postId]: Math.max((prev[postId] || 1) - 1, 0),
         }));
       } else {
-        await axios.post(`http://10.50.99.238:5001/like`, {
+        await axios.post(`http://10.50.107.251:5001/like`, {
           userId,
           postId,
         });
@@ -183,13 +186,13 @@ const Home = () => {
     try {
       // Batch fetch like counts
       const likeCountResp = await axios.post(
-        "http://10.50.99.238:5001/like-counts",
+        "http://10.50.107.251:5001/like-counts",
         { postIds }
       );
 
       // Batch fetch liked posts by this user
       const likedPostsResp = await axios.post(
-        "http://10.50.99.238:5001/liked-posts",
+        "http://10.50.107.251:5001/liked-posts",
         { userId, postIds }
       );
 
@@ -227,7 +230,7 @@ const Home = () => {
   };
 
   const renderPost = ({ item }) => {
-    const mediaUri = `http://10.50.99.238:5001${item.media_url}`;
+    const mediaUri = `http://10.50.107.251:5001${item.media_url}`;
     const profile = userProfiles[item.user_id];
 
     return (
@@ -248,9 +251,15 @@ const Home = () => {
               style={{ marginRight: 10 }}
             />
           )}
-          <Text style={styles.username}>
-            {profile?.fname} {profile?.lname}
-          </Text>
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate("Profile", { profileUserId: item.user_id })
+            }
+          >
+            <Text style={styles.username}>
+              {profile?.fname} {profile?.lname}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={{ marginLeft: "auto" }}>
             <Ionicons name="ellipsis-horizontal" size={24} color="#ff3b30" />
           </TouchableOpacity>

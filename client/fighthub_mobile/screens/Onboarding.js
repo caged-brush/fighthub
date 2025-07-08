@@ -109,7 +109,7 @@ const Onboarding = () => {
 
     try {
       const response = await axios.put(
-        "http://10.50.99.238:5001/update-fighter",
+        "http://10.50.107.251:5001/update-fighter",
         {
           weight_class,
           dob,

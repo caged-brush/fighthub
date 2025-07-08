@@ -13,6 +13,7 @@ import Config from "react-native-config";
 import Welcome from "./screens/Welcome";
 import { useFonts } from "expo-font";
 import ChatScreen from "./screens/ChatScreen";
+import Profile from "./screens/Profile";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId } = useContext(AuthContext); // Access AuthContext here
@@ -79,6 +80,7 @@ function AppNavigator() {
                 headerTintColor: "white",
               })}
             />
+            <Stack.Screen name="Profile" component={Profile} />
           </>
         )}
       </Stack.Navigator>

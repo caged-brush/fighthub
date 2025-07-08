@@ -43,9 +43,9 @@ const io = new Server(httpServer, {
   cors: {
     origin: [
       "http://localhost:3000",
-      "http://10.50.99.238:3000",
-      "http://10.50.99.238:8081",
-      "exp://10.50.99.238:8081",
+      "exp://10.50.107.251:3000",
+      "exp://10.50.107.251:8081",
+      "exp://10.50.107.251:8081",
     ],
     methods: ["GET", "POST"],
   },
@@ -55,8 +55,8 @@ const io = new Server(httpServer, {
 //   cors({
 //     origin: [
 //       "http://localhost:3000",
-//       "http://10.50.99.238:3000",
-//       "http://10.50.99.238:8081",
+//       "http://10.50.107.251:3000",
+//       "http://10.50.107.251:8081",
 //       "exp://10.50.99.238:8081",
 //     ],
 //   })
@@ -427,7 +427,7 @@ app.post("/fighter-info", async (req, res) => {
     if (result.rows.length > 0) {
       const user = result.rows[0];
       const profilePictureUrl = user.profile_picture_url
-        ? `http://10.50.99.238:5001${user.profile_picture_url}`
+        ? `http://10.50.107.251:5001${user.profile_picture_url}`
         : null; // Full URL
 
       const fighterInfo = {
