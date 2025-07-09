@@ -15,6 +15,7 @@ import CustomButton from "../component/CustomButton";
 import { useRoute } from "@react-navigation/native";
 import { set } from "date-fns";
 
+// Helper function to check if a URL is valid (for profile images)
 const isValidUrl = (url) => {
   return (
     typeof url === "string" &&
@@ -23,11 +24,15 @@ const isValidUrl = (url) => {
   );
 };
 
+// Profile screen component
 const Profile = () => {
+  // Navigation and authentication context
   const route = useRoute();
   const { logout, userId } = useContext(AuthContext);
+  // Determine which profile is being viewed
   const profileUserId = route.params?.profileUserId ?? userId;
   const viewingOwnProfile = profileUserId === userId;
+  // State for fighter info and UI
   const [fighterInfo, setFighterInfo] = useState({
     fname: "",
     lname: "",
@@ -45,13 +50,16 @@ const Profile = () => {
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
 
+  // Handle user logout
   const handleLogout = () => {
     console.log("Logging out");
     logout();
   };
 
+  // Fetch user profile info, follower/following counts, and follow status
   const getUserProfile = async () => {
     try {
+      // Get fighter info
       const response = await axios.post(`${ip}/fighter-info`, {
         userId: profileUserId || userId,
       });
@@ -74,7 +82,7 @@ const Profile = () => {
         });
       }
 
-      // Fetch follower and following counts
+      // Fetch follower count
       try {
         const followerRes = await axios.post(`${ip}/follower-count`, {
           userId: profileUserId,
@@ -83,6 +91,7 @@ const Profile = () => {
       } catch (err) {
         setFollowerCount(0);
       }
+      // Fetch following count
       try {
         const followingRes = await axios.post(`${ip}/following-count`, {
           userId: profileUserId,
@@ -109,6 +118,7 @@ const Profile = () => {
     }
   };
 
+  // Handle follow action
   const handleFollow = async () => {
     try {
       const response = await axios.post(`${ip}/follow`, {
@@ -132,6 +142,7 @@ const Profile = () => {
     }
   };
 
+  // Handle unfollow action
   const handleUnfollow = async () => {
     try {
       const response = await axios.post(`${ip}/unfollow`, {
@@ -152,23 +163,28 @@ const Profile = () => {
     }
   };
 
+  // Fetch profile info when profileUserId changes
   useEffect(() => {
     getUserProfile();
   }, [profileUserId]);
 
+  // Pull-to-refresh handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await getUserProfile();
     setRefreshing(false);
   }, [profileUserId]);
 
+  // Render profile UI
   return (
     <ScrollView
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
       }
     >
+      {/* Profile image and info row */}
       <View className="flex flex-row p-10 mt-20">
+        {/* Profile picture or default icon */}
         {isValidUrl(fighterInfo.profileUrl) ? (
           <Image
             source={{ uri: fighterInfo.profileUrl }}
@@ -197,32 +213,42 @@ const Profile = () => {
           </View>
         )}
 
+        {/* Profile details */}
         <View className="flex flex-col ml-16">
-          {/* <Pressable onPress={handleLogout}>
-            <Text className="text-red-500">Logout</Text>
-          </Pressable> */}
+          {/* User name */}
           <View className="flex flex-row">
-            <Text className="text-black mr-1">{fighterInfo.fname}</Text>
-            <Text className="text-black">{fighterInfo.lname}</Text>
+            <Text className="text-black mr-1 font-bold">
+              {fighterInfo.fname}
+            </Text>
+            <Text className="text-black font-bold">{fighterInfo.lname}</Text>
           </View>
 
           {/* Follower/Following counts row */}
           <View className="flex flex-row mb-1 mt-1">
-            <Text className="text-black mr-4">{followerCount} Followers</Text>
-            <Text className="text-black">{followingCount} Following</Text>
+            <View className="flex flex-col mb-1 mt-1">
+              <Text className="text-black mr-4 font-bold">Followers</Text>
+              <Text>{followerCount}</Text>
+            </View>
+            <View className="flex flex-col mb-1 mt-1">
+              <Text className="text-black font-bold">Following</Text>
+              <Text>{followingCount}</Text>
+            </View>
           </View>
 
+          {/* Fight stats */}
           <View className="flex flex-row">
             <Text className="text-black">{fighterInfo.wins}-</Text>
             <Text className="text-black">{fighterInfo.losses}-</Text>
             <Text className="text-black">{fighterInfo.draws}</Text>
           </View>
 
+          {/* Additional info */}
           <Text className="text-black">Style: {fighterInfo.style}</Text>
           <Text className="text-black">Weight: {fighterInfo.weight} lbs</Text>
           <Text className="text-black">Height: {fighterInfo.height} cm</Text>
         </View>
       </View>
+      {/* Follow/Unfollow or Edit/Logout buttons */}
       <View className="flex items-center justify-center">
         {!viewingOwnProfile && (
           <CustomButton
