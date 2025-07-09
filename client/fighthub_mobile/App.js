@@ -13,7 +13,7 @@ import Config from "react-native-config";
 import Welcome from "./screens/Welcome";
 import { useFonts } from "expo-font";
 import ChatScreen from "./screens/ChatScreen";
-import Profile from "./screens/Profile";
+import UserProfile from "./screens/UserProfile"; // Import UserProfile
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId } = useContext(AuthContext); // Access AuthContext here
@@ -80,7 +80,21 @@ function AppNavigator() {
                 headerTintColor: "white",
               })}
             />
-            <Stack.Screen name="Profile" component={Profile} />
+            <Stack.Screen
+              name="UserProfile"
+              component={UserProfile}
+              options={{
+                headerBackTitleVisible: false, // hides the "Back" text
+                title: "", // removes title
+                headerTransparent: true, // optional: makes header see-through if needed
+                headerShadowVisible: false, // removes bottom shadow (RN >= 0.70+)
+                headerStyle: {
+                  backgroundColor: "transparent", // or set your own background color
+                  elevation: 0, // Android
+                  shadowOpacity: 0, // iOS
+                },
+              }}
+            />
           </>
         )}
       </Stack.Navigator>

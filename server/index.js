@@ -518,6 +518,98 @@ app.post("/post", upload.single("media"), async (req, res) => {
   }
 });
 
+app.post("/follow", async (req, res) => {
+  const { followerId, followingId } = req.body;
+  console.log("Follower ID:", followerId, "Following ID:", followingId);
+
+  try {
+    const existingFollow = await db.query(
+      "SELECT * FROM followers WHERE follower_id=$1 AND following_id=$2",
+      [followerId, followingId]
+    );
+
+    if (existingFollow.rows.length > 0) {
+      return res.status(200).json({ message: "Already following" });
+    }
+
+    await db.query(
+      "INSERT INTO followers (follower_id, following_id) VALUES ($1, $2)",
+      [followerId, followingId]
+    );
+    return res.status(200).json({ message: "Followed successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Check if a user is following another user
+app.post("/is-following", async (req, res) => {
+  const { followerId, followingId } = req.body;
+  try {
+    const result = await db.query(
+      "SELECT 1 FROM followers WHERE follower_id=$1 AND following_id=$2",
+      [followerId, followingId]
+    );
+    if (result.rows.length > 0) {
+      return res.status(200).json({ isFollowing: true });
+    } else {
+      return res.status(200).json({ isFollowing: false });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Endpoint to get follower count for a user
+app.post("/follower-count", async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const result = await db.query(
+      "SELECT COUNT(*) FROM followers WHERE following_id = $1",
+      [userId]
+    );
+    const count = parseInt(result.rows[0].count, 10);
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Endpoint to get following count for a user
+app.post("/following-count", async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const result = await db.query(
+      "SELECT COUNT(*) FROM followers WHERE follower_id = $1",
+      [userId]
+    );
+    const count = parseInt(result.rows[0].count, 10);
+    res.status(200).json({ count });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.post("/unfollow", async (req, res) => {
+  const { followerId, followingId } = req.body;
+  console.log("Follower ID:", followerId, "Following ID:", followingId);
+
+  try {
+    await db.query(
+      "DELETE FROM followers WHERE follower_id=$1 AND following_id=$2",
+      [followerId, followingId]
+    );
+    res.status(200).json({ message: "Unfollowed successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 app.post("/like", async (req, res) => {
   const { userId, postId } = req.body;
   //console.log(userId, postId);

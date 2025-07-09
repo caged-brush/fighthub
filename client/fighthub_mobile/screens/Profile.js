@@ -13,6 +13,7 @@ import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { useRoute } from "@react-navigation/native";
+import { set } from "date-fns";
 
 const isValidUrl = (url) => {
   return (
@@ -40,6 +41,9 @@ const Profile = () => {
   });
   const [refreshing, setRefreshing] = useState(false);
   const [showFollow, setShowFollow] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   const handleLogout = () => {
     console.log("Logging out");
@@ -69,8 +73,82 @@ const Profile = () => {
           profileUrl: picUrl,
         });
       }
+
+      // Fetch follower and following counts
+      try {
+        const followerRes = await axios.post(`${ip}/follower-count`, {
+          userId: profileUserId,
+        });
+        setFollowerCount(followerRes.data.count || 0);
+      } catch (err) {
+        setFollowerCount(0);
+      }
+      try {
+        const followingRes = await axios.post(`${ip}/following-count`, {
+          userId: profileUserId,
+        });
+        setFollowingCount(followingRes.data.count || 0);
+      } catch (err) {
+        setFollowingCount(0);
+      }
+
+      // Check if current user is following the profile user
+      if (!viewingOwnProfile) {
+        try {
+          const followRes = await axios.post(`${ip}/is-following`, {
+            followerId: userId,
+            followingId: profileUserId,
+          });
+          setIsFollowing(!!followRes.data.isFollowing);
+        } catch (err) {
+          console.log("Error checking follow status:", err);
+        }
+      }
     } catch (error) {
       console.log("Error fetching user profile:", error);
+    }
+  };
+
+  const handleFollow = async () => {
+    try {
+      const response = await axios.post(`${ip}/follow`, {
+        followingId: profileUserId,
+        followerId: userId,
+      });
+
+      if (
+        response.data.message === "Followed successfully" ||
+        response.data.message === "Already following"
+      ) {
+        console.log("Successfully followed user");
+        setIsFollowing(true);
+      } else {
+        console.log("Failed to follow user:", response.data.message);
+        // Handle failure case, e.g., show an alert or a toast message
+      }
+    } catch (error) {
+      console.log("Error following user:", error);
+      // Handle error appropriately, e.g., show an alert or a toast message
+    }
+  };
+
+  const handleUnfollow = async () => {
+    try {
+      const response = await axios.post(`${ip}/unfollow`, {
+        followingId: profileUserId,
+        followerId: userId,
+      });
+
+      if (response.data.message === "Unfollowed successfully") {
+        console.log("Successfully unfollowed user");
+        setIsFollowing(false);
+      } else {
+        console.log("Failed to unfollow user:", response.data.message);
+        // Handle failure case, e.g., show an alert or a toast message
+      }
+    } catch (error) {
+      console.log("Error unfollowing user:", error);
+      // Handle error appropriately, e.g., show an alert or a toast message
     }
   };
 
@@ -120,17 +198,18 @@ const Profile = () => {
         )}
 
         <View className="flex flex-col ml-16">
-          {!viewingOwnProfile && (
-            <CustomButton className="w-96">
-              <Text className="font-bold text-white">Follow</Text>
-            </CustomButton>
-          )}
-          <Pressable onPress={handleLogout}>
+          {/* <Pressable onPress={handleLogout}>
             <Text className="text-red-500">Logout</Text>
-          </Pressable>
+          </Pressable> */}
           <View className="flex flex-row">
             <Text className="text-black mr-1">{fighterInfo.fname}</Text>
             <Text className="text-black">{fighterInfo.lname}</Text>
+          </View>
+
+          {/* Follower/Following counts row */}
+          <View className="flex flex-row mb-1 mt-1">
+            <Text className="text-black mr-4">{followerCount} Followers</Text>
+            <Text className="text-black">{followingCount} Following</Text>
           </View>
 
           <View className="flex flex-row">
@@ -145,12 +224,32 @@ const Profile = () => {
         </View>
       </View>
       <View className="flex items-center justify-center">
-        <CustomButton className="w-96">
-          <Text className="font-bold text-white">Edit profile</Text>
-        </CustomButton>
-        <CustomButton className="w-96" onPress={handleLogout}>
-          <Text className="font-bold text-white">Logout</Text>
-        </CustomButton>
+        {!viewingOwnProfile && (
+          <CustomButton
+            className="w-96"
+            onPress={() => {
+              if (isFollowing) {
+                handleUnfollow();
+              } else {
+                handleFollow();
+              }
+            }}
+          >
+            <Text className="font-bold text-white">
+              {isFollowing ? "Unfollow" : "Follow"}
+            </Text>
+          </CustomButton>
+        )}
+        {viewingOwnProfile && (
+          <>
+            <CustomButton className="w-96">
+              <Text className="font-bold text-white">Edit profile</Text>
+            </CustomButton>
+            <CustomButton className="w-96" onPress={handleLogout}>
+              <Text className="font-bold text-white">Logout</Text>
+            </CustomButton>
+          </>
+        )}
       </View>
     </ScrollView>
   );

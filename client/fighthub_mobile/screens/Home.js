@@ -253,7 +253,7 @@ const Home = () => {
           )}
           <TouchableOpacity
             onPress={() =>
-              navigation.navigate("Profile", { profileUserId: item.user_id })
+              navigation.navigate("UserProfile", { profileUserId: item.user_id })
             }
           >
             <Text style={styles.username}>
