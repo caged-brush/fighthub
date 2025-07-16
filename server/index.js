@@ -594,6 +594,28 @@ app.post("/following-count", async (req, res) => {
   }
 });
 
+app.post("/follower-list", async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const result = await db.query(
+      "SELECT u.id, u.fname, u.lname, u.profile_picture_url FROM followers f JOIN users u ON f.follower_id = u.id WHERE f.following_id = $1",
+      [userId]
+    );
+    const followers = result.rows.map((row) => ({
+      id: row.id,
+      fname: row.fname,
+      lname: row.lname,
+      profile_picture_url: row.profile_picture_url
+        ? `http://10.50.107.1:3000/${row.profile_picture_url}`
+        : null,
+    }));
+    res.status(200).json({ followers });
+  } catch (error) {
+    console.error("Error fetching follower list:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 app.post("/unfollow", async (req, res) => {
   const { followerId, followingId } = req.body;
   console.log("Follower ID:", followerId, "Following ID:", followingId);
@@ -736,6 +758,18 @@ app.get("/posts", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error fetching posts" });
+  }
+});
+
+app.get("/posts/:userId", async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const result = await db.query("SELECT * FROM posts WHERE user_id = $1", [userId]);
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error fetching posts for user:", error);
+    res.status(500).json({ error: "Server error" });
   }
 });
 

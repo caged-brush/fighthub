@@ -7,7 +7,10 @@ import {
   ScrollView,
   RefreshControl,
   Image,
+  Modal,
+  TouchableOpacity,
 } from "react-native";
+import { Video } from "expo-av";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
@@ -49,7 +52,68 @@ const Profile = () => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [userPosts, setUserPosts] = useState([]);
+  // Modal state for post preview
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
+  const [likeError, setLikeError] = useState("");
+  const [postLikes, setPostLikes] = useState(0);
+  const [hasLiked, setHasLiked] = useState(false);
 
+  // Fetch likes for selected post
+  useEffect(() => {
+    const fetchLikes = async () => {
+      if (!selectedPost) return;
+      try {
+        const res = await axios.post(`${ip}/like-count`, {
+          postId: selectedPost.id,
+        });
+        setPostLikes(res.data.likes || 0);
+        // Check if user has liked using /liked-posts
+        const likedRes = await axios.post(`${ip}/liked-posts`, {
+          userId,
+        });
+        const likedPostIds = likedRes.data.likedPostIds || [];
+        setHasLiked(likedPostIds.includes(selectedPost.id));
+      } catch (err) {
+        setPostLikes(0);
+        setHasLiked(false);
+      }
+    };
+    if (modalVisible && selectedPost) {
+      fetchLikes();
+    }
+  }, [modalVisible, selectedPost, userId]);
+
+  // Like/unlike handler
+  const handleLike = async () => {
+    if (!selectedPost) return;
+    setLikeLoading(true);
+    setLikeError("");
+    try {
+      if (hasLiked) {
+        // Unlike
+        await axios.post(`${ip}/unlike`, {
+          userId,
+          postId: selectedPost.id,
+        });
+        setHasLiked(false);
+        setPostLikes((prev) => Math.max(prev - 1, 0));
+      } else {
+        // Like
+        await axios.post(`${ip}/like`, {
+          userId,
+          postId: selectedPost.id,
+        });
+        setHasLiked(true);
+        setPostLikes((prev) => prev + 1);
+      }
+    } catch (err) {
+      setLikeError("Error updating like");
+    }
+    setLikeLoading(false);
+  };
   // Handle user logout
   const handleLogout = () => {
     console.log("Logging out");
@@ -118,6 +182,21 @@ const Profile = () => {
     }
   };
 
+  const getUserPost = async () => {
+    try {
+      const response = await axios.get(`${ip}/posts/${profileUserId}`);
+      // Handle successful response
+      console.log("User posts fetched successfully:", response.data);
+      if (response.data && response.data.length > 0) {
+        console.log("Setting user posts:", response.data);
+
+        setUserPosts(response.data);
+      }
+    } catch (error) {
+      console.log("Error fetching user posts:", error);
+      // Handle error appropriately, e.g., show an alert or a toast message
+    }
+  };
   // Handle follow action
   const handleFollow = async () => {
     try {
@@ -166,6 +245,10 @@ const Profile = () => {
   // Fetch profile info when profileUserId changes
   useEffect(() => {
     getUserProfile();
+  }, [profileUserId]);
+
+  useEffect(() => {
+    getUserPost();
   }, [profileUserId]);
 
   // Pull-to-refresh handler
@@ -276,6 +359,164 @@ const Profile = () => {
             </CustomButton>
           </>
         )}
+      </View>
+
+      {/* User posts section as a grid */}
+      <View className="p-6">
+        <Text className="text-xl font-bold mb-4 text-black">Posts</Text>
+        {userPosts.length === 0 ? (
+          <Text className="text-gray-500">No posts yet.</Text>
+        ) : (
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              justifyContent: "flex-start",
+            }}
+          >
+            {userPosts.map((post) => (
+              <TouchableOpacity
+                key={post.id}
+                style={{
+                  width: "48%",
+                  margin: "1%",
+                  aspectRatio: 1,
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  backgroundColor: "#f3f3f3",
+                }}
+                onPress={() => {
+                  setSelectedPost(post);
+                  setModalVisible(true);
+                }}
+              >
+                {post.media_url &&
+                  (post.media_url.endsWith(".jpg") ||
+                  post.media_url.endsWith(".jpeg") ||
+                  post.media_url.endsWith(".png") ? (
+                    <Image
+                      source={{ uri: ip + post.media_url }}
+                      style={{ width: "100%", height: "100%" }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        backgroundColor: "#222",
+                      }}
+                    >
+                      <Ionicons name="play" size={40} color="#fff" />
+                      <Text style={{ color: "#fff", marginTop: 8 }}>Video</Text>
+                    </View>
+                  ))}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Modal for post preview */}
+        <Modal
+          visible={modalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.8)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <View
+              style={{
+                width: "90%",
+                backgroundColor: "#fff",
+                borderRadius: 12,
+                padding: 16,
+                alignItems: "center",
+              }}
+            >
+              {selectedPost &&
+                selectedPost.media_url &&
+                (selectedPost.media_url.endsWith(".jpg") ||
+                selectedPost.media_url.endsWith(".jpeg") ||
+                selectedPost.media_url.endsWith(".png") ? (
+                  <Image
+                    source={{ uri: ip + selectedPost.media_url }}
+                    style={{
+                      width: 300,
+                      height: 300,
+                      borderRadius: 10,
+                      marginBottom: 12,
+                    }}
+                  />
+                ) : (
+                  <Video
+                    source={{ uri: ip + selectedPost.media_url }}
+                    style={{
+                      width: 300,
+                      height: 300,
+                      borderRadius: 10,
+                      marginBottom: 12,
+                    }}
+                    useNativeControls
+                    resizeMode="contain"
+                    isLooping
+                  />
+                ))}
+              {/* Like button and count */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={handleLike}
+                  disabled={likeLoading}
+                  style={{ marginRight: 10 }}
+                >
+                  <Ionicons
+                    name={hasLiked ? "heart" : "heart-outline"}
+                    size={28}
+                    color={hasLiked ? "#e0245e" : "#222"}
+                  />
+                </TouchableOpacity>
+                <Text style={{ fontWeight: "bold", fontSize: 16 }}>
+                  {postLikes}
+                </Text>
+                {likeError ? (
+                  <Text style={{ color: "red", marginLeft: 8 }}>
+                    {likeError}
+                  </Text>
+                ) : null}
+              </View>
+              <Text
+                style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}
+              >
+                {selectedPost?.caption}
+              </Text>
+              <TouchableOpacity
+                style={{
+                  marginTop: 12,
+                  backgroundColor: "#222",
+                  paddingHorizontal: 24,
+                  paddingVertical: 10,
+                  borderRadius: 8,
+                }}
+                onPress={() => setModalVisible(false)}
+              >
+                <Text style={{ color: "#fff", fontWeight: "bold" }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </ScrollView>
   );
