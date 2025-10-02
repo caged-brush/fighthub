@@ -129,10 +129,14 @@ const Profile = () => {
         userId: profileUserId || userId,
       });
       if (response.data) {
-        const baseUrl = ip;
-        const picUrl = response.data.profile_picture_url
-          ? baseUrl + response.data.profile_picture_url
-          : "";
+        const baseUrl = ip.endsWith("/") ? ip.slice(0, -1) : ip;
+        const picUrl =
+          response.data.profile_picture_url &&
+          typeof response.data.profile_picture_url === "string"
+            ? `${baseUrl}${
+                response.data.profile_picture_url.startsWith("/") ? "" : "/"
+              }${response.data.profile_picture_url}`
+            : "";
 
         setFighterInfo({
           fname: response.data.fname || "",

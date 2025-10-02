@@ -144,7 +144,7 @@ export default function Signup() {
     }
 
     try {
-      const response = await axios.post("http://10.50.99.238:5001/register", {
+      const response = await axios.post("http://10.50.107.251:5001/register", {
         fname,
         lname,
         email,
