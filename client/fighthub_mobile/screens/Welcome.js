@@ -8,7 +8,7 @@ import {
 import React from "react";
 import { useNavigation } from "@react-navigation/native";
 import CustomButton from "../component/CustomButton";
-import Signup from "./Signup";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 const Welcome = () => {
   const navigation = useNavigation();
@@ -16,40 +16,91 @@ const Welcome = () => {
   return (
     <ImageBackground
       source={require("../images/bg_4.jpg")}
-      className="flex-1"
+      style={styles.bg}
       resizeMode="cover"
     >
-      <View className="flex-1 justify-center items-center px-6 mt-80">
-        <Text
-          className=" text-red-700 text-5xl font-bold text-center mb-4"
-          style={style.title}
-        >
-          Fightology!
-        </Text>
-        <Text className="text-white text-center text-base mb-6">
+      <View style={styles.overlay} />
+      <View style={styles.centerBox}>
+        <View style={styles.iconCircle}>
+          <Ionicons name="body-outline" size={60} color="#ffd700" />
+        </View>
+        <Text style={styles.title}>Fighthub</Text>
+        <Text style={styles.subtitle}>
           Take your fighting career to the next level
         </Text>
         <CustomButton
-          className="w-48 py-3 rounded-lg"
+          style={styles.button}
           onPress={() => navigation.navigate("Sign up")}
         >
-          <Text className="text-white font-bold text-center">Start</Text>
+          Start
         </CustomButton>
         <CustomButton
-          className="w-48 py-3 rounded-lg mt-5"
+          style={[styles.button, styles.loginButton]}
           onPress={() => navigation.navigate("Login")}
         >
-          <Text className="text-white font-bold text-center">Login</Text>
+          Login
         </CustomButton>
       </View>
     </ImageBackground>
   );
 };
 
-const style = StyleSheet.create({
+const styles = StyleSheet.create({
+  bg: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(24,24,24,0.65)",
+  },
+  centerBox: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingTop: 60,
+  },
+  iconCircle: {
+    backgroundColor: "#232323",
+    borderRadius: 50,
+    padding: 18,
+    borderWidth: 2,
+    borderColor: "#e0245e",
+    marginBottom: 18,
+  },
   title: {
     fontFamily: "CustomFont2-regular",
-    fontSize: 50,
+    fontSize: 48,
+    color: "#ffd700",
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 10,
+    letterSpacing: 2,
+    textShadowColor: "#e0245e",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 8,
+  },
+  subtitle: {
+    color: "#fff",
+    fontSize: 18,
+    textAlign: "center",
+    marginBottom: 28,
+    fontWeight: "600",
+    letterSpacing: 1,
+    textShadowColor: "#181818",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 4,
+  },
+  button: {
+    width: 180,
+    marginBottom: 16,
+    backgroundColor: "#e0245e",
+  },
+  loginButton: {
+    backgroundColor: "#232323",
+    borderWidth: 2,
+    borderColor: "#ffd700",
   },
 });
 

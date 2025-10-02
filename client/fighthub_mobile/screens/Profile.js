@@ -9,6 +9,8 @@ import {
   Image,
   Modal,
   TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
 } from "react-native";
 import { Video } from "expo-av";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -16,7 +18,6 @@ import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { useRoute } from "@react-navigation/native";
-import { set } from "date-fns";
 
 // Helper function to check if a URL is valid (for profile images)
 const isValidUrl = (url) => {
@@ -260,266 +261,391 @@ const Profile = () => {
 
   // Render profile UI
   return (
-    <ScrollView
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* Profile image and info row */}
-      <View className="flex flex-row p-10 mt-20">
-        {/* Profile picture or default icon */}
-        {isValidUrl(fighterInfo.profileUrl) ? (
-          <Image
-            source={{ uri: fighterInfo.profileUrl }}
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: 50,
-              marginTop: 20,
-            }}
-          />
-        ) : (
-          <View
-            style={{
-              width: 90,
-              height: 90,
-              borderRadius: 50,
-              borderColor: "black",
-              borderWidth: 2,
-              justifyContent: "center",
-              alignItems: "center",
-              marginTop: 20,
-              marginBottom: 20,
-            }}
-          >
-            <Ionicons name="person" size={50} color="black" />
-          </View>
-        )}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Profile image and info row */}
+        <View style={styles.fighterCard}>
+          {/* Profile picture or default icon */}
+          {isValidUrl(fighterInfo.profileUrl) ? (
+            <Image
+              source={{ uri: fighterInfo.profileUrl }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <View style={styles.defaultIcon}>
+              <Ionicons name="body-outline" size={70} color="#ffd700" />
+            </View>
+          )}
 
-        {/* Profile details */}
-        <View className="flex flex-col ml-16">
-          {/* User name */}
-          <View className="flex flex-row">
-            <Text className="text-black mr-1 font-bold">
-              {fighterInfo.fname}
+          <View style={styles.profileDetails}>
+            <Text style={styles.fighterName}>
+              {fighterInfo.fname} {fighterInfo.lname}
             </Text>
-            <Text className="text-black font-bold">{fighterInfo.lname}</Text>
-          </View>
-
-          {/* Follower/Following counts row */}
-          <View className="flex flex-row mb-1 mt-1">
-            <View className="flex flex-col mb-1 mt-1">
-              <Text className="text-black mr-4 font-bold">Followers</Text>
-              <Text>{followerCount}</Text>
+            <View style={styles.fightStatsRow}>
+              <View style={styles.fightStat}>
+                <Text style={styles.fightStatText}>{fighterInfo.wins}W</Text>
+              </View>
+              <View style={styles.fightStat}>
+                <Text style={styles.fightStatText}>{fighterInfo.losses}L</Text>
+              </View>
+              <View style={styles.fightStat}>
+                <Text style={styles.fightStatText}>{fighterInfo.draws}D</Text>
+              </View>
             </View>
-            <View className="flex flex-col mb-1 mt-1">
-              <Text className="text-black font-bold">Following</Text>
-              <Text>{followingCount}</Text>
+            <Text style={styles.infoText}>Style: {fighterInfo.style}</Text>
+            <Text style={styles.infoText}>
+              Weight: {fighterInfo.weight} lbs
+            </Text>
+            <Text style={styles.infoText}>Height: {fighterInfo.height} cm</Text>
+            <View style={styles.statsRow}>
+              <View style={styles.statsCol}>
+                <Text style={styles.statsLabel}>Followers</Text>
+                <Text style={styles.statsValue}>{followerCount}</Text>
+              </View>
+              <View style={styles.statsCol}>
+                <Text style={styles.statsLabel}>Following</Text>
+                <Text style={styles.statsValue}>{followingCount}</Text>
+              </View>
             </View>
           </View>
-
-          {/* Fight stats */}
-          <View className="flex flex-row">
-            <Text className="text-black">{fighterInfo.wins}-</Text>
-            <Text className="text-black">{fighterInfo.losses}-</Text>
-            <Text className="text-black">{fighterInfo.draws}</Text>
-          </View>
-
-          {/* Additional info */}
-          <Text className="text-black">Style: {fighterInfo.style}</Text>
-          <Text className="text-black">Weight: {fighterInfo.weight} lbs</Text>
-          <Text className="text-black">Height: {fighterInfo.height} cm</Text>
         </View>
-      </View>
-      {/* Follow/Unfollow or Edit/Logout buttons */}
-      <View className="flex items-center justify-center">
-        {!viewingOwnProfile && (
-          <CustomButton
-            className="w-96"
-            onPress={() => {
-              if (isFollowing) {
-                handleUnfollow();
-              } else {
-                handleFollow();
-              }
-            }}
-          >
-            <Text className="font-bold text-white">
-              {isFollowing ? "Unfollow" : "Follow"}
-            </Text>
-          </CustomButton>
-        )}
-        {viewingOwnProfile && (
-          <>
-            <CustomButton className="w-96">
-              <Text className="font-bold text-white">Edit profile</Text>
-            </CustomButton>
-            <CustomButton className="w-96" onPress={handleLogout}>
-              <Text className="font-bold text-white">Logout</Text>
-            </CustomButton>
-          </>
-        )}
-      </View>
-
-      {/* User posts section as a grid */}
-      <View className="p-6">
-        <Text className="text-xl font-bold mb-4 text-black">Posts</Text>
-        {userPosts.length === 0 ? (
-          <Text className="text-gray-500">No posts yet.</Text>
-        ) : (
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              justifyContent: "flex-start",
-            }}
-          >
-            {userPosts.map((post) => (
-              <TouchableOpacity
-                key={post.id}
-                style={{
-                  width: "48%",
-                  margin: "1%",
-                  aspectRatio: 1,
-                  borderRadius: 10,
-                  overflow: "hidden",
-                  backgroundColor: "#f3f3f3",
-                }}
-                onPress={() => {
-                  setSelectedPost(post);
-                  setModalVisible(true);
-                }}
-              >
-                {post.media_url &&
-                  (post.media_url.endsWith(".jpg") ||
-                  post.media_url.endsWith(".jpeg") ||
-                  post.media_url.endsWith(".png") ? (
-                    <Image
-                      source={{ uri: ip + post.media_url }}
-                      style={{ width: "100%", height: "100%" }}
-                    />
-                  ) : (
-                    <View
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        backgroundColor: "#222",
-                      }}
-                    >
-                      <Ionicons name="play" size={40} color="#fff" />
-                      <Text style={{ color: "#fff", marginTop: 8 }}>Video</Text>
-                    </View>
-                  ))}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Modal for post preview */}
-        <Modal
-          visible={modalVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setModalVisible(false)}
-        >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.8)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <View
-              style={{
-                width: "90%",
-                backgroundColor: "#fff",
-                borderRadius: 12,
-                padding: 16,
-                alignItems: "center",
+        {/* Follow/Unfollow or Edit/Logout buttons */}
+        <View style={styles.buttonContainer}>
+          {!viewingOwnProfile && (
+            <CustomButton
+              style={{ width: "90%" }}
+              onPress={() => {
+                if (isFollowing) {
+                  handleUnfollow();
+                } else {
+                  handleFollow();
+                }
               }}
             >
-              {selectedPost &&
-                selectedPost.media_url &&
-                (selectedPost.media_url.endsWith(".jpg") ||
-                selectedPost.media_url.endsWith(".jpeg") ||
-                selectedPost.media_url.endsWith(".png") ? (
-                  <Image
-                    source={{ uri: ip + selectedPost.media_url }}
-                    style={{
-                      width: 300,
-                      height: 300,
-                      borderRadius: 10,
-                      marginBottom: 12,
-                    }}
-                  />
-                ) : (
-                  <Video
-                    source={{ uri: ip + selectedPost.media_url }}
-                    style={{
-                      width: 300,
-                      height: 300,
-                      borderRadius: 10,
-                      marginBottom: 12,
-                    }}
-                    useNativeControls
-                    resizeMode="contain"
-                    isLooping
-                  />
-                ))}
-              {/* Like button and count */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <TouchableOpacity
-                  onPress={handleLike}
-                  disabled={likeLoading}
-                  style={{ marginRight: 10 }}
-                >
-                  <Ionicons
-                    name={hasLiked ? "heart" : "heart-outline"}
-                    size={28}
-                    color={hasLiked ? "#e0245e" : "#222"}
-                  />
-                </TouchableOpacity>
-                <Text style={{ fontWeight: "bold", fontSize: 16 }}>
-                  {postLikes}
-                </Text>
-                {likeError ? (
-                  <Text style={{ color: "red", marginLeft: 8 }}>
-                    {likeError}
-                  </Text>
-                ) : null}
-              </View>
-              <Text
-                style={{ fontWeight: "bold", fontSize: 18, marginBottom: 8 }}
-              >
-                {selectedPost?.caption}
+              <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                {isFollowing ? "Unfollow" : "Follow"}
               </Text>
-              <TouchableOpacity
-                style={{
-                  marginTop: 12,
-                  backgroundColor: "#222",
-                  paddingHorizontal: 24,
-                  paddingVertical: 10,
-                  borderRadius: 8,
-                }}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={{ color: "#fff", fontWeight: "bold" }}>Close</Text>
-              </TouchableOpacity>
+            </CustomButton>
+          )}
+          {viewingOwnProfile && (
+            <>
+              <CustomButton style={{ width: "90%" }}>
+                <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                  Edit profile
+                </Text>
+              </CustomButton>
+              <CustomButton style={{ width: "90%" }} onPress={handleLogout}>
+                <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                  Logout
+                </Text>
+              </CustomButton>
+            </>
+          )}
+        </View>
+
+        {/* User posts section as a grid */}
+        <View style={styles.postsSection}>
+          <Text style={styles.postsTitle}>Posts</Text>
+          {userPosts.length === 0 ? (
+            <Text style={styles.noPostsText}>No posts yet.</Text>
+          ) : (
+            <View style={styles.postsGrid}>
+              {userPosts.map((post) => (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.postItem}
+                  onPress={() => {
+                    setSelectedPost(post);
+                    setModalVisible(true);
+                  }}
+                >
+                  {post.media_url &&
+                    (post.media_url.endsWith(".jpg") ||
+                    post.media_url.endsWith(".jpeg") ||
+                    post.media_url.endsWith(".png") ? (
+                      <Image
+                        source={{ uri: ip + post.media_url }}
+                        style={{ width: "100%", height: "100%" }}
+                      />
+                    ) : (
+                      <View style={styles.postVideoPreview}>
+                        <Ionicons name="play" size={40} color="#fff" />
+                        <Text style={{ color: "#fff", marginTop: 8 }}>
+                          Video
+                        </Text>
+                      </View>
+                    ))}
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
-        </Modal>
-      </View>
-    </ScrollView>
+          )}
+
+          {/* Modal for post preview */}
+          <Modal
+            visible={modalVisible}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                {selectedPost &&
+                  selectedPost.media_url &&
+                  (selectedPost.media_url.endsWith(".jpg") ||
+                  selectedPost.media_url.endsWith(".jpeg") ||
+                  selectedPost.media_url.endsWith(".png") ? (
+                    <Image
+                      source={{ uri: ip + selectedPost.media_url }}
+                      style={styles.modalImage}
+                    />
+                  ) : (
+                    <Video
+                      source={{ uri: ip + selectedPost.media_url }}
+                      style={styles.modalVideo}
+                      useNativeControls
+                      resizeMode="contain"
+                      isLooping
+                    />
+                  ))}
+                {/* Like button and count */}
+                <View style={styles.likeRow}>
+                  <TouchableOpacity
+                    onPress={handleLike}
+                    disabled={likeLoading}
+                    style={{ marginRight: 10 }}
+                  >
+                    <Ionicons
+                      name={hasLiked ? "heart" : "heart-outline"}
+                      size={28}
+                      color={hasLiked ? "#e0245e" : "#222"}
+                    />
+                  </TouchableOpacity>
+                  <Text style={styles.likeCount}>{postLikes}</Text>
+                  {likeError ? (
+                    <Text style={styles.likeError}>{likeError}</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.modalCaption}>{selectedPost?.caption}</Text>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.closeButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#181818",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: "#181818", // dark, energetic background
+  },
+  fighterCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#232323",
+    borderRadius: 18,
+    margin: 18,
+    padding: 18,
+    borderWidth: 2,
+    borderColor: "#e0245e", // Fighthub red
+    shadowColor: "#e0245e",
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  profileImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#444",
+    borderWidth: 3,
+    borderColor: "#ffd700", // gold accent
+  },
+  defaultIcon: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: "#444",
+    borderWidth: 3,
+    borderColor: "#ffd700",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  profileDetails: {
+    flex: 1,
+    marginLeft: 22,
+    justifyContent: "center",
+  },
+  fighterName: {
+    color: "#ffd700",
+    fontWeight: "bold",
+    fontSize: 28,
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  fightStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  fightStat: {
+    backgroundColor: "#e0245e",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    marginRight: 10,
+  },
+  fightStatText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 18,
+    letterSpacing: 1,
+  },
+  infoText: {
+    color: "#fff",
+    fontSize: 15,
+    marginBottom: 2,
+    fontWeight: "500",
+  },
+  statsRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  statsCol: {
+    marginRight: 24,
+    alignItems: "center",
+  },
+  statsLabel: {
+    color: "#ffd700",
+    fontWeight: "bold",
+    fontSize: 15,
+  },
+  statsValue: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  buttonContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 12,
+  },
+  postsSection: {
+    padding: 16,
+  },
+  postsTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 12,
+    color: "#ffd700",
+    letterSpacing: 1,
+  },
+  noPostsText: {
+    color: "#888",
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 16,
+  },
+  postsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
+  },
+  postItem: {
+    width: "48%",
+    margin: "1%",
+    aspectRatio: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#232323",
+    borderWidth: 2,
+    borderColor: "#e0245e",
+  },
+  postVideoPreview: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#222",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "90%",
+    backgroundColor: "#232323",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#e0245e",
+  },
+  modalImage: {
+    width: 300,
+    height: 300,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  modalVideo: {
+    width: 300,
+    height: 300,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  likeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  likeCount: {
+    fontWeight: "bold",
+    fontSize: 16,
+    color: "#ffd700",
+  },
+  likeError: {
+    color: "red",
+    marginLeft: 8,
+  },
+  modalCaption: {
+    fontWeight: "bold",
+    fontSize: 18,
+    marginBottom: 8,
+    textAlign: "center",
+    color: "#ffd700",
+  },
+  closeButton: {
+    marginTop: 12,
+    backgroundColor: "#e0245e",
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  closeButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+});
 
 export default Profile;

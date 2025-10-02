@@ -1,19 +1,18 @@
 import {
   View,
   Text,
-  Button,
   TextInput,
   TouchableOpacity,
   Platform,
-  Pressable,
   Image,
   ScrollView,
+  StyleSheet,
+  SafeAreaView,
 } from "react-native";
 import React, { useContext, useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import { AuthContext } from "../context/AuthContext";
-import DatePicker from "react-native-date-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import CustomButton from "../component/CustomButton";
 import wrestlingImg from "../images/wrestling.jpg";
@@ -25,6 +24,120 @@ import kickboxingImg from "../images/kickboxing.jpg";
 import judoImg from "../images/judo.jpg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
+import Ionicons from "@expo/vector-icons/Ionicons";
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#181818",
+  },
+  scroll: {
+    padding: 24,
+    backgroundColor: "#181818",
+  },
+  sectionTitle: {
+    color: "#ffd700",
+    fontWeight: "bold",
+    fontSize: 22,
+    marginBottom: 18,
+    letterSpacing: 1,
+    textAlign: "center",
+  },
+  label: {
+    color: "#ffd700",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: "#232323",
+    borderRadius: 10,
+    height: 44,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: "#fff",
+    borderWidth: 2,
+    borderColor: "#e0245e",
+    marginBottom: 12,
+  },
+  recordRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  recordCol: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  fightStylesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  fightStyleCard: {
+    margin: 8,
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: "#232323",
+    overflow: "hidden",
+    alignItems: "center",
+    backgroundColor: "#232323",
+    width: 120,
+    elevation: 2,
+  },
+  fightStyleSelected: {
+    borderColor: "#e0245e",
+    backgroundColor: "#292929",
+  },
+  fightStyleText: {
+    color: "#e0245e",
+    fontWeight: "bold",
+    fontSize: 15,
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  fightStyleImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  profilePicContainer: {
+    alignItems: "center",
+    marginVertical: 18,
+  },
+  profilePic: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 3,
+    borderColor: "#ffd700",
+    backgroundColor: "#232323",
+  },
+  selectPhotoText: {
+    color: "#ffd700",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginTop: 10,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  button: {
+    marginVertical: 8,
+  },
+});
+
+const fightStyleImage = [
+  { style: "Wrestling", source: wrestlingImg },
+  { style: "Boxing", source: boxingImg },
+  { style: "Bjj", source: bjjImg },
+  { style: "MMA", source: mmaImg },
+  { style: "Muay thai", source: muayThaiImg },
+  { style: "Kickboxing", source: kickboxingImg },
+  { style: "Judo", source: judoImg },
+];
 
 const Onboarding = () => {
   const { logout, completeOnboarding, userId } = useContext(AuthContext);
@@ -42,11 +155,6 @@ const Onboarding = () => {
     fight_style: "",
     userId: userId,
   });
-
-  const handleLogout = () => {
-    logout();
-    console.log("Login out");
-  };
 
   useEffect(() => {
     const saveStep = async () => {
@@ -78,12 +186,11 @@ const Onboarding = () => {
     if (selectedDate) {
       setFighterInfo({
         ...fighterInfo,
-        dob: selectedDate.toLocaleDateString("en-CA"), // Format as "YYYY-MM-DD"
+        dob: selectedDate.toLocaleDateString("en-CA"),
       });
     }
   };
 
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const handleNext = () => setStep((prevStep) => prevStep + 1);
   const handleBack = () => setStep((prevStep) => prevStep - 1);
   const handleChange = (field, value) => {
@@ -123,27 +230,13 @@ const Onboarding = () => {
           userId,
         }
       );
-      console.log("Submitting fighter data:", fighterInfo);
       if (response.data) {
-        console.log("fighter created successfully");
         await completeOnboarding();
-      } else {
-        console.log(response.data.message);
       }
     } catch (error) {
       console.log(error);
     }
   };
-
-  const fightStyleImage = [
-    { style: "Wrestling", source: wrestlingImg },
-    { style: "Boxing", source: boxingImg },
-    { style: "Bjj", source: bjjImg },
-    { style: "MMA", source: mmaImg },
-    { style: "Muay thai", source: muayThaiImg },
-    { style: "Kickboxing", source: kickboxingImg },
-    { style: "Judo", source: judoImg },
-  ];
 
   const handleImagePick = async () => {
     const permissionResult =
@@ -163,201 +256,190 @@ const Onboarding = () => {
         ...prevState,
         profile_url: result.assets[0].uri,
       }));
-      // console.log("Image selected:", result.assets[0].uri);
-    } else {
-      console.log("No image was selected");
     }
   };
+
   return (
-    <ScrollView className="p-6 mt-10">
-      {step === 1 && (
-        <>
-          <Text className="text-white font-extrabold text-xl">
-            Your birthday
-          </Text>
-          <TouchableOpacity
-            onPress={() => {
-              setShowDatePicker(!showDatePicker);
-              console.log("TouchableOpacity pressed");
-            }}
-            style={{
-              backgroundColor: "#5a5a5a",
-              borderRadius: 10,
-              height: 40,
-              justifyContent: "center",
-              paddingHorizontal: 10,
-            }}
-          >
-            <Text style={{ color: "white", fontSize: 16 }}>
-              {fighterInfo.dob || "YYYY-MM-DD"}
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.scroll}>
+        {step === 1 && (
+          <>
+            <Text style={styles.sectionTitle}>
+              Your Birthday & Fight Record
             </Text>
-          </TouchableOpacity>
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={fighterInfo.dob ? new Date(fighterInfo.dob) : new Date()}
-              mode="date"
-              display={Platform.OS === "ios" ? "inline" : "default"}
-              maximumDate={new Date()} // Restrict to past dates
-              onChange={handleDateChange}
+            <TouchableOpacity
+              onPress={() => setShowDatePicker(!showDatePicker)}
               style={{
-                backgroundColor: "#f2f2f2", // Change the background color
-                color: "#333", // Change the text color
+                backgroundColor: "#232323",
+                borderRadius: 10,
+                height: 44,
+                justifyContent: "center",
+                paddingHorizontal: 14,
+                marginBottom: 18,
+                borderWidth: 2,
+                borderColor: "#e0245e",
               }}
-            />
-          )}
-
-          <Text className="text-white font-extrabold text-xl mt-10">
-            Record
-          </Text>
-          <View className="flex flex-row flex-wrap mt-5">
-            <View>
-              <Text className="text-white font-extrabold text-xl">Wins</Text>
-              <TextInput
-                className="bg-slate-500 rounded-lg h-10 w-28"
-                value={fighterInfo.wins}
-                onChangeText={(value) => {
-                  handleChange("wins", parseInt(value || "0", 10));
-                  //console.log(value);
+            >
+              <Text style={{ color: "#ffd700", fontSize: 16 }}>
+                {fighterInfo.dob || "YYYY-MM-DD"}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={fighterInfo.dob ? new Date(fighterInfo.dob) : new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "inline" : "default"}
+                maximumDate={new Date()}
+                onChange={handleDateChange}
+                style={{
+                  backgroundColor: "#232323",
+                  color: "#ffd700",
                 }}
-                keyboardType="number-pad"
               />
-            </View>
-            <View className="ml-20">
-              <Text className="text-white font-extrabold text-xl">Losses</Text>
-              <TextInput
-                className="bg-slate-500 rounded-lg h-10 w-28"
-                value={fighterInfo.losses}
-                onChangeText={(value) =>
-                  handleChange("losses", parseInt(value || "0", 10))
-                }
-                keyboardType="number-pad"
-              />
-            </View>
-
-            <Text className="text-white font-extrabold text-xl mt-5">Draw</Text>
-            <TextInput
-              className="bg-slate-500 rounded-lg h-10 w-full "
-              value={fighterInfo.draws}
-              onChangeText={(value) => {
-                handleChange("draws", parseInt(value || "0", 10)),
-                  console.log(value);
-              }}
-              keyboardType="number-pad"
-            />
-          </View>
-          <CustomButton onPress={handleNext}>
-            <Text className="text-white font-bold text-lg">Next</Text>
-          </CustomButton>
-        </>
-      )}
-      {step === 2 && (
-        <>
-          <Text className="text-white text-center font-bold text-xl">
-            Physical Attribute
-          </Text>
-
-          <View className="flex flex-row flex-wrap mt-5">
-            <View>
-              <Text className="text-white font-extrabold text-xl">Height</Text>
-              <TextInput
-                className="bg-slate-500 rounded-lg h-10 w-28"
-                onChangeText={(value) =>
-                  handleChange("height", parseFloat(value || "0.0"))
-                }
-                keyboardType="decimal-pad"
-              />
-            </View>
-            <View className="ml-20">
-              <Text className="text-white font-extrabold text-xl">Weight</Text>
-              <TextInput
-                className="bg-slate-500 rounded-lg h-10 w-28"
-                onChangeText={(value) =>
-                  handleChange("weight", parseFloat(value || "0.0"))
-                }
-                keyboardType="decimal-pad"
-              />
-            </View>
-          </View>
-          <View className="mt-10">
-            <CustomButton onPress={handleNext}>
-              <Text className="text-white font-bold text-lg">Next</Text>
-            </CustomButton>
-            <CustomButton onPress={handleBack} style={{ marginTop: 10 }}>
-              <Text className="text-white font-bold text-lg">Back</Text>
-            </CustomButton>
-          </View>
-        </>
-      )}
-      {step === 3 && (
-        <>
-          <View className="flex flex-row flex-wrap justify-center">
-            {fightStyleImage.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                className={`m-3 ${
-                  fighterInfo.fight_style === item.style
-                    ? "border-4 border-blue-500"
-                    : ""
-                } rounded-lg`}
-                onPress={() => {
-                  handleChange("fight_style", item.style);
-                  //console.log(`Selected fight style: ${item.style}`);
-                }}
-              >
-                <Text
-                  style={{ marginBottom: -20 }}
-                  className="text-blue-500 text-lg font-bold text-center"
-                >
-                  {item.style}
-                </Text>
-                <Image
-                  source={item.source}
-                  className="h-32 w-32 rounded-lg -z-50 "
+            )}
+            <View style={styles.recordRow}>
+              <View style={styles.recordCol}>
+                <Text style={styles.label}>Wins</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fighterInfo.wins.toString()}
+                  onChangeText={(value) =>
+                    handleChange("wins", parseInt(value || "0", 10))
+                  }
+                  keyboardType="number-pad"
                 />
-              </TouchableOpacity>
-            ))}
-          </View>
-          <View className="mt-10">
-            <CustomButton onPress={handleNext}>
-              <Text className="text-white font-bold text-lg">Next</Text>
+              </View>
+              <View style={styles.recordCol}>
+                <Text style={styles.label}>Losses</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fighterInfo.losses.toString()}
+                  onChangeText={(value) =>
+                    handleChange("losses", parseInt(value || "0", 10))
+                  }
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={styles.recordCol}>
+                <Text style={styles.label}>Draws</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fighterInfo.draws.toString()}
+                  onChangeText={(value) =>
+                    handleChange("draws", parseInt(value || "0", 10))
+                  }
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+            <CustomButton style={styles.button} onPress={handleNext}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Next
+              </Text>
             </CustomButton>
-            <CustomButton onPress={handleBack} style={{ marginTop: 10 }}>
-              <Text className="text-white font-bold text-lg">Back</Text>
+          </>
+        )}
+        {step === 2 && (
+          <>
+            <Text style={styles.sectionTitle}>Physical Attributes</Text>
+            <View style={styles.recordRow}>
+              <View style={styles.recordCol}>
+                <Text style={styles.label}>Height (cm)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fighterInfo.height.toString()}
+                  onChangeText={(value) =>
+                    handleChange("height", parseFloat(value || "0.0"))
+                  }
+                  keyboardType="decimal-pad"
+                />
+              </View>
+              <View style={styles.recordCol}>
+                <Text style={styles.label}>Weight (lbs)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={fighterInfo.weight.toString()}
+                  onChangeText={(value) =>
+                    handleChange("weight", parseFloat(value || "0.0"))
+                  }
+                  keyboardType="decimal-pad"
+                />
+              </View>
+            </View>
+            <CustomButton style={styles.button} onPress={handleNext}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Next
+              </Text>
             </CustomButton>
-          </View>
-        </>
-      )}
-      {step === 4 && (
-        <>
-          <Text className="text-white font-extrabold text-xl">
-            Upload Profile Picture
-          </Text>
-          <TouchableOpacity onPress={handleImagePick} style={{ marginTop: 20 }}>
-            <Text className="text-white text-lg mb-10">Select a Photo</Text>
-          </TouchableOpacity>
-
-          {fighterInfo.profile_url ? (
-            <Image
-              source={{ uri: fighterInfo.profile_url }}
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: 50,
-                marginTop: 20,
-              }}
-            />
-          ) : null}
-
-          <CustomButton onPress={handleFinish}>
-            <Text className="text-white font-bold text-lg">Finish</Text>
-          </CustomButton>
-          <CustomButton onPress={handleBack} style={{ marginTop: 10 }}>
-            <Text className="text-white font-bold text-lg">Back</Text>
-          </CustomButton>
-        </>
-      )}
-    </ScrollView>
+            <CustomButton style={styles.button} onPress={handleBack}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Back
+              </Text>
+            </CustomButton>
+          </>
+        )}
+        {step === 3 && (
+          <>
+            <Text style={styles.sectionTitle}>Choose Your Fight Style</Text>
+            <View style={styles.fightStylesGrid}>
+              {fightStyleImage.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.fightStyleCard,
+                    fighterInfo.fight_style === item.style &&
+                      styles.fightStyleSelected,
+                  ]}
+                  onPress={() => handleChange("fight_style", item.style)}
+                >
+                  <Text style={styles.fightStyleText}>{item.style}</Text>
+                  <Image source={item.source} style={styles.fightStyleImage} />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <CustomButton style={styles.button} onPress={handleNext}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Next
+              </Text>
+            </CustomButton>
+            <CustomButton style={styles.button} onPress={handleBack}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Back
+              </Text>
+            </CustomButton>
+          </>
+        )}
+        {step === 4 && (
+          <>
+            <Text style={styles.sectionTitle}>Upload Profile Picture</Text>
+            <TouchableOpacity
+              onPress={handleImagePick}
+              style={styles.profilePicContainer}
+            >
+              <Text style={styles.selectPhotoText}>Select a Photo</Text>
+              {fighterInfo.profile_url ? (
+                <Image
+                  source={{ uri: fighterInfo.profile_url }}
+                  style={styles.profilePic}
+                />
+              ) : (
+                <Ionicons name="body-outline" size={70} color="#ffd700" />
+              )}
+            </TouchableOpacity>
+            <CustomButton style={styles.button} onPress={handleFinish}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Finish
+              </Text>
+            </CustomButton>
+            <CustomButton style={styles.button} onPress={handleBack}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Back
+              </Text>
+            </CustomButton>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 

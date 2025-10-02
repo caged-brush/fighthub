@@ -8,6 +8,7 @@ import {
   Platform,
   TouchableOpacity,
   StyleSheet,
+  SafeAreaView,
 } from "react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import axios from "axios";
@@ -133,6 +134,9 @@ const Home = () => {
             profileUrl: response.data.profile_picture_url
               ? `http://10.50.107.251:5001${response.data.profile_picture_url}`
               : null,
+            wins: response.data.wins,
+            losses: response.data.losses,
+            draws: response.data.draws,
           },
         }));
       }
@@ -235,7 +239,7 @@ const Home = () => {
 
     return (
       <View style={styles.postCard}>
-        {/* Header: Profile Pic + Username + Options */}
+        {/* Header: Profile Pic + Username + Fight Stats */}
         <View style={styles.postHeader}>
           {profile?.profileUrl && isValidUrl(profile.profileUrl) ? (
             <Image
@@ -245,24 +249,33 @@ const Home = () => {
             />
           ) : (
             <Ionicons
-              name="person-circle-outline"
-              size={50}
-              color="#ff3b30"
-              style={{ marginRight: 10 }}
+              name="body-outline"
+              size={48}
+              color="#ffd700"
+              style={{ marginRight: 12 }}
             />
           )}
           <TouchableOpacity
             onPress={() =>
-              navigation.navigate("UserProfile", { profileUserId: item.user_id })
+              navigation.navigate("UserProfile", {
+                profileUserId: item.user_id,
+              })
             }
           >
             <Text style={styles.username}>
               {profile?.fname} {profile?.lname}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={{ marginLeft: "auto" }}>
-            <Ionicons name="ellipsis-horizontal" size={24} color="#ff3b30" />
-          </TouchableOpacity>
+          {/* Fight stats */}
+          {profile && (
+            <View style={styles.fightStats}>
+              <Text style={styles.statText}>
+                {profile.wins ?? 0}W-{profile.losses ?? 0}L-{profile.draws ?? 0}
+                D
+              </Text>
+              <Ionicons name="hand-left-outline" size={18} color="#ffd700" />
+            </View>
+          )}
         </View>
 
         {/* Media */}
@@ -280,26 +293,26 @@ const Home = () => {
           <Text style={{ color: "#666", padding: 10 }}>Invalid media URL</Text>
         )}
 
-        {/* Actions (like, comment, share) */}
+        {/* Actions */}
         <View style={styles.actionsRow}>
           <View style={styles.likeContainer}>
             <TouchableOpacity onPress={() => handleLike(item.id)}>
               <Ionicons
-                name={likedPosts[item.id] ? "heart" : "heart-outline"}
+                name={likedPosts[item.id] ? "flame" : "flame-outline"}
                 size={28}
-                color="#ff3b30"
+                color="#e0245e"
               />
             </TouchableOpacity>
             <Text style={styles.likeText}>{likeCounts[item.id] ?? 0}</Text>
           </View>
-
+          <Ionicons name="hand-left-outline" size={18} color="#ffd700" />
           <Ionicons
-            name="chatbubble-outline"
+            name="chatbubble-ellipses-outline"
             size={28}
-            color="#ff3b30"
-            style={{ marginRight: 15 }}
+            color="#ffd700"
+            style={{ marginRight: 18 }}
           />
-          <Ionicons name="paper-plane-outline" size={28} color="#ff3b30" />
+          <Ionicons name="share-social-outline" size={28} color="#ffd700" />
         </View>
 
         {/* Caption */}
@@ -322,98 +335,136 @@ const Home = () => {
   }, [loading, hasMore]);
 
   return (
-    <View style={styles.container}>
-      {Platform.OS === "ios" ? (
-        <StatusBar style="light" />
-      ) : (
-        <StatusBar style="light" />
-      )}
-      <FlatList
-        data={posts}
-        renderItem={renderPost}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
-        onEndReached={loadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={
-          loading ? <ActivityIndicator size="large" color="#aaa" /> : null
-        }
-        onRefresh={handleRefresh}
-        refreshing={refreshing}
-        showsVerticalScrollIndicator={false}
-      />
-    </View>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        {Platform.OS === "ios" ? (
+          <StatusBar style="light" />
+        ) : (
+          <StatusBar style="light" />
+        )}
+        <FlatList
+          data={posts}
+          renderItem={renderPost}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loading ? <ActivityIndicator size="large" color="#aaa" /> : null
+          }
+          onRefresh={handleRefresh}
+          refreshing={refreshing}
+          showsVerticalScrollIndicator={false}
+        />
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#181818",
+  },
   container: {
     flex: 1,
-    backgroundColor: "#000", // black background
-    paddingHorizontal: 10,
-    paddingVertical: 20,
+    backgroundColor: "#181818",
+    paddingHorizontal: 8,
+    paddingTop: 0, // Remove extra top padding
   },
   postCard: {
-    backgroundColor: "#111", // dark card
-    marginVertical: 10,
-    borderRadius: 10,
+    backgroundColor: "#232323",
+    marginVertical: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#e0245e", // Fighthub red accent
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: "#e0245e",
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 4,
   },
   postHeader: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 10,
+    padding: 12,
+    backgroundColor: "#1a1a1a",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0245e",
   },
   profilePic: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    marginRight: 10,
-    backgroundColor: "#333",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    backgroundColor: "#444",
+    borderWidth: 2,
+    borderColor: "#e0245e",
   },
   username: {
     fontWeight: "bold",
-    fontSize: 16,
-    color: "#fff", // white username text
+    fontSize: 18,
+    color: "#ffd700", // gold for fighter name
+    letterSpacing: 1,
   },
-  caption: {
+  fightStats: {
+    marginLeft: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#222",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  statText: {
+    color: "#fff",
     fontWeight: "bold",
-    fontSize: 16,
-    color: "#fff", // white username text
+    fontSize: 13,
+    marginRight: 8,
   },
   postImage: {
     width: "100%",
     aspectRatio: 1,
     backgroundColor: "#222",
+    borderBottomWidth: 2,
+    borderBottomColor: "#e0245e",
   },
   actionsRow: {
     flexDirection: "row",
-    paddingHorizontal: 10,
-    paddingVertical: 12,
-  },
-  captionContainer: {
-    paddingHorizontal: 10,
-    paddingBottom: 8,
-  },
-
-  timestamp: {
-    color: "#aaa",
-    fontSize: 12,
-    paddingHorizontal: 10,
-    paddingBottom: 10,
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#1a1a1a",
+    borderTopWidth: 1,
+    borderTopColor: "#e0245e",
   },
   likeContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 20, // spacing from the next icon
+    marginRight: 28,
   },
   likeText: {
+    color: "#e0245e",
+    fontWeight: "bold",
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  captionContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#232323",
+  },
+  caption: {
     color: "#fff",
-    fontSize: 14,
-    marginLeft: 6, // space between heart and count
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  timestamp: {
+    color: "#aaa",
+    fontSize: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    fontStyle: "italic",
   },
 });
 
