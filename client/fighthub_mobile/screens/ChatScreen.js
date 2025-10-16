@@ -3,9 +3,11 @@ import {
   View,
   Text,
   TextInput,
-  Button,
   FlatList,
   StyleSheet,
+  SafeAreaView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { format } from "date-fns";
@@ -13,7 +15,7 @@ import io from "socket.io-client";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import Feather from '@expo/vector-icons/Feather';
+import Feather from "@expo/vector-icons/Feather";
 
 // Set the URL for your backend server here
 const socket = io("http://10.50.99.238:5001");
@@ -86,98 +88,163 @@ const ChatScreen = () => {
   };
 
   return (
-    <View style={{ flex: 1, padding: 10, backgroundColor: "black" }}>
-      <Text
-        style={{
-          fontSize: 20,
-          fontWeight: "bold",
-          marginBottom: 10,
-          color: "white",
-        }}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        Chat with {recipientName}
-      </Text>
-
-      <FlatList
-        data={messages}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View
-            style={{
-              alignItems: item.sender === "me" ? "flex-end" : "flex-start",
-              padding: 5,
-            }}
-          >
-            <View>
-              <Text
-                style={
-                  item.sender === "me"
-                    ? style.senderBubble
-                    : style.receiverBubble
-                }
-              >
-                {item.text}
-              </Text>
-              <Text style={{ fontSize: 10, color: "#FFFFFF", marginTop: 2 }}>
-                {item.timestamp ? format(new Date(item.timestamp), "p") : ""}
-              </Text>
-            </View>
+        <View style={styles.container}>
+          <View style={styles.headerRow}>
+            <Ionicons
+              name="body-outline"
+              size={32}
+              color="#ffd700"
+              style={{ marginRight: 10 }}
+            />
+            <Text style={styles.headerText}>Chat with {recipientName}</Text>
           </View>
-        )}
-      />
+          <FlatList
+            data={messages}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <View
+                style={{
+                  alignItems: item.sender === "me" ? "flex-end" : "flex-start",
+                  padding: 5,
+                }}
+              >
+                <View
+                  style={
+                    item.sender === "me"
+                      ? styles.senderBubble
+                      : styles.receiverBubble
+                  }
+                >
+                  <Text style={styles.messageText}>{item.text}</Text>
+                  <Text style={styles.timestamp}>
+                    {item.timestamp
+                      ? format(new Date(item.timestamp), "p")
+                      : ""}
+                  </Text>
+                </View>
+              </View>
+            )}
+            contentContainerStyle={{ paddingBottom: 12 }}
+          />
 
-      <View
-        style={{ flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom:15 }}
-      >
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder="Type a message..."
-          placeholderTextColor="#ccc"
-          style={{
-            flex: 1,
-            borderWidth: 1,
-            borderColor: "#ccc",
-            borderRadius: 20,
-            paddingHorizontal: 10,
-            height: 40,
-            color: "white",
-          }}
-        />
-        <Feather name="send" size={30} color="gray" onPress={sendMessage} />
-       
-      </View>
-    </View>
+          <View style={styles.inputRow}>
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              placeholder="Type a message..."
+              placeholderTextColor="#aaa"
+              style={styles.input}
+            />
+            <Feather
+              name="send"
+              size={28}
+              color="#ffd700"
+              onPress={sendMessage}
+              style={styles.sendIcon}
+            />
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 };
 
-const style = StyleSheet.create({
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#181818",
+  },
+  container: {
+    flex: 1,
+    backgroundColor: "#181818",
+    padding: 10,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingVertical: 8,
+    borderBottomWidth: 2,
+    borderColor: "#e0245e",
+  },
+  headerText: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#ffd700",
+    letterSpacing: 1,
+  },
   senderBubble: {
-    backgroundColor: "#BA2C73",
-    color: "white",
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 2, // tail effect
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: "#e0245e",
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomLeftRadius: 14,
+    borderBottomRightRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     alignSelf: "flex-end",
     maxWidth: "80%",
     marginVertical: 4,
+    shadowColor: "#e0245e",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
   },
-
   receiverBubble: {
-    backgroundColor: "#444",
-    borderTopLeftRadius: 12,
-    color: "white",
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
-    borderBottomLeftRadius: 2, // tail effect
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: "#232323",
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomRightRadius: 14,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     alignSelf: "flex-start",
     maxWidth: "80%",
     marginVertical: 4,
+    borderWidth: 2,
+    borderColor: "#ffd700",
+    shadowColor: "#ffd700",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  messageText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  timestamp: {
+    fontSize: 10,
+    color: "#ffd700",
+    marginTop: 2,
+    alignSelf: "flex-end",
+  },
+  inputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 15,
+    backgroundColor: "#232323",
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#e0245e",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  input: {
+    flex: 1,
+    color: "#fff",
+    fontSize: 16,
+    paddingHorizontal: 10,
+    height: 40,
+    backgroundColor: "transparent",
+  },
+  sendIcon: {
+    marginLeft: 8,
   },
 });
 

@@ -332,7 +332,7 @@ const Profile = () => {
               }}
             >
               <Text style={{ fontWeight: "bold", color: "#fff" }}>
-                {isFollowing ? "Unfollow" : "Follow"}
+                {isFollowing ? "Disconnect" : "Connect"}
               </Text>
             </CustomButton>
           )}

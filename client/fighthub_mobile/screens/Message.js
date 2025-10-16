@@ -11,6 +11,8 @@ import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+const FIGHTHUB_BASE_URL = "http://10.50.107.251:5001";
+
 const UserListScreen = () => {
   const [users, setUsers] = useState([]);
   const { userId } = useContext(AuthContext);
@@ -20,7 +22,7 @@ const UserListScreen = () => {
     const fetchUsers = async () => {
       try {
         const response = await fetch(
-          `http://10.50.107.251:5001/users?exclude=${userId}`
+          `${FIGHTHUB_BASE_URL}/users?exclude=${userId}`
         );
         const data = await response.json();
         setUsers(data);
@@ -34,8 +36,9 @@ const UserListScreen = () => {
 
   return (
     <View style={styles.container}>
+      <Text style={styles.header}>Fighthub Fighters</Text>
       <FlatList
-      style={styles.listContainer}
+        style={styles.listContainer}
         data={users}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
@@ -51,19 +54,22 @@ const UserListScreen = () => {
             <View style={styles.userRow}>
               {item.profile_picture_url ? (
                 <Image
-                  source={{ uri: item.profile_picture_url }}
+                  source={{
+                    uri: item.profile_picture_url.startsWith("/")
+                      ? `${FIGHTHUB_BASE_URL}${item.profile_picture_url}`
+                      : item.profile_picture_url,
+                  }}
                   style={styles.avatar}
                 />
               ) : (
-                <Ionicons
-                  name="person"
-                  size={40}
-                  color="gray"
-                  style={styles.avatar}
-                />
+                <View style={styles.avatarFallback}>
+                  <Ionicons name="body-outline" size={32} color="#ffd700" />
+                </View>
               )}
-              <View>
-                <Text style={styles.userText}>{item.fname}</Text>
+              <View style={styles.infoCol}>
+                <Text style={styles.userText}>
+                  {item.fname} {item.lname}
+                </Text>
                 <Text style={styles.lastMessage} numberOfLines={1}>
                   {item.last_message || "No messages yet."}
                 </Text>
@@ -72,7 +78,7 @@ const UserListScreen = () => {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No users found.</Text>
+          <Text style={styles.emptyText}>No fighters found.</Text>
         }
       />
     </View>
@@ -82,42 +88,80 @@ const UserListScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor:"black",
+    backgroundColor: "#181818",
     padding: 16,
   },
-  listContainer:{
-    marginTop:30
+  header: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#ffd700",
+    textAlign: "center",
+    marginBottom: 18,
+    letterSpacing: 1,
+  },
+  listContainer: {
+    marginTop: 10,
   },
   userRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   userItem: {
+    backgroundColor: "#232323",
     padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  userText: {
-    fontSize: 18,
-    color: "white",
-  },
-  emptyText: {
-    marginTop: 20,
-    textAlign: "center",
-    fontSize: 16,
-    color: "gray",
+    borderRadius: 12,
+    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: "#e0245e",
+    shadowColor: "#e0245e",
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
   },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 30,
-    marginRight: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: 14,
+    borderWidth: 2,
+    borderColor: "#ffd700",
+    backgroundColor: "#292929",
+  },
+  avatarFallback: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginRight: 14,
+    backgroundColor: "#292929",
+    borderWidth: 2,
+    borderColor: "#ffd700",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  infoCol: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  userText: {
+    fontSize: 19,
+    color: "#ffd700",
+    fontWeight: "bold",
+    marginBottom: 2,
+    letterSpacing: 0.5,
   },
   lastMessage: {
-    color: "gray",
-    fontSize: 14,
-    marginTop: 4,
+    color: "#fff",
+    fontSize: 15,
+    marginTop: 2,
     maxWidth: 220,
+    fontStyle: "italic",
+  },
+  emptyText: {
+    marginTop: 40,
+    textAlign: "center",
+    fontSize: 18,
+    color: "#e0245e",
+    fontWeight: "bold",
   },
 });
 
