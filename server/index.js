@@ -97,11 +97,8 @@ function validateUserInput(req, res, next) {
 }
 
 const db = new pg.Client({
-  user: process.env.PG_USER,
-  host: process.env.PG_HOST,
-  database: process.env.PG_DATABASE,
-  password: process.env.PG_PASSWORD,
-  port: process.env.PG_PORT,
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 db.connect();
@@ -114,7 +111,7 @@ const transport = nodemailer.createTransport({
   secure: true, // Use SSL
   auth: {
     user: process.env.EMAIL_USER,
-    pass: "ognjmvnupvwbiljl",
+    pass: process.env.EMAIL_PASS,
   },
 });
 
