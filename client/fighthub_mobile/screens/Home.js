@@ -17,10 +17,41 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 
+const isValidUrl = (url) => {
+  if (!url) return false;
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const getMediaUrl = (post) => {
+  if (!post) return null;
+  return post.media_signed_url || post.media_url || null;
+};
+
 const VideoPost = ({ mediaUri }) => {
   const player = useVideoPlayer(mediaUri, (player) => {
     player.loop = true;
   });
+
+  // Add error boundary for video playback
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError) {
+    return (
+      <View
+        style={[
+          styles.postImage,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
+        <Text style={{ color: "#fff" }}>Failed to load video</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ width: "100%", height: 350, backgroundColor: "black" }}>
@@ -29,7 +60,10 @@ const VideoPost = ({ mediaUri }) => {
         style={{ width: "100%", height: 350 }}
         useNativeControls
         resizeMode="cover"
-        onError={(error) => console.log("Video Error:", error)}
+        onError={(error) => {
+          console.log("Video Error:", error);
+          setHasError(true);
+        }}
         onLoadStart={() => console.log("Loading video...")}
         onLoad={() => console.log("Video loaded successfully")}
       />
@@ -47,6 +81,7 @@ const Home = () => {
   const { userId } = useContext(AuthContext);
   const [likedPosts, setLikedPosts] = useState({});
   const [likeCounts, setLikeCounts] = useState({});
+  const [error, setError] = useState(null);
 
   const navigation = useNavigation();
 
@@ -58,31 +93,36 @@ const Home = () => {
       const response = await axios.get(
         `http://10.50.107.251:5001/posts?page=${page}&limit=10`
       );
-      const newPosts = response.data.filter(
-        (newPost) =>
-          !posts.some((existingPost) => existingPost.id === newPost.id)
-      );
-      // Instead of replacing posts blindly
-      setPosts((prevPosts) => {
-        const existingIds = new Set(prevPosts.map((p) => p.id));
-        const newUniquePosts = response.data.filter(
-          (post) => !existingIds.has(post.id)
-        );
-        return [...prevPosts, ...newUniquePosts];
-      });
 
-      if (response.data.length < 10) {
-        setHasMore(false);
+      // Destructure the correct response structure from Supabase
+      const { posts, total, currentPage, pages } = response.data;
+
+      if (page === 1) {
+        setPosts(posts);
+      } else {
+        setPosts((prevPosts) => {
+          const existingIds = new Set(prevPosts.map((p) => p.id));
+          const newUniquePosts = posts.filter(
+            (post) => !existingIds.has(post.id)
+          );
+          return [...prevPosts, ...newUniquePosts];
+        });
       }
-      newPosts.forEach((post) => {
-        getUserProfile(post.user_id);
+
+      setHasMore(currentPage < pages);
+
+      // Fetch profiles and likes for new posts
+      posts.forEach((post) => {
+        if (post.user_id) getUserProfile(post.user_id);
       });
 
-      const postIds = response.data.map((post) => post.id); // All posts, not just new
-
-      fetchBatchLikes(postIds);
+      const postIds = posts.map((post) => post.id);
+      if (postIds.length > 0) {
+        fetchBatchLikes(postIds);
+      }
     } catch (error) {
       console.error("Error fetching posts:", error);
+      handleError(error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -103,16 +143,22 @@ const Home = () => {
       const response = await axios.get(
         `http://10.50.107.251:5001/posts?page=1&limit=10`
       );
-      setPosts(response.data);
-      setHasMore(response.data.length === 10);
-      response.data.forEach((post) => {
+
+      // ✅ Destructure properly
+      const { posts, total, currentPage, pages } = response.data;
+
+      setPosts(posts);
+      setHasMore(currentPage < pages);
+
+      posts.forEach((post) => {
         getUserProfile(post.user_id);
       });
 
-      const postIds = response.data.map((post) => post.id);
+      const postIds = posts.map((post) => post.id);
       fetchBatchLikes(postIds);
     } catch (error) {
       console.error("Error refreshing posts:", error);
+      handleError(error);
     } finally {
       setRefreshing(false);
     }
@@ -131,9 +177,8 @@ const Home = () => {
           [userId]: {
             fname: response.data.fname || "",
             lname: response.data.lname || "",
-            profileUrl: response.data.profile_picture_url
-              ? `http://10.50.107.251:5001${response.data.profile_picture_url}`
-              : null,
+            // Update to use signed URL from response
+            profileUrl: response.data.profile_signed_url || null,
             wins: response.data.wins,
             losses: response.data.losses,
             draws: response.data.draws,
@@ -224,37 +269,41 @@ const Home = () => {
     }
   }, [page, userId]);
 
-  const isValidUrl = (url) => {
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const renderPost = ({ item }) => {
-    const mediaUri = `http://10.50.107.251:5001${item.media_url}`;
-    const profile = userProfiles[item.user_id];
+    const mediaUri = getMediaUrl(item);
+    const profile = userProfiles[item.user_id] || {};
 
     return (
       <View style={styles.postCard}>
         {/* Header: Profile Pic + Username + Fight Stats */}
         <View style={styles.postHeader}>
-          {profile?.profileUrl && isValidUrl(profile.profileUrl) ? (
-            <Image
-              source={{ uri: `${profile.profileUrl}?t=${Date.now()}` }}
-              style={styles.profilePic}
-              resizeMode="cover"
-            />
-          ) : (
-            <Ionicons
-              name="body-outline"
-              size={48}
-              color="#ffd700"
-              style={{ marginRight: 12 }}
-            />
-          )}
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate("UserProfile", {
+                profileUserId: item.user_id,
+              })
+            }
+          >
+            {profile?.profileUrl && isValidUrl(profile.profileUrl) ? (
+              <Image
+                source={{
+                  uri: profile.profileUrl,
+                  // Add cache busting only if needed
+                  headers: { "Cache-Control": "no-cache" },
+                }}
+                style={styles.profilePic}
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons
+                name="body-outline"
+                size={48}
+                color="#ffd700"
+                style={{ marginRight: 12 }}
+              />
+            )}
+          </TouchableOpacity>
+
           <TouchableOpacity
             onPress={() =>
               navigation.navigate("UserProfile", {
@@ -278,19 +327,31 @@ const Home = () => {
           )}
         </View>
 
-        {/* Media */}
-        {item.media_url &&
-        item.media_url.endsWith(".mp4") &&
-        isValidUrl(mediaUri) ? (
-          <VideoPost mediaUri={mediaUri} />
-        ) : item.media_url && isValidUrl(mediaUri) ? (
+        {/* Media with error handling */}
+        {mediaUri && item.type === "video" ? (
+          <VideoPost
+            mediaUri={mediaUri}
+            onError={(error) => console.log("Video Error:", error)}
+          />
+        ) : mediaUri && item.type === "image" ? (
           <Image
-            source={{ uri: mediaUri }}
+            source={{
+              uri: mediaUri,
+              headers: { "Cache-Control": "no-cache" },
+            }}
             style={styles.postImage}
             resizeMode="cover"
+            onError={(error) => console.log("Image Error:", error)}
           />
         ) : (
-          <Text style={{ color: "#666", padding: 10 }}>Invalid media URL</Text>
+          <View
+            style={[
+              styles.postImage,
+              { justifyContent: "center", alignItems: "center" },
+            ]}
+          >
+            <Text style={{ color: "#666" }}>Media not available</Text>
+          </View>
         )}
 
         {/* Actions */}
@@ -333,6 +394,40 @@ const Home = () => {
       setPage((prevPage) => prevPage + 1);
     }
   }, [loading, hasMore]);
+
+  // Add error handler
+  const handleError = (error) => {
+    console.error(error);
+    setError(error.message);
+    setLoading(false);
+    setRefreshing(false);
+  };
+
+  // Add error UI
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View
+          style={[
+            styles.container,
+            { justifyContent: "center", alignItems: "center" },
+          ]}
+        >
+          <Text style={{ color: "#e0245e", marginBottom: 10 }}>{error}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setError(null);
+              setPage(1);
+              fetchPosts();
+            }}
+            style={styles.retryButton}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -465,6 +560,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 10,
     fontStyle: "italic",
+  },
+  retryButton: {
+    backgroundColor: "#e0245e",
+    padding: 10,
+    borderRadius: 5,
+  },
+  retryText: {
+    color: "#fff",
+    fontWeight: "bold",
   },
 });
 

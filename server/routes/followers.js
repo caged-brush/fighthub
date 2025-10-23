@@ -1,23 +1,34 @@
 import express from "express";
 const router = express.Router();
 
-export default function followersRoute(db) {
+export default function followersRoute(supabase) {
   router.post("/follow", async (req, res) => {
     const { followerId, followingId } = req.body;
     try {
-      const existingFollow = await db.query(
-        "SELECT * FROM followers WHERE follower_id=$1 AND following_id=$2",
-        [followerId, followingId]
-      );
-      if (existingFollow.rows.length > 0) {
+      // Check if already following
+      const { data: existingFollow, error: checkError } = await supabase
+        .from("followers")
+        .select("*")
+        .eq("follower_id", followerId)
+        .eq("following_id", followingId)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingFollow) {
         return res.status(200).json({ message: "Already following" });
       }
-      await db.query(
-        "INSERT INTO followers (follower_id, following_id) VALUES ($1, $2)",
-        [followerId, followingId]
-      );
+
+      // Insert new follow
+      const { error: insertError } = await supabase
+        .from("followers")
+        .insert([{ follower_id: followerId, following_id: followingId }]);
+
+      if (insertError) throw insertError;
+
       return res.status(200).json({ message: "Followed successfully" });
     } catch (error) {
+      console.error("Follow error:", error);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -25,12 +36,16 @@ export default function followersRoute(db) {
   router.post("/unfollow", async (req, res) => {
     const { followerId, followingId } = req.body;
     try {
-      await db.query(
-        "DELETE FROM followers WHERE follower_id=$1 AND following_id=$2",
-        [followerId, followingId]
-      );
+      const { error } = await supabase
+        .from("followers")
+        .delete()
+        .eq("follower_id", followerId)
+        .eq("following_id", followingId);
+
+      if (error) throw error;
       res.status(200).json({ message: "Unfollowed successfully" });
     } catch (error) {
+      console.error("Unfollow error:", error);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -38,12 +53,17 @@ export default function followersRoute(db) {
   router.post("/is-following", async (req, res) => {
     const { followerId, followingId } = req.body;
     try {
-      const result = await db.query(
-        "SELECT 1 FROM followers WHERE follower_id=$1 AND following_id=$2",
-        [followerId, followingId]
-      );
-      res.status(200).json({ isFollowing: result.rows.length > 0 });
+      const { data, error } = await supabase
+        .from("followers")
+        .select("*")
+        .eq("follower_id", followerId)
+        .eq("following_id", followingId)
+        .maybeSingle();
+
+      if (error) throw error;
+      res.status(200).json({ isFollowing: !!data });
     } catch (error) {
+      console.error("Is-following check error:", error);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -51,13 +71,15 @@ export default function followersRoute(db) {
   router.post("/follower-count", async (req, res) => {
     const { userId } = req.body;
     try {
-      const result = await db.query(
-        "SELECT COUNT(*) FROM followers WHERE following_id = $1",
-        [userId]
-      );
-      const count = parseInt(result.rows[0].count, 10);
-      res.status(200).json({ count });
+      const { count, error } = await supabase
+        .from("followers")
+        .select("*", { count: "exact", head: true })
+        .eq("following_id", userId);
+
+      if (error) throw error;
+      res.status(200).json({ count: count || 0 });
     } catch (error) {
+      console.error("Follower count error:", error);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -65,13 +87,15 @@ export default function followersRoute(db) {
   router.post("/following-count", async (req, res) => {
     const { userId } = req.body;
     try {
-      const result = await db.query(
-        "SELECT COUNT(*) FROM followers WHERE follower_id = $1",
-        [userId]
-      );
-      const count = parseInt(result.rows[0].count, 10);
-      res.status(200).json({ count });
+      const { count, error } = await supabase
+        .from("followers")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", userId);
+
+      if (error) throw error;
+      res.status(200).json({ count: count || 0 });
     } catch (error) {
+      console.error("Following count error:", error);
       res.status(500).json({ error: "Server error" });
     }
   });
@@ -79,20 +103,48 @@ export default function followersRoute(db) {
   router.post("/follower-list", async (req, res) => {
     const { userId } = req.body;
     try {
-      const result = await db.query(
-        "SELECT u.id, u.fname, u.lname, u.profile_picture_url FROM followers f JOIN users u ON f.follower_id = u.id WHERE f.following_id = $1",
-        [userId]
-      );
-      const followers = result.rows.map((row) => ({
-        id: row.id,
-        fname: row.fname,
-        lname: row.lname,
-        profile_picture_url: row.profile_picture_url
-          ? `http://10.50.107.1:3000/${row.profile_picture_url}`
-          : null,
+      const { data, error } = await supabase
+        .from("followers")
+        .select(
+          `
+          follower_id,
+          users!followers_follower_id_fkey (
+            id,
+            fname,
+            lname,
+            profile_pic
+          )
+        `
+        )
+        .eq("following_id", userId);
+
+      if (error) throw error;
+
+      // Transform the nested data structure
+      const followers = data.map((row) => ({
+        id: row.users.id,
+        fname: row.users.fname,
+        lname: row.users.lname,
+        profile_pic: row.users.profile_pic,
       }));
+
+      // If using private storage, get signed URLs for profile pics
+      if (followers.length > 0 && global.supabaseAdmin) {
+        await Promise.all(
+          followers.map(async (follower) => {
+            if (follower.profile_pic) {
+              const { data: signed } = await global.supabaseAdmin.storage
+                .from("profiles")
+                .createSignedUrl(follower.profile_pic, 3600);
+              if (signed) follower.profile_picture_url = signed.signedUrl;
+            }
+          })
+        );
+      }
+
       res.status(200).json({ followers });
     } catch (error) {
+      console.error("Follower list error:", error);
       res.status(500).json({ error: "Server error" });
     }
   });

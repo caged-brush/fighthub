@@ -1,6 +1,10 @@
 import express from "express";
 import cors from "cors";
 import env from "dotenv";
+
+// Move env config to top before any env variables are used
+env.config();
+
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import path from "path";
@@ -8,12 +12,12 @@ import bodyParser from "body-parser";
 import fs from "fs";
 import passport from "passport";
 import session from "express-session";
-import pg from "pg";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import { ServerClient } from "postmark";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import supabase from "./config/supabase.js";
 import mailerRoute from "./routes/mailer.js";
 import postsRoute from "./routes/posts.js";
 import followersRoute from "./routes/followers.js";
@@ -26,11 +30,22 @@ import setupSocket from "./socket.js";
 const port = process.env.PORT || 5001;
 const app = express();
 
+// Add CORS configuration
+app.use(
+  cors({
+    origin: [
+      "http://localhost:3000",
+      "exp://10.50.107.251:3000",
+      "exp://10.50.107.251:8081",
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+  })
+);
+
 const createToken = (id) => {
   return jwt.sign({ id }, process.env.SESSION_SECRET, { expiresIn: "3d" });
 };
-
-env.config();
 
 app.use(
   session({
@@ -96,12 +111,13 @@ function validateUserInput(req, res, next) {
   next();
 }
 
-const db = new pg.Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
-db.connect();
+// Remove pg.Client and supabase import
+// const db = new pg.Client({
+//   connectionString: process.env.DATABASE_URL,
+//   ssl: { rejectUnauthorized: false },
+// });
+//
+// db.connect();
 
 const client = new ServerClient(process.env.POSTMARK_TOKEN);
 
@@ -134,18 +150,18 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.use(mailerRoute(client));
-app.use(postsRoute(db, upload, uploadDir));
-app.use(followersRoute(db));
-app.use(likesRoute(db));
-app.use(usersRoute(db));
-app.use(authRoutes(db, createToken, validateUserInput, transport));
-app.use(profileRoutes(db, upload));
+app.use(postsRoute(supabase, upload, uploadDir));
+app.use(followersRoute(supabase));
+app.use(likesRoute(supabase));
+app.use(usersRoute(supabase));
+app.use(authRoutes(supabase, createToken, validateUserInput, transport));
+app.use(profileRoutes(supabase, upload));
 
 // Static files
 app.use("/uploads", express.static("uploads"));
 
 // Modularized socket.io logic
-setupSocket(io, db);
+setupSocket(io);
 
 httpServer.listen(port, () => {
   console.log(`Server now listening on port ${port}`);

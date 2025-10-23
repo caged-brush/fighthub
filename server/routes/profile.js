@@ -1,36 +1,66 @@
 import express from "express";
+import fs from "fs";
 
 const router = express.Router();
 
-export default function profileRoutes(db, upload) {
+export default function profileRoutes(supabase, upload) {
   // Change Profile Picture
   router.put(
     "/change-profile-pic",
     upload.single("profile_picture"),
     async (req, res) => {
       const { userId } = req.body;
-      const profilePictureUrl = req.file
-        ? `/uploads/${req.file.filename}`
-        : null;
-      if (!userId || !profilePictureUrl) {
-        return res
-          .status(400)
-          .json({ message: "Missing userId or profile picture" });
-      }
+
       try {
-        const result = await db.query(
-          "UPDATE users SET profile_picture_url = $1 WHERE id = $2 RETURNING *",
-          [profilePictureUrl, userId]
-        );
-        if (result.rows.length === 0) {
-          return res.status(404).json({ message: "User not found" });
+        if (!req.file) {
+          return res
+            .status(400)
+            .json({ message: "No profile picture uploaded" });
         }
+
+        // Upload to Supabase Storage
+        const filename = `${userId}-${Date.now()}-${req.file.originalname}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("profiles")
+          .upload(filename, fs.createReadStream(req.file.path), {
+            contentType: req.file.mimetype,
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Clean up local file
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (e) {
+          /* ignore */
+        }
+
+        // Update user profile with new image path
+        const { data: userData, error: updateError } = await supabase
+          .from("users")
+          .update({ profile_picture_url: uploadData.path })
+          .eq("id", userId)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        // Generate signed URL if using private bucket
+        let signedUrl = null;
+        if (global.supabaseAdmin) {
+          const { data: signed } = await global.supabaseAdmin.storage
+            .from("profiles")
+            .createSignedUrl(uploadData.path, 3600);
+          if (signed) signedUrl = signed.signedUrl;
+        }
+
         res.status(200).json({
           message: "Profile picture updated successfully",
-          user: result.rows[0],
+          user: { ...userData, profile_signed_url: signedUrl },
         });
       } catch (error) {
-        console.log(error);
+        console.error("Profile picture update error:", error);
         res.status(500).json({ message: "Server error" });
       }
     }
@@ -40,16 +70,29 @@ export default function profileRoutes(db, upload) {
   router.post("/fighter-info", async (req, res) => {
     const { userId } = req.body;
     try {
-      const result = await db.query("SELECT * from users WHERE id=$1", [
-        userId,
-      ]);
-      if (result.rows.length > 0) {
-        res.status(200).json(result.rows[0]);
-      } else {
-        res.status(404).json({ message: "User not found" });
+      const { data: user, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", userId)
+        .single();
+
+      if (error) throw error;
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
       }
+
+      // Generate signed URL for profile picture if exists
+      if (user.profile_picture_url && global.supabaseAdmin) {
+        const { data: signed } = await global.supabaseAdmin.storage
+          .from("profiles")
+          .createSignedUrl(user.profile_picture_url, 3600);
+        if (signed) user.profile_signed_url = signed.signedUrl;
+      }
+
+      res.status(200).json(user);
     } catch (error) {
-      console.log(error);
+      console.error("Fighter info error:", error);
       res.status(500).json({ message: "Server error" });
     }
   });
@@ -70,40 +113,43 @@ export default function profileRoutes(db, upload) {
     } = req.body;
 
     try {
-      const result = await db.query(
-        `UPDATE users
-         SET weight_class = $1,
-             date_of_birth = $2,
-             wins = $3,
-             losses = $4,
-             draws = $5,
-             fight_style = $6,
-             profile_picture_url = $7,
-             weight = $8,
-             height = $9
-         WHERE id = $10
-         RETURNING *`,
-        [
+      const { data: user, error } = await supabase
+        .from("users")
+        .update({
           weight_class,
-          dob,
+          date_of_birth: dob,
           wins,
           losses,
           draws,
           fight_style,
-          profile_url,
+          profile_picture_url: profile_url,
           weight,
           height,
-          userId,
-        ]
-      );
-      if (result.rows.length === 0) {
+        })
+        .eq("id", userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
-      res
-        .status(200)
-        .json({ message: "Fighter profile updated", user: result.rows[0] });
+
+      // Generate signed URL for profile picture if exists
+      if (user.profile_picture_url && global.supabaseAdmin) {
+        const { data: signed } = await global.supabaseAdmin.storage
+          .from("profiles")
+          .createSignedUrl(user.profile_picture_url, 3600);
+        if (signed) user.profile_signed_url = signed.signedUrl;
+      }
+
+      res.status(200).json({
+        message: "Fighter profile updated",
+        user,
+      });
     } catch (error) {
-      console.error(error);
+      console.error("Update fighter error:", error);
       res.status(500).json({ message: "Server error" });
     }
   });

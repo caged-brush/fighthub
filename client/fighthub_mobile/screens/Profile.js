@@ -28,6 +28,17 @@ const isValidUrl = (url) => {
   );
 };
 
+const getFullMediaUrl = (url) => {
+  if (!url) return "";
+  // If it’s already a valid full URL
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+
+  // Otherwise combine safely with ip
+  const base = ip.endsWith("/") ? ip.slice(0, -1) : ip;
+  const path = url.startsWith("/") ? url : `/${url}`;
+  return `${base}${path}`;
+};
+
 // Profile screen component
 const Profile = () => {
   // Navigation and authentication context
@@ -189,7 +200,8 @@ const Profile = () => {
 
   const getUserPost = async () => {
     try {
-      const response = await axios.get(`${ip}/posts/${profileUserId}`);
+      const response = await axios.get(`${ip}/posts/user/${profileUserId}`);
+
       // Handle successful response
       console.log("User posts fetched successfully:", response.data);
       if (response.data && response.data.length > 0) {
@@ -373,7 +385,9 @@ const Profile = () => {
                     post.media_url.endsWith(".jpeg") ||
                     post.media_url.endsWith(".png") ? (
                       <Image
-                        source={{ uri: ip + post.media_url }}
+                        source={{
+                          uri: getFullMediaUrl(selectedPost.media_url),
+                        }}
                         style={{ width: "100%", height: "100%" }}
                       />
                     ) : (

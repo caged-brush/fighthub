@@ -161,8 +161,17 @@ export default function Signup() {
         Alert.alert("Error", response.data.message || "Registration failed");
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Something went wrong. Please try again");
+      console.error("Signup Axios error:", {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        headers: error.response?.headers,
+      });
+      Alert.alert(
+        "Error",
+        error.response?.data?.message ||
+          "Something went wrong. Please try again"
+      );
     }
   };
 
