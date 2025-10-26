@@ -14,6 +14,7 @@ import axios from "axios";
 import { Platform } from "react-native";
 import { AuthContext } from "../context/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { API_URL } from "../Constants";
 
 const styles = StyleSheet.create({
   container: {
@@ -143,7 +144,7 @@ const Upload = () => {
 
     try {
       const response = await axios.post(
-        "http://10.50.107.251:5001/post",
+        `${API_URL}/post`,
         formData,
         {
           headers: {

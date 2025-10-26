@@ -18,6 +18,7 @@ import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { useRoute } from "@react-navigation/native";
+import { API_URL } from "../Constants";
 
 // Helper function to check if a URL is valid (for profile images)
 const isValidUrl = (url) => {
@@ -164,7 +165,7 @@ const Profile = () => {
 
       // Fetch follower count
       try {
-        const followerRes = await axios.post(`${ip}/follower-count`, {
+        const followerRes = await axios.post(`${API_URL}/follower-count`, {
           userId: profileUserId,
         });
         setFollowerCount(followerRes.data.count || 0);
@@ -173,7 +174,7 @@ const Profile = () => {
       }
       // Fetch following count
       try {
-        const followingRes = await axios.post(`${ip}/following-count`, {
+        const followingRes = await axios.post(`${API_URL}/following-count`, {
           userId: profileUserId,
         });
         setFollowingCount(followingRes.data.count || 0);
@@ -184,7 +185,7 @@ const Profile = () => {
       // Check if current user is following the profile user
       if (!viewingOwnProfile) {
         try {
-          const followRes = await axios.post(`${ip}/is-following`, {
+          const followRes = await axios.post(`${API_URL}/is-following`, {
             followerId: userId,
             followingId: profileUserId,
           });
@@ -200,7 +201,7 @@ const Profile = () => {
 
   const getUserPost = async () => {
     try {
-      const response = await axios.get(`${ip}/posts/user/${profileUserId}`);
+      const response = await axios.get(`${API_URL}/posts/user/${profileUserId}`);
 
       // Handle successful response
       console.log("User posts fetched successfully:", response.data);
@@ -217,7 +218,7 @@ const Profile = () => {
   // Handle follow action
   const handleFollow = async () => {
     try {
-      const response = await axios.post(`${ip}/follow`, {
+      const response = await axios.post(`${API_URL}/follow`, {
         followingId: profileUserId,
         followerId: userId,
       });
@@ -241,7 +242,7 @@ const Profile = () => {
   // Handle unfollow action
   const handleUnfollow = async () => {
     try {
-      const response = await axios.post(`${ip}/unfollow`, {
+      const response = await axios.post(`${API_URL}/unfollow`, {
         followingId: profileUserId,
         followerId: userId,
       });

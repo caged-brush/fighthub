@@ -18,7 +18,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 
 // Set the URL for your backend server here
-const socket = io("http://10.50.99.238:5001");
+const socket = io("https://fighthub.onrender.com");
 
 const ChatScreen = () => {
   const route = useRoute();

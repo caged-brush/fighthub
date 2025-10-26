@@ -10,8 +10,9 @@ import {
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { API_URL } from "../Constants";
 
-const FIGHTHUB_BASE_URL = "http://10.50.107.251:5001";
+const FIGHTHUB_BASE_URL = API_URL;
 
 const UserListScreen = () => {
   const [users, setUsers] = useState([]);

@@ -22,6 +22,7 @@ import { CLIENT_ID_ANDROID, CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import * as Google from "expo-auth-session/providers/google";
 import { auth } from "../firebaseConfig";
+import { API_URL } from "../Constants";
 
 const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 
@@ -144,7 +145,7 @@ export default function Signup() {
     }
 
     try {
-      const response = await axios.post("http://10.50.107.251:5001/register", {
+      const response = await axios.post(`${API_URL}/register`, {
         fname,
         lname,
         email,

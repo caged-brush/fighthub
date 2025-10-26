@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
+import { API_URL } from "../Constants";
 
 const isValidUrl = (url) => {
   if (!url) return false;
@@ -91,7 +92,7 @@ const Home = () => {
     setLoading(true);
     try {
       const response = await axios.get(
-        `http://10.50.107.251:5001/posts?page=${page}&limit=10`
+        `${API_URL}/posts?page=${page}&limit=10`
       );
 
       // Destructure the correct response structure from Supabase
@@ -141,7 +142,7 @@ const Home = () => {
     setPage(1);
     try {
       const response = await axios.get(
-        `http://10.50.107.251:5001/posts?page=1&limit=10`
+        `${API_URL}/posts?page=1&limit=10`
       );
 
       // ✅ Destructure properly
@@ -168,7 +169,7 @@ const Home = () => {
     if (userProfiles[userId]) return;
     try {
       const response = await axios.post(
-        "http://10.50.107.251:5001/fighter-info",
+        `${API_URL}/fighter-info`,
         { userId }
       );
       if (response.data) {
@@ -199,7 +200,7 @@ const Home = () => {
 
     try {
       if (isLiked) {
-        await axios.post(`http://10.50.107.251:5001/unlike`, {
+        await axios.post(`${API_URL}/unlike`, {
           userId,
           postId,
         });
@@ -209,7 +210,7 @@ const Home = () => {
           [postId]: Math.max((prev[postId] || 1) - 1, 0),
         }));
       } else {
-        await axios.post(`http://10.50.107.251:5001/like`, {
+        await axios.post(`${API_URL}/like`, {
           userId,
           postId,
         });
@@ -235,13 +236,13 @@ const Home = () => {
     try {
       // Batch fetch like counts
       const likeCountResp = await axios.post(
-        "http://10.50.107.251:5001/like-counts",
+        `${API_URL}/like-counts`,
         { postIds }
       );
 
       // Batch fetch liked posts by this user
       const likedPostsResp = await axios.post(
-        "http://10.50.107.251:5001/liked-posts",
+        `${API_URL}/liked-posts`,
         { userId, postIds }
       );
 

@@ -4,6 +4,7 @@ import { AuthContext } from "../context/AuthContext";
 import axios from "axios";
 import React, { useContext, useEffect, useState } from "react";
 import CustomButton from "../component/CustomButton";
+import { API_URL } from "../Constants";
 
 const Settings = () => {
   const { logout, completeOnboarding, userId } = useContext(AuthContext);
@@ -24,7 +25,7 @@ const Settings = () => {
 
     try {
       const response = await axios.put(
-        "http://10.50.99.238:5001/change-profile-pic",
+        `${API_URL}/change-profile-pic`,
         formData,
         {
           headers: {
@@ -36,7 +37,7 @@ const Settings = () => {
       if (response.data) {
         setFighterInfo((prevState) => ({
           ...prevState,
-          profile_url: `http://10.50.99.238:5001/${response.data.users.profile_picture_url}`,
+          profile_url: `${API_URL}/${response.data.users.profile_picture_url}`,
           // updated URL
         }));
         console.log(

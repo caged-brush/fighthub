@@ -25,6 +25,7 @@ import judoImg from "../images/judo.jpg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { API_URL } from "../Constants";
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -216,7 +217,7 @@ const Onboarding = () => {
 
     try {
       const response = await axios.put(
-        "http://10.50.107.251:5001/update-fighter",
+        `${API_URL}/update-fighter`,
         {
           weight_class,
           dob,

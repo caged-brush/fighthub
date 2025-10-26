@@ -1,7 +1,8 @@
 import { useVideoPlayer, VideoView } from "expo-video";
 import { StyleSheet, View, Button } from "react-native";
+import { API_URL } from "../Constants";
 
-const videoSource = "http://10.50.99.238:5001/uploads/1742839961029.mp4";
+const videoSource = `${API_URL}/uploads/1742839961029.mp4`;
 
 export default function VideoScreen() {
   const player = useVideoPlayer(videoSource, (player) => {

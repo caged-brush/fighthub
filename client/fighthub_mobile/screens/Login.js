@@ -13,6 +13,7 @@ import { useNavigation } from "@react-navigation/native";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { API_URL } from "../Constants";
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -111,7 +112,7 @@ const Login = () => {
     const { email, password } = formData;
 
     try {
-      const response = await axios.post("http://10.50.107.251:5001/login", {
+      const response = await axios.post(`${API_URL}/login`, {
         email,
         password,
       });
