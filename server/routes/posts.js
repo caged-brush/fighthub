@@ -157,12 +157,35 @@ export default function postsRoute(supabase, upload, uploadDir) {
       const postsWithSignedUrls = await Promise.all(
         posts.map(async (post) => {
           if (!post.media_url) return post;
+
           const bucket = post.type === "video" ? "videos" : "images";
           const pathInBucket = post.media_url.replace(`${bucket}/`, "");
-          const { data: signedData } = await supabaseAdmin.storage
-            .from(bucket)
-            .createSignedUrl(pathInBucket, 60 * 60); // 1 hour
-          return { ...post, media_signed_url: signedData.signedUrl };
+
+          try {
+            const { data: signedData, error: signedError } =
+              await supabaseAdmin.storage
+                .from(bucket)
+                .createSignedUrl(pathInBucket, 60 * 60); // 1 hour
+
+            if (signedError) {
+              console.warn(
+                "Signed URL error for",
+                pathInBucket,
+                signedError.message
+              );
+              return { ...post, media_signed_url: null };
+            }
+
+            if (!signedData || !signedData.signedUrl) {
+              console.warn("Signed URL missing data for", pathInBucket);
+              return { ...post, media_signed_url: null };
+            }
+
+            return { ...post, media_signed_url: signedData.signedUrl };
+          } catch (e) {
+            console.error("Signed URL generation failed", e);
+            return { ...post, media_signed_url: null };
+          }
         })
       );
 
