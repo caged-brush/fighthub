@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useContext } from "react";
-import { ip } from "../Constants";
+
 import {
   Pressable,
   Text,
@@ -34,8 +34,8 @@ const getFullMediaUrl = (url) => {
   // If it’s already a valid full URL
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
 
-  // Otherwise combine safely with ip
-  const base = ip.endsWith("/") ? ip.slice(0, -1) : ip;
+  // Otherwise combine safely with API_URL
+  const base = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
   const path = url.startsWith("/") ? url : `/${url}`;
   return `${base}${path}`;
 };
@@ -79,12 +79,12 @@ const Profile = () => {
     const fetchLikes = async () => {
       if (!selectedPost) return;
       try {
-        const res = await axios.post(`${ip}/like-count`, {
+        const res = await axios.post(`${API_URL}/like-count`, {
           postId: selectedPost.id,
         });
         setPostLikes(res.data.likes || 0);
         // Check if user has liked using /liked-posts
-        const likedRes = await axios.post(`${ip}/liked-posts`, {
+        const likedRes = await axios.post(`${API_URL}/liked-posts`, {
           userId,
         });
         const likedPostIds = likedRes.data.likedPostIds || [];
@@ -99,6 +99,12 @@ const Profile = () => {
     }
   }, [modalVisible, selectedPost, userId]);
 
+  const isImage = (url) =>
+    typeof url === "string" &&
+    (url.toLowerCase().endsWith(".jpg") ||
+      url.toLowerCase().endsWith(".jpeg") ||
+      url.toLowerCase().endsWith(".png"));
+
   // Like/unlike handler
   const handleLike = async () => {
     if (!selectedPost) return;
@@ -107,7 +113,7 @@ const Profile = () => {
     try {
       if (hasLiked) {
         // Unlike
-        await axios.post(`${ip}/unlike`, {
+        await axios.post(`${API_URL}/unlike`, {
           userId,
           postId: selectedPost.id,
         });
@@ -115,7 +121,7 @@ const Profile = () => {
         setPostLikes((prev) => Math.max(prev - 1, 0));
       } else {
         // Like
-        await axios.post(`${ip}/like`, {
+        await axios.post(`${API_URL}/like`, {
           userId,
           postId: selectedPost.id,
         });
@@ -137,11 +143,11 @@ const Profile = () => {
   const getUserProfile = async () => {
     try {
       // Get fighter info
-      const response = await axios.post(`${ip}/fighter-info`, {
+      const response = await axios.post(`${API_URL}/fighter-info`, {
         userId: profileUserId || userId,
       });
       if (response.data) {
-        const baseUrl = ip.endsWith("/") ? ip.slice(0, -1) : ip;
+        const baseUrl = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
         const picUrl =
           response.data.profile_picture_url &&
           typeof response.data.profile_picture_url === "string"
@@ -201,7 +207,9 @@ const Profile = () => {
 
   const getUserPost = async () => {
     try {
-      const response = await axios.get(`${API_URL}/posts/user/${profileUserId}`);
+      const response = await axios.get(
+        `${API_URL}/posts/user/${profileUserId}`
+      );
 
       // Handle successful response
       console.log("User posts fetched successfully:", response.data);
@@ -372,24 +380,28 @@ const Profile = () => {
             <Text style={styles.noPostsText}>No posts yet.</Text>
           ) : (
             <View style={styles.postsGrid}>
-              {userPosts.map((post) => (
-                <TouchableOpacity
-                  key={post.id}
-                  style={styles.postItem}
-                  onPress={() => {
-                    setSelectedPost(post);
-                    setModalVisible(true);
-                  }}
-                >
-                  {post.media_url &&
-                    (post.media_url.endsWith(".jpg") ||
-                    post.media_url.endsWith(".jpeg") ||
-                    post.media_url.endsWith(".png") ? (
+              {userPosts.map((post) => {
+                console.log("Thumbnail URL:", getFullMediaUrl(post.media_url));
+
+                return (
+                  <TouchableOpacity
+                    key={post.id}
+                    style={styles.postItem}
+                    onPress={() => {
+                      setSelectedPost(post);
+                      setModalVisible(true);
+                    }}
+                  >
+                    {isImage(post.media_url) ? (
                       <Image
-                        source={{
-                          uri: getFullMediaUrl(selectedPost.media_url),
-                        }}
+                        source={{ uri: getFullMediaUrl(post.media_url) }}
                         style={{ width: "100%", height: "100%" }}
+                        onError={(e) =>
+                          console.log(
+                            "Image failed to load:",
+                            e.nativeEvent.error
+                          )
+                        }
                       />
                     ) : (
                       <View style={styles.postVideoPreview}>
@@ -398,9 +410,10 @@ const Profile = () => {
                           Video
                         </Text>
                       </View>
-                    ))}
-                </TouchableOpacity>
-              ))}
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -413,18 +426,17 @@ const Profile = () => {
           >
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
+                {console.log("Debug selectedPost:", selectedPost)}
                 {selectedPost &&
                   selectedPost.media_url &&
-                  (selectedPost.media_url.endsWith(".jpg") ||
-                  selectedPost.media_url.endsWith(".jpeg") ||
-                  selectedPost.media_url.endsWith(".png") ? (
+                  (isImage(selectedPost.media_url) ? (
                     <Image
-                      source={{ uri: ip + selectedPost.media_url }}
+                      source={{ uri: getFullMediaUrl(selectedPost.media_url) }}
                       style={styles.modalImage}
                     />
                   ) : (
                     <Video
-                      source={{ uri: ip + selectedPost.media_url }}
+                      source={{ uri: getFullMediaUrl(selectedPost.media_url) }}
                       style={styles.modalVideo}
                       useNativeControls
                       resizeMode="contain"

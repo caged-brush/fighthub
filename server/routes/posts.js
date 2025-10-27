@@ -11,28 +11,35 @@ export default function postsRoute(supabase, upload, uploadDir) {
   // Upload media to Supabase Storage (uses admin client to write to private buckets)
   async function uploadToStorage(file, bucket = "images") {
     const filename = `${Date.now()}-${file.originalname}`;
+    const fileStream = fs.createReadStream(file.path);
+
     try {
-      const fileStream = fs.createReadStream(file.path);
+      // Upload to Supabase Storage
       const { data, error } = await supabaseAdmin.storage
         .from(bucket)
         .upload(filename, fileStream, {
           contentType: file.mimetype,
           upsert: false,
-          duplex: "half", // required for Node >= 18 when body is a stream
+          duplex: "half",
         });
 
       if (error) throw error;
 
-      // cleanup temp file
+      // Cleanup temp file
       try {
         fs.unlinkSync(file.path);
       } catch (e) {
         console.warn("cleanup failed:", e?.message || e);
       }
 
-      return `${bucket}/${filename}`;
+      // Generate a **public URL** for the uploaded file
+      const { data: publicUrlData } = supabaseAdmin.storage
+        .from(bucket)
+        .getPublicUrl(filename);
+
+      return publicUrlData.publicUrl; // ✅ Return the full URL, not a relative path
     } catch (err) {
-      // cleanup on error
+      // Cleanup on error
       try {
         if (file?.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
       } catch (e) {
@@ -197,6 +204,12 @@ export default function postsRoute(supabase, upload, uploadDir) {
       const postsWithSignedUrls = await Promise.all(
         posts.map(async (post) => {
           if (!post.media_url) return post;
+
+          // ✅ Skip signing if media_url is already a public Supabase URL
+          if (post.media_url.startsWith("https://")) {
+            return { ...post, media_signed_url: post.media_url };
+          }
+
           try {
             const bucket = post.type === "video" ? "videos" : "images";
             const pathInBucket = post.media_url.startsWith(`${bucket}/`)
@@ -207,10 +220,12 @@ export default function postsRoute(supabase, upload, uploadDir) {
               await supabaseAdmin.storage
                 .from(bucket)
                 .createSignedUrl(pathInBucket, 60 * 60); // 1 hour
+
             if (signedError) {
               console.warn("signed url error:", signedError);
               return post;
             }
+
             return { ...post, media_signed_url: signedData.signedUrl };
           } catch (e) {
             console.error("signed url generation failed:", e);
