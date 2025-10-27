@@ -8,26 +8,39 @@ import { supabaseAdmin } from "../config/supabase.js"; // admin client
 const router = express.Router();
 
 export default function postsRoute(supabase, upload, uploadDir) {
-  // Upload media to Supabase Storage (private bucket)
-  async function uploadToStorage(file, bucket = "images") {
+  const BUCKETS = {
+    images: { name: "images", public: false },
+    videos: { name: "videos", public: false },
+  };
+
+  // Upload file to Supabase Storage
+  async function uploadToStorage(file, bucketKey = "images") {
+    const bucket = BUCKETS[bucketKey];
     const filename = `${Date.now()}-${file.originalname}`;
     const fileStream = fs.createReadStream(file.path);
 
     try {
       const { data, error } = await supabaseAdmin.storage
-        .from(bucket)
+        .from(bucket.name)
         .upload(filename, fileStream, {
           contentType: file.mimetype,
           upsert: false,
+          duplex: "half",
         });
 
       if (error) throw error;
 
-      // Cleanup temp file
-      fs.unlink(file.path, () => {});
+      // Clean up temp file
+      fs.existsSync(file.path) && fs.unlinkSync(file.path);
 
-      // Return path, NOT public URL
-      return `${bucket}/${filename}`;
+      // Return public URL if bucket is public, else return path
+      if (bucket.public) {
+        const { data: publicData } = supabaseAdmin.storage
+          .from(bucket.name)
+          .getPublicUrl(filename);
+        return publicData.publicUrl;
+      }
+      return `${bucket.name}/${filename}`;
     } catch (err) {
       fs.existsSync(file.path) && fs.unlinkSync(file.path);
       throw err;
@@ -39,11 +52,11 @@ export default function postsRoute(supabase, upload, uploadDir) {
     const { user_id, caption } = req.body;
     if (!req.file) return res.status(400).json({ error: "No media uploaded" });
 
-    const fileType = req.file.mimetype?.split?.("/")[0] || "image";
+    const fileType = req.file.mimetype?.split("/")[0] || "image";
     const inputPath = req.file.path;
 
     try {
-      // Video processing
+      // Video handling
       if (fileType === "video") {
         const outputFilename = `${Date.now()}.mp4`;
         const outputPath = path.join(uploadDir, outputFilename);
@@ -60,7 +73,6 @@ export default function postsRoute(supabase, upload, uploadDir) {
                 { ...req.file, path: outputPath, originalname: outputFilename },
                 "videos"
               );
-
               fs.existsSync(outputPath) && fs.unlinkSync(outputPath);
 
               const { data, error } = await supabaseAdmin
@@ -99,7 +111,7 @@ export default function postsRoute(supabase, upload, uploadDir) {
         return;
       }
 
-      // Handle images or other non-video files
+      // Handle images & other files
       const mediaPath = await uploadToStorage(req.file, "images");
 
       const { data, error } = await supabaseAdmin
@@ -127,7 +139,7 @@ export default function postsRoute(supabase, upload, uploadDir) {
     }
   });
 
-  // GET /posts with signed URLs
+  // GET /posts
   router.get("/posts", async (req, res) => {
     try {
       const { page = 1, limit = 10, user_id } = req.query;
@@ -153,44 +165,45 @@ export default function postsRoute(supabase, upload, uploadDir) {
 
       const posts = Array.isArray(data) ? data : [];
 
-      // generate signed URLs
-      const postsWithSignedUrls = await Promise.all(
+      // Generate URLs
+      const postsWithUrls = await Promise.all(
         posts.map(async (post) => {
           if (!post.media_url) return post;
 
-          const bucket = post.type === "video" ? "videos" : "images";
-          const pathInBucket = post.media_url.replace(`${bucket}/`, "");
+          const bucket =
+            post.type === "video" ? BUCKETS.videos : BUCKETS.images;
+          let pathInBucket = post.media_url;
 
-          try {
-            const { data: signedData, error: signedError } =
-              await supabaseAdmin.storage
-                .from(bucket)
-                .createSignedUrl(pathInBucket, 60 * 60); // 1 hour
+          if (!bucket.public) {
+            if (pathInBucket.startsWith(`${bucket.name}/`))
+              pathInBucket = pathInBucket.slice(bucket.name.length + 1);
 
-            if (signedError) {
-              console.warn(
-                "Signed URL error for",
-                pathInBucket,
-                signedError.message
-              );
+            try {
+              const { data: signedData, error: signedError } =
+                await supabaseAdmin.storage
+                  .from(bucket.name)
+                  .createSignedUrl(pathInBucket, 60 * 60);
+
+              if (signedError || !signedData?.signedUrl)
+                return {
+                  ...post,
+                  media_signed_url: null,
+                };
+
+              return { ...post, media_signed_url: signedData.signedUrl };
+            } catch (e) {
+              console.error("Signed URL generation failed", e);
               return { ...post, media_signed_url: null };
             }
-
-            if (!signedData || !signedData.signedUrl) {
-              console.warn("Signed URL missing data for", pathInBucket);
-              return { ...post, media_signed_url: null };
-            }
-
-            return { ...post, media_signed_url: signedData.signedUrl };
-          } catch (e) {
-            console.error("Signed URL generation failed", e);
-            return { ...post, media_signed_url: null };
+          } else {
+            // public bucket
+            return { ...post, media_signed_url: post.media_url };
           }
         })
       );
 
       return res.json({
-        posts: postsWithSignedUrls,
+        posts: postsWithUrls,
         total: count || 0,
         pages: Math.ceil((count || 0) / limit),
         currentPage: Number(page),
@@ -201,7 +214,7 @@ export default function postsRoute(supabase, upload, uploadDir) {
     }
   });
 
-  // DELETE post
+  // DELETE /posts/:id
   router.delete("/posts/:id", async (req, res) => {
     try {
       const { data: post, error: fetchError } = await supabaseAdmin
@@ -213,9 +226,13 @@ export default function postsRoute(supabase, upload, uploadDir) {
       if (fetchError) throw fetchError;
 
       if (post?.media_url) {
-        const bucket = post.type === "video" ? "videos" : "images";
-        const pathInBucket = post.media_url.replace(`${bucket}/`, "");
-        await supabaseAdmin.storage.from(bucket).remove([pathInBucket]);
+        const bucket = post.type === "video" ? BUCKETS.videos : BUCKETS.images;
+        let pathInBucket = post.media_url;
+
+        if (pathInBucket.startsWith(`${bucket.name}/`))
+          pathInBucket = pathInBucket.slice(bucket.name.length + 1);
+
+        await supabaseAdmin.storage.from(bucket.name).remove([pathInBucket]);
       }
 
       const { error: delError } = await supabaseAdmin
@@ -224,6 +241,7 @@ export default function postsRoute(supabase, upload, uploadDir) {
         .eq("id", req.params.id);
 
       if (delError) throw delError;
+
       return res.json({ message: "Post deleted successfully" });
     } catch (err) {
       console.error("DELETE /posts/:id error:", err);

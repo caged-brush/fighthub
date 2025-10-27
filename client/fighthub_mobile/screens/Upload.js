@@ -1,33 +1,148 @@
+import React, { useState, useContext } from "react";
 import {
   View,
   Text,
-  Button,
   Image,
-  TextInput,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   SafeAreaView,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState, useContext } from "react";
+import { Video } from "expo-av";
 import axios from "axios";
-import { Platform } from "react-native";
-import { AuthContext } from "../context/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 
+const Upload = () => {
+  const [media, setMedia] = useState(null);
+  const [mediaType, setMediaType] = useState(null);
+  const [caption, setCaption] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const { userId } = useContext(AuthContext);
+
+  // Pick image or video
+  const pickMedia = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      const asset = result.assets[0];
+      setMedia(asset.uri);
+      setMediaType(asset.type); // "image" or "video"
+    }
+  };
+
+  // Upload media
+  const uploadMedia = async () => {
+    if (!media) return;
+
+    try {
+      const fileExt = media.split(".").pop();
+      const mimeType =
+        mediaType === "video"
+          ? `video/${fileExt === "mov" ? "quicktime" : fileExt}`
+          : `image/${fileExt === "jpg" ? "jpeg" : fileExt}`;
+
+      const formData = new FormData();
+      formData.append("user_id", userId);
+      formData.append("caption", caption);
+      formData.append("media", {
+        uri: Platform.OS === "ios" ? media.replace("file://", "") : media,
+        name: `upload.${fileExt}`,
+        type: mimeType,
+      });
+
+      // Axios POST
+      const response = await axios.post(`${API_URL}/post`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        // workaround for Expo iOS duplex stream issue
+        // if using fetch instead, set: body: formData, method: 'POST', duplex: 'half'
+      });
+
+      setSuccessMessage("Upload successful!");
+      setMedia(null);
+      setCaption("");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    } catch (err) {
+      console.error("Upload error:", err.response?.data || err.message);
+      setSuccessMessage("Upload failed. Please try again.");
+      setTimeout(() => setSuccessMessage(""), 3000);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <Text style={styles.title}>Upload Fight Media</Text>
+      <View style={styles.card}>
+        <TouchableOpacity style={styles.pickButton} onPress={pickMedia}>
+          <Ionicons name="cloud-upload-outline" size={24} color="#fff" />
+          <Text style={styles.pickButtonText}>Pick Image or Video</Text>
+        </TouchableOpacity>
+
+        {media && (
+          <View style={styles.mediaPreview}>
+            {mediaType === "video" ? (
+              <Video
+                source={{ uri: media }}
+                style={{ width: 210, height: 210, borderRadius: 10 }}
+                useNativeControls
+                resizeMode="contain"
+              />
+            ) : (
+              <Image
+                source={{ uri: media }}
+                style={{ width: 210, height: 210, borderRadius: 10 }}
+              />
+            )}
+          </View>
+        )}
+
+        {media && (
+          <>
+            <TextInput
+              style={styles.captionInput}
+              placeholder="Enter a fight caption..."
+              placeholderTextColor="#aaa"
+              value={caption}
+              onChangeText={setCaption}
+            />
+            <TouchableOpacity style={styles.uploadButton} onPress={uploadMedia}>
+              <Text style={styles.uploadButtonText}>Upload</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {successMessage ? (
+          <Text
+            style={{
+              marginTop: 20,
+              fontWeight: "bold",
+              fontSize: 16,
+              color: successMessage.includes("successful") ? "#0f0" : "#e0245e",
+              textAlign: "center",
+            }}
+          >
+            {successMessage}
+          </Text>
+        ) : null}
+      </View>
+    </SafeAreaView>
+  );
+};
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#181818",
-    padding: 24,
-  },
+  container: { flex: 1, backgroundColor: "#181818", padding: 24 },
   title: {
     fontSize: 28,
     fontWeight: "bold",
     color: "#ffd700",
     marginBottom: 18,
-    letterSpacing: 1,
     textAlign: "center",
   },
   card: {
@@ -36,12 +151,8 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 2,
     borderColor: "#e0245e",
-    shadowColor: "#e0245e",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
-    alignItems: "center",
     marginBottom: 24,
+    alignItems: "center",
   },
   pickButton: {
     backgroundColor: "#e0245e",
@@ -49,8 +160,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 8,
     marginBottom: 16,
-    alignItems: "center",
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
   },
   pickButtonText: {
@@ -66,18 +177,12 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#ffd700",
     marginBottom: 16,
-    backgroundColor: "#222",
-    shadowColor: "#ffd700",
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
     alignItems: "center",
     justifyContent: "center",
   },
   captionInput: {
     borderColor: "#e0245e",
     borderWidth: 2,
-    marginTop: 10,
     padding: 12,
     borderRadius: 8,
     color: "#fff",
@@ -94,128 +199,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  uploadButtonText: {
-    color: "#181818",
-    fontWeight: "bold",
-    fontSize: 18,
-    letterSpacing: 1,
-  },
-  message: {
-    marginTop: 20,
-    fontWeight: "bold",
-    fontSize: 16,
-    textAlign: "center",
-  },
+  uploadButtonText: { color: "#181818", fontWeight: "bold", fontSize: 18 },
 });
-
-const Upload = () => {
-  const [media, setMedia] = useState(null);
-  const [mediaType, setMediaType] = useState(null);
-  const [caption, setCaption] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
-  const { logout, userId } = useContext(AuthContext);
-
-  const pickMedia = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: true,
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setMedia(result.assets[0].uri);
-      setMediaType(result.assets[0].type);
-    }
-  };
-
-  const uploadMedia = async () => {
-    if (!media) return;
-
-    let formData = new FormData();
-    formData.append("user_id", userId);
-    formData.append("caption", caption);
-
-    let fileType = media.split(".").pop();
-    formData.append("media", {
-      uri: media,
-      name: `upload.${fileType}`,
-      type: mediaType === "video" ? `video/${fileType}` : `image/${fileType}`,
-    });
-
-    try {
-      const response = await axios.post(
-        `${API_URL}/post`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
-      setSuccessMessage("Upload successful!");
-      setMedia(null);
-      setCaption("");
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
-    } catch (error) {
-      setSuccessMessage("Upload failed. Please try again.");
-      setTimeout(() => {
-        setSuccessMessage("");
-      }, 3000);
-    }
-  };
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Upload Fight Media</Text>
-      <View style={styles.card}>
-        <TouchableOpacity style={styles.pickButton} onPress={pickMedia}>
-          <Ionicons name="cloud-upload-outline" size={24} color="#fff" />
-          <Text style={styles.pickButtonText}>Pick Image or Video</Text>
-        </TouchableOpacity>
-        {media && (
-          <View style={styles.mediaPreview}>
-            {mediaType === "video" ? (
-              <Ionicons name="videocam-outline" size={80} color="#ffd700" />
-            ) : (
-              <Image
-                source={{ uri: media }}
-                style={{ width: 210, height: 210, borderRadius: 10 }}
-              />
-            )}
-          </View>
-        )}
-        {media && (
-          <>
-            <TextInput
-              style={styles.captionInput}
-              placeholder="Enter a fight caption..."
-              placeholderTextColor="#aaa"
-              value={caption}
-              onChangeText={setCaption}
-            />
-            <TouchableOpacity style={styles.uploadButton} onPress={uploadMedia}>
-              <Text style={styles.uploadButtonText}>Upload</Text>
-            </TouchableOpacity>
-          </>
-        )}
-        {successMessage ? (
-          <Text
-            style={[
-              styles.message,
-              {
-                color:
-                  successMessage === "Upload successful!" ? "#0f0" : "#e0245e",
-              },
-            ]}
-          >
-            {successMessage}
-          </Text>
-        ) : null}
-      </View>
-    </SafeAreaView>
-  );
-};
 
 export default Upload;
