@@ -25,25 +25,25 @@ export default function postsRoute(supabase, upload, uploadDir) {
         .upload(filename, fileStream, {
           contentType: file.mimetype,
           upsert: false,
-          duplex: "half",
         });
 
       if (error) throw error;
 
-      // Clean up temp file
+      // Delete local file
       fs.existsSync(file.path) && fs.unlinkSync(file.path);
 
-      // Return public URL if bucket is public, else return path
       if (bucket.public) {
         const { data: publicData } = supabaseAdmin.storage
           .from(bucket.name)
           .getPublicUrl(filename);
         return publicData.publicUrl;
       }
+
       return `${bucket.name}/${filename}`;
     } catch (err) {
       fs.existsSync(file.path) && fs.unlinkSync(file.path);
-      throw err;
+      console.error("Supabase upload failed:", err.message || err);
+      throw new Error("Supabase upload failed");
     }
   }
 

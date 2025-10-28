@@ -58,19 +58,27 @@ const Upload = () => {
         type: mimeType,
       });
 
-      // Axios POST
-      const response = await axios.post(`${API_URL}/post`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        // workaround for Expo iOS duplex stream issue
-        // if using fetch instead, set: body: formData, method: 'POST', duplex: 'half'
+      const response = await fetch(`${API_URL}/post`, {
+        method: "POST",
+        body: formData,
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        duplex: "half", // 💀 crucial for iOS + Expo
       });
+
+      if (!response.ok) {
+        const errData = await response.text();
+        console.error("Upload error:", errData);
+        throw new Error("Upload failed");
+      }
 
       setSuccessMessage("Upload successful!");
       setMedia(null);
       setCaption("");
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
-      console.error("Upload error:", err.response?.data || err.message);
+      console.error("Upload error:", err.message);
       setSuccessMessage("Upload failed. Please try again.");
       setTimeout(() => setSuccessMessage(""), 3000);
     }
