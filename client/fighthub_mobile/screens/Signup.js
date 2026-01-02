@@ -16,7 +16,7 @@ import CustomButton from "../component/CustomButton";
 import axios from "axios";
 import { useContext, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { CLIENT_ID_ANDROID, CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
@@ -27,20 +27,14 @@ import { API_URL } from "../Constants";
 const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#181818",
-  },
+  safeArea: { flex: 1, backgroundColor: "#181818" },
   container: {
     flexGrow: 1,
     padding: 24,
     backgroundColor: "#181818",
     justifyContent: "center",
   },
-  logoContainer: {
-    alignItems: "center",
-    marginBottom: 32,
-  },
+  logoContainer: { alignItems: "center", marginBottom: 32 },
   fighterIcon: {
     backgroundColor: "#232323",
     borderRadius: 50,
@@ -55,18 +49,14 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: 1,
   },
-  fieldContainer: {
-    marginTop: 18,
-  },
+  fieldContainer: { marginTop: 18 },
   label: {
     color: "#ffd700",
     fontWeight: "bold",
     fontSize: 16,
     marginBottom: 6,
   },
-  inputContainer: {
-    position: "relative",
-  },
+  inputContainer: { position: "relative" },
   input: {
     backgroundColor: "#232323",
     borderRadius: 10,
@@ -84,24 +74,38 @@ const styles = StyleSheet.create({
     top: "50%",
     transform: [{ translateY: -12 }],
   },
-  buttonGroup: {
-    marginTop: 24,
-  },
-  button: {
-    marginBottom: 12,
-  },
+  buttonGroup: { marginTop: 24 },
+  button: { marginBottom: 12 },
   buttonText: {
     color: "#fff",
     fontWeight: "bold",
     fontSize: 18,
     letterSpacing: 1,
   },
+
+  // ✅ tiny role pill so user sees what they’re signing up as
+  rolePill: {
+    alignSelf: "center",
+    marginTop: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#ffd700",
+    backgroundColor: "#232323",
+  },
+  rolePillText: { color: "#ffd700", fontWeight: "700" },
 });
 
 export default function Signup() {
-  const { signup } = useContext(AuthContext);
-  const [userToken, setUserToken] = useState(null);
   const navigation = useNavigation();
+  const route = useRoute();
+
+  // ✅ IMPORTANT: role comes from Welcome
+  const selectedRole = route.params?.role; // 'fighter' | 'scout'
+
+  const { signup, setUserRole } = useContext(AuthContext);
+
   const [formData, setFormData] = useState({
     fname: "",
     lname: "",
@@ -126,12 +130,12 @@ export default function Signup() {
     androidClientId: CLIENT_ID_ANDROID,
     webClientId: CLIENT_ID_WEB,
     scopes: ["profile", "email"],
-    redirectUri: redirectUri,
+    redirectUri,
   });
 
   const handleChange = (name, value) => {
     if (name === "email") {
-      value = value.charAt(0).toLowerCase() + value.slice(1);
+      value = value.trim().toLowerCase();
     }
     setFormData({ ...formData, [name]: value });
   };
@@ -139,35 +143,43 @@ export default function Signup() {
   const handleUserSignup = async () => {
     const { fname, lname, email, password, confirmPassword } = formData;
 
+    // ✅ role must be selected
+    if (!selectedRole || !["fighter", "scout"].includes(selectedRole)) {
+      Alert.alert("Missing role", "Go back and choose Fighter or Scout.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       Alert.alert("Error", "Passwords do not match");
       return;
     }
 
     try {
-      const response = await axios.post(`${API_URL}/register`, {
+      // ✅ BEST: send role directly during register
+      const res = await axios.post(`${API_URL}/register`, {
         fname,
         lname,
         email,
         password,
-        confirm: confirmPassword,
+        confirm: confirmPassword, // ✅ REQUIRED BY YOUR BACKEND
+        role: selectedRole,
       });
 
-      if (response.data.token) {
-        const { token, userId } = response.data;
-        setUserToken(token);
+      if (res.data?.token) {
+        const { token, userId, role } = res.data;
+
+        // ✅ persist role in context/storage so navigator routes onboarding correctly
+        await setUserRole(role);
+
+        // ✅ signup stores token/userId + onboarding false
+        await signup(token, userId, role);
+
         Alert.alert("Success", "Registration Successful");
-        signup(token, userId);
       } else {
-        Alert.alert("Error", response.data.message || "Registration failed");
+        Alert.alert("Error", res.data?.message || "Registration failed");
       }
     } catch (error) {
-      console.error("Signup Axios error:", {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        headers: error.response?.headers,
-      });
+      console.error("Signup error:", error.response?.data || error.message);
       Alert.alert(
         "Error",
         error.response?.data?.message ||
@@ -176,11 +188,10 @@ export default function Signup() {
     }
   };
 
-  const handleLogin = () => {
-    navigation.navigate("Login");
-  };
+  const handleLogin = () => navigation.navigate("Login");
 
   const signIn = async () => {
+    // ⚠️ You still need to map Google sign-in into your backend auth eventually.
     const result = await promptAsync();
     if (result?.type === "success") {
       const { idToken, accessToken } = result.authentication;
@@ -188,6 +199,7 @@ export default function Signup() {
       signInWithCredential(auth, credential)
         .then((userCredential) => {
           console.log("User signed in:", userCredential.user);
+          Alert.alert("Google Sign-in", "Now connect this to your backend.");
         })
         .catch((error) => console.log("Error signing in:", error));
     }
@@ -205,8 +217,24 @@ export default function Signup() {
               <View style={styles.fighterIcon}>
                 <Ionicons name="body-outline" size={48} color="#ffd700" />
               </View>
-              <Text style={styles.title}>Fighthub Signup</Text>
+
+              <Text style={styles.title}>
+                {selectedRole === "scout"
+                  ? "Scout Signup"
+                  : selectedRole === "fighter"
+                  ? "Fighter Signup"
+                  : "Fighthub Signup"}
+              </Text>
+
+              {!!selectedRole && (
+                <View style={styles.rolePill}>
+                  <Text style={styles.rolePillText}>
+                    Signing up as: {selectedRole.toUpperCase()}
+                  </Text>
+                </View>
+              )}
             </View>
+
             {["fname", "lname", "email", "password", "confirmPassword"].map(
               (field, index) => (
                 <View style={styles.fieldContainer} key={index}>
@@ -214,6 +242,7 @@ export default function Signup() {
                     {fieldLabels[field] ||
                       field.charAt(0).toUpperCase() + field.slice(1)}
                   </Text>
+
                   <View style={styles.inputContainer}>
                     <TextInput
                       style={styles.input}
@@ -230,6 +259,7 @@ export default function Signup() {
                       placeholderTextColor="#aaa"
                       autoCapitalize={field === "email" ? "none" : "words"}
                     />
+
                     {field.toLowerCase().includes("password") && (
                       <TouchableOpacity
                         onPress={() =>
@@ -258,13 +288,16 @@ export default function Signup() {
                 </View>
               )
             )}
+
             <View style={styles.buttonGroup}>
               <CustomButton style={styles.button} onPress={handleUserSignup}>
                 <Text style={styles.buttonText}>Sign up</Text>
               </CustomButton>
+
               <CustomButton style={styles.button} onPress={handleLogin}>
                 <Text style={styles.buttonText}>Log in</Text>
               </CustomButton>
+
               <CustomButton style={styles.button} onPress={signIn}>
                 <Text style={styles.buttonText}>Sign up with Google</Text>
               </CustomButton>

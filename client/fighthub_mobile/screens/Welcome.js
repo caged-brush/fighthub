@@ -24,22 +24,44 @@ const Welcome = () => {
         <View style={styles.iconCircle}>
           <Ionicons name="body-outline" size={60} color="#ffd700" />
         </View>
+
         <Text style={styles.title}>Fighthub</Text>
+
         <Text style={styles.subtitle}>
-          Take your fighting career to the next level
+          Where fighters get discovered and scouts find real talent
         </Text>
-        <CustomButton
-          style={styles.button}
-          onPress={() => navigation.navigate("Sign up")}
-        >
-          Start
-        </CustomButton>
-        <CustomButton
-          style={[styles.button, styles.loginButton]}
-          onPress={() => navigation.navigate("Login")}
-        >
-          Login
-        </CustomButton>
+
+        <View style={styles.roleBox}>
+          <Text style={styles.roleTitle}>For Fighters</Text>
+          <Text style={styles.roleText}>
+            Show your skills. Get seen. Get fights.
+          </Text>
+
+          <CustomButton
+            style={styles.button}
+            onPress={() => navigation.navigate("Signup", { role: "fighter" })}
+          >
+            I’m a Fighter
+          </CustomButton>
+        </View>
+
+        <View style={styles.roleBox}>
+          <Text style={styles.roleTitle}>For Scouts</Text>
+          <Text style={styles.roleText}>
+            Find verified fighters without the noise.
+          </Text>
+
+          <CustomButton
+            style={[styles.button, styles.loginButton]}
+            onPress={() => navigation.navigate("Signup", { role: "scout" })}
+          >
+            I’m a Scout
+          </CustomButton>
+        </View>
+
+        <TouchableOpacity onPress={() => navigation.navigate("Login")}>
+          <Text style={styles.loginText}>Already have an account? Log in</Text>
+        </TouchableOpacity>
       </View>
     </ImageBackground>
   );
@@ -101,6 +123,31 @@ const styles = StyleSheet.create({
     backgroundColor: "#232323",
     borderWidth: 2,
     borderColor: "#ffd700",
+  },
+
+  roleBox: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+
+  roleTitle: {
+    color: "#ffd700",
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+
+  roleText: {
+    color: "#ddd",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 10,
+  },
+
+  loginText: {
+    color: "#aaa",
+    marginTop: 12,
+    textDecorationLine: "underline",
   },
 });
 

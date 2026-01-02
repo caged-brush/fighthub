@@ -202,40 +202,31 @@ const Onboarding = () => {
   };
 
   const handleFinish = async () => {
-    const {
-      weight_class,
-      dob,
-      wins,
-      losses,
-      draws,
-      fight_style,
-      profile_url,
-      weight,
-      height,
-      userId,
-    } = fighterInfo;
-
     try {
       const response = await axios.put(
-        `${API_URL}/update-fighter`,
+        `${API_URL}/fighters/me`,
         {
-          weight_class,
-          dob,
-          wins,
-          losses,
-          draws,
-          fight_style,
-          profile_url,
-          weight,
-          height,
-          userId,
+          weight_class: fighterInfo.weight_class,
+          date_of_birth: fighterInfo.dob,
+          wins: fighterInfo.wins,
+          losses: fighterInfo.losses,
+          draws: fighterInfo.draws,
+          fight_style: fighterInfo.fight_style,
+          height: fighterInfo.height,
+          weight: fighterInfo.weight,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         }
       );
+
       if (response.data) {
         await completeOnboarding();
       }
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
   };
 
@@ -258,6 +249,9 @@ const Onboarding = () => {
         profile_url: result.assets[0].uri,
       }));
     }
+  };
+  const handleLogout = async () => {
+    await logout();
   };
 
   return (
@@ -336,6 +330,11 @@ const Onboarding = () => {
             <CustomButton style={styles.button} onPress={handleNext}>
               <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
                 Next
+              </Text>
+            </CustomButton>
+            <CustomButton style={styles.button} onPress={handleLogout}>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
+                Logout
               </Text>
             </CustomButton>
           </>

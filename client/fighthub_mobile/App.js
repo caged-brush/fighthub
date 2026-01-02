@@ -7,8 +7,10 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AuthContext, AuthProvider } from "./context/AuthContext"; // Use AuthProvider here
 import Dashboard from "./screens/App2"; // Import Welcome
 import { useContext } from "react";
+import FighterOnboarding from "./screens/FighterOnboarding";
+import ScoutOnboarding from "./screens/ScoutOnboarding";
 import Login from "./screens/Login";
-import Onboarding from "./screens/Onboarding";
+import Onboarding from "./screens/FighterOnboarding";
 import Config from "react-native-config";
 import Welcome from "./screens/Welcome";
 import { useFonts } from "expo-font";
@@ -16,7 +18,8 @@ import ChatScreen from "./screens/ChatScreen";
 import UserProfile from "./screens/UserProfile"; // Import UserProfile
 
 function AppNavigator() {
-  const { isLoading, userToken, isOnBoarded, userId } = useContext(AuthContext); // Access AuthContext here
+  const { isLoading, userToken, isOnBoarded, userId, role } =
+    useContext(AuthContext); // Access AuthContext here
   console.log("User Token:", userToken);
   console.log("User ID:", userId);
   console.log("Is OnBoarded:", isOnBoarded);
@@ -52,16 +55,23 @@ function AppNavigator() {
               component={Welcome}
               options={{ headerShown: false }}
             />
-            <Stack.Screen name="Sign up" component={Signup} />
+            <Stack.Screen name="Signup" component={Signup} />
             <Stack.Screen name="Login" component={Login} />
           </>
         ) : !isOnBoarded ? (
-          <Stack.Screen
-            name="Onboarding"
-            component={Onboarding}
-            initialParams={{ userId }}
-            options={{ headerShown: false }}
-          />
+          role === "scout" ? (
+            <Stack.Screen
+              name="ScoutOnboarding"
+              component={ScoutOnboarding}
+              options={{ headerShown: false }}
+            />
+          ) : (
+            <Stack.Screen
+              name="FighterOnboarding"
+              component={FighterOnboarding}
+              options={{ headerShown: false }}
+            />
+          )
         ) : (
           <>
             <Stack.Screen

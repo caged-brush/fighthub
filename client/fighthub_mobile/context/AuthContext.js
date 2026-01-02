@@ -1,66 +1,116 @@
+// AuthContext.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, useState, useEffect } from "react";
-import React from "react";
+import React, { createContext, useEffect, useState } from "react";
 
 export const AuthContext = createContext();
+
+const mustString = (key, v) => {
+  if (v === null || v === undefined) {
+    throw new Error(`[AsyncStorage] ${key} is ${v}`);
+  }
+  return String(v);
+};
+
+const safeSetItem = async (key, v) => {
+  await AsyncStorage.setItem(key, mustString(key, v));
+};
 
 export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [userToken, setUserToken] = useState(null);
   const [userId, setUserId] = useState(null);
   const [isOnBoarded, setIsOnBoarded] = useState(false);
+  const [role, setRole] = useState(null);
 
-  const signup = async (token, userId) => {
+  // ✅ set role safely
+  const setUserRole = async (newRole) => {
+    if (!newRole) {
+      throw new Error(`[Auth] role is invalid: ${newRole}`);
+    }
+    setRole(newRole);
+    await safeSetItem("role", newRole);
+  };
+
+  const signup = async (token, id, initialRole) => {
     setIsLoading(true);
     try {
+      if (!token || !id) {
+        throw new Error(
+          `[Auth] Bad signup params: token=${token}, id=${id}, role=${initialRole}`
+        );
+      }
+
+      // update state
       setUserToken(token);
-      setUserId(userId);
-      await AsyncStorage.setItem("userToken", token);
-      await AsyncStorage.setItem("userId", userId);
-      await AsyncStorage.setItem("isOnBoarded", "false"); // Ensure it's set to false initially
+      setUserId(id);
       setIsOnBoarded(false);
-      setIsLoading(false);
+
+      // persist
+      await safeSetItem("userToken", token);
+      await safeSetItem("userId", id);
+      await AsyncStorage.setItem("isOnBoarded", "false");
+
+      // persist role if provided
+      if (initialRole) {
+        await setUserRole(initialRole);
+      } else {
+        // optional: clear stale role if you want strict behavior
+        // await AsyncStorage.removeItem("role");
+        // setRole(null);
+      }
     } catch (error) {
-      console.log(error);
+      console.log("signup error:", error?.message || error);
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (token, userId) => {
+  const login = async (token, id) => {
     setIsLoading(true);
     try {
-      setUserToken(token);
-      setUserId(userId);
-      await AsyncStorage.setItem("userToken", token);
-      await AsyncStorage.setItem("userId", userId);
-
-      // Check if onboarding status exists, if not, default to false
-      const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
-      if (onBoardingStatus === null) {
-        await AsyncStorage.setItem("isOnBoarded", "false");
-        setIsOnBoarded(false);
-      } else {
-        setIsOnBoarded(onBoardingStatus === "true");
+      if (!token || !id) {
+        throw new Error(`[Auth] Bad login params: token=${token}, id=${id}`);
       }
 
-      setIsLoading(false);
+      setUserToken(token);
+      setUserId(id);
+
+      await safeSetItem("userToken", token);
+      await safeSetItem("userId", id);
+
+      // onboarding status
+      const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
+      setIsOnBoarded(onBoardingStatus === "true");
+
+      // load role
+      const storedRole = await AsyncStorage.getItem("role");
+      setRole(storedRole);
     } catch (error) {
-      console.log(error);
+      console.log("login error:", error?.message || error);
+    } finally {
       setIsLoading(false);
     }
   };
 
   const logout = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
       setUserToken(null);
       setUserId(null);
-      AsyncStorage.removeItem("userToken");
-      AsyncStorage.removeItem("userId");
       setIsOnBoarded(false);
-      setIsLoading(false);
+      setRole(null);
+
+      await AsyncStorage.multiRemove([
+        "userToken",
+        "userId",
+        "isOnBoarded",
+        "onboardingStep",
+        "role",
+      ]);
     } catch (error) {
-      console.log(error);
+      console.log("logout error:", error?.message || error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -71,54 +121,31 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem("onboardingStep");
       console.log("Onboarding completed and status saved.");
     } catch (error) {
-      console.log("Failed to complete onboarding:", error);
-    }
-  };
-
-  const checkOnBoardingStatus = async () => {
-    try {
-      const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
-
-      if (onBoardingStatus === "true") {
-        setIsOnBoarded(true);
-      }
-    } catch (error) {
-      console.log(error);
+      console.log("Failed to complete onboarding:", error?.message || error);
     }
   };
 
   const isLoggedIn = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      const userToken = await AsyncStorage.getItem("userToken");
+      const storedToken = await AsyncStorage.getItem("userToken");
       const storedUserId = await AsyncStorage.getItem("userId");
       const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
-      const savedStep = await AsyncStorage.getItem("onboardingStep");
+      const storedRole = await AsyncStorage.getItem("role");
 
-      console.log("Retrieved userId:", storedUserId);
-      console.log("Onboarding Status:", onBoardingStatus);
-      console.log("Saved Onboarding Step:", savedStep);
-
-      setUserToken(userToken);
+      setUserToken(storedToken);
       setUserId(storedUserId);
-
-      // Ensure the onboarding status is properly set
-      if (onBoardingStatus === "true") {
-        setIsOnBoarded(true);
-      } else {
-        setIsOnBoarded(false);
-      }
-
-      setIsLoading(false);
+      setIsOnBoarded(onBoardingStatus === "true");
+      setRole(storedRole);
     } catch (error) {
-      console.log("isLoggedIn error:", error);
+      console.log("isLoggedIn error:", error?.message || error);
+    } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
     isLoggedIn();
-    checkOnBoardingStatus();
   }, []);
 
   return (
@@ -129,10 +156,11 @@ export const AuthProvider = ({ children }) => {
         logout,
         isLoading,
         userToken,
-        completeOnboarding,
-        checkOnBoardingStatus,
-        isOnBoarded,
         userId,
+        isOnBoarded,
+        role,
+        setUserRole,
+        completeOnboarding,
       }}
     >
       {children}
