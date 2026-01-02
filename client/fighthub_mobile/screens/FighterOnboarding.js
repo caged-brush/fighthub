@@ -141,7 +141,8 @@ const fightStyleImage = [
 ];
 
 const Onboarding = () => {
-  const { logout, completeOnboarding, userId } = useContext(AuthContext);
+  const { logout, completeOnboarding, userId, userToken } =
+    useContext(AuthContext);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [step, setStep] = useState(1);
   const [fighterInfo, setFighterInfo] = useState({
@@ -203,6 +204,11 @@ const Onboarding = () => {
 
   const handleFinish = async () => {
     try {
+      if (!userToken) {
+        Alert.alert("Error", "Session expired. Please log in again.");
+        return;
+      }
+
       const response = await axios.put(
         `${API_URL}/fighters/me`,
         {
@@ -217,7 +223,7 @@ const Onboarding = () => {
         },
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${userToken}`,
           },
         }
       );
@@ -226,7 +232,14 @@ const Onboarding = () => {
         await completeOnboarding();
       }
     } catch (error) {
-      console.error(error);
+      console.error(
+        "Finish onboarding error:",
+        error.response?.data || error.message
+      );
+      Alert.alert(
+        "Error",
+        error.response?.data?.message || "Failed to save profile"
+      );
     }
   };
 

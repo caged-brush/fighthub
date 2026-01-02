@@ -14,7 +14,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import supabase from "./config/supabase.js";
-
+import fightersRoute from "./routes/fighters.js";
 import mailerRoute from "./routes/mailer.js";
 import postsRoute from "./routes/posts.js";
 import followersRoute from "./routes/followers.js";
@@ -129,6 +129,7 @@ app.use(likesRoute(supabase));
 app.use(usersRoute(supabase));
 app.use(authRoutes(supabase, createToken, validateUserInput, transport));
 app.use(profileRoutes(supabase, upload, requireAuth));
+app.use("/fighters", fightersRoute(supabase, requireAuth));
 
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));

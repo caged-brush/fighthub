@@ -105,6 +105,7 @@ export default function Signup() {
   const selectedRole = route.params?.role; // 'fighter' | 'scout'
 
   const { signup, setUserRole } = useContext(AuthContext);
+  const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     fname: "",
@@ -141,43 +142,44 @@ export default function Signup() {
   };
 
   const handleUserSignup = async () => {
-    const { fname, lname, email, password, confirmPassword } = formData;
-
-    // ✅ role must be selected
-    if (!selectedRole || !["fighter", "scout"].includes(selectedRole)) {
-      Alert.alert("Missing role", "Go back and choose Fighter or Scout.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
+    if (submitting) return; // hard lock
+    setSubmitting(true);
 
     try {
-      // ✅ BEST: send role directly during register
+      const { fname, lname, email, password, confirmPassword } = formData;
+
+      if (!selectedRole || !["fighter", "scout"].includes(selectedRole)) {
+        Alert.alert("Missing role", "Go back and choose Fighter or Scout.");
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        Alert.alert("Error", "Passwords do not match");
+        return;
+      }
+
+      console.log("SIGNUP PRESS", Date.now()); // prove only once
+
       const res = await axios.post(`${API_URL}/register`, {
         fname,
         lname,
         email,
         password,
-        confirm: confirmPassword, // ✅ REQUIRED BY YOUR BACKEND
+        confirm: confirmPassword,
         role: selectedRole,
       });
 
-      if (res.data?.token) {
-        const { token, userId, role } = res.data;
-
-        // ✅ persist role in context/storage so navigator routes onboarding correctly
-        await setUserRole(role);
-
-        // ✅ signup stores token/userId + onboarding false
-        await signup(token, userId, role);
-
-        Alert.alert("Success", "Registration Successful");
-      } else {
-        Alert.alert("Error", res.data?.message || "Registration failed");
+      const { token, userId, role } = res.data || {};
+      if (!token || !userId || !role) {
+        console.log("BAD REGISTER RESPONSE:", res.data);
+        Alert.alert("Error", "Registration failed (bad server response)");
+        return;
       }
+
+      // DON’T call setUserRole separately if signup already stores it
+      await signup(token, userId, role);
+
+      Alert.alert("Success", "Registration Successful");
     } catch (error) {
       console.error("Signup error:", error.response?.data || error.message);
       Alert.alert(
@@ -185,6 +187,8 @@ export default function Signup() {
         error.response?.data?.message ||
           "Something went wrong. Please try again"
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -290,8 +294,14 @@ export default function Signup() {
             )}
 
             <View style={styles.buttonGroup}>
-              <CustomButton style={styles.button} onPress={handleUserSignup}>
-                <Text style={styles.buttonText}>Sign up</Text>
+              <CustomButton
+                style={styles.button}
+                onPress={handleUserSignup}
+                disabled={submitting}
+              >
+                <Text style={styles.buttonText}>
+                  {submitting ? "Signing up..." : "Sign up"}
+                </Text>
               </CustomButton>
 
               <CustomButton style={styles.button} onPress={handleLogin}>
