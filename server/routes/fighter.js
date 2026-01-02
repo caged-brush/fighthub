@@ -110,7 +110,7 @@ export default function fightersRoutes(supabase, requireAuth) {
 
     const {
       weight_class,
-      date_of_birth,
+      date_of_birth, // keep reading it
       wins,
       losses,
       draws,
@@ -119,19 +119,18 @@ export default function fightersRoutes(supabase, requireAuth) {
       weight,
     } = req.body;
 
-    // Basic sanity check
     if (wins < 0 || losses < 0 || draws < 0) {
       return res.status(400).json({ message: "Invalid record values" });
     }
 
     try {
-      const { data, error } = await supabase
+      // 1) Update fighter stats (fighters table)
+      const { data: fighter, error: fighterErr } = await supabase
         .from("fighters")
         .upsert(
           {
             user_id: userId,
             weight_class,
-            date_of_birth,
             wins,
             losses,
             draws,
@@ -140,20 +139,30 @@ export default function fightersRoutes(supabase, requireAuth) {
             weight,
             updated_at: new Date(),
           },
-          { onConflict: ["user_id"] }
+          { onConflict: "user_id" } // <-- keep it simple
         )
         .select()
         .single();
 
-      if (error) throw error;
+      if (fighterErr) throw fighterErr;
 
-      res.status(200).json({
+      // 2) Update DOB (users table)
+      if (date_of_birth) {
+        const { error: userErr } = await supabase
+          .from("users")
+          .update({ date_of_birth })
+          .eq("id", userId);
+
+        if (userErr) throw userErr;
+      }
+
+      return res.status(200).json({
         message: "Fighter profile saved",
-        fighter: data,
+        fighter,
       });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to update fighter" });
+      console.error("update fighter error:", err);
+      return res.status(500).json({ message: "Failed to update fighter" });
     }
   });
 
