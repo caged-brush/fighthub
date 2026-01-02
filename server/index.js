@@ -23,6 +23,7 @@ import usersRoute from "./routes/users.js";
 import authRoutes from "./routes/auth.js";
 import profileRoutes from "./routes/profile.js";
 import setupSocket from "./socket.js";
+import requireAuth from "./middleware/requireAuth.js";
 
 env.config();
 
@@ -127,7 +128,7 @@ app.use(followersRoute(supabase));
 app.use(likesRoute(supabase));
 app.use(usersRoute(supabase));
 app.use(authRoutes(supabase, createToken, validateUserInput, transport));
-app.use(profileRoutes(supabase, upload));
+app.use(profileRoutes(supabase, upload, requireAuth));
 
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));
