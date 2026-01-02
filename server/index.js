@@ -23,7 +23,7 @@ import usersRoute from "./routes/users.js";
 import authRoutes from "./routes/auth.js";
 import profileRoutes from "./routes/profile.js";
 import setupSocket from "./socket.js";
-import requireAuth from "./middleware/requireAuth.js";
+import requireAuth from "./routes/middleware/requireAuth.js";
 
 env.config();
 
