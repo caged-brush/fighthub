@@ -14,7 +14,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import supabase from "./config/supabase.js";
-import fightersRoute from "./routes/fighters.js";
+import fightersRoute from "./routes/fighter.js";
 import mailerRoute from "./routes/mailer.js";
 import postsRoute from "./routes/posts.js";
 import followersRoute from "./routes/followers.js";
