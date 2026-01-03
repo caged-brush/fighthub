@@ -24,6 +24,7 @@ import authRoutes from "./routes/auth.js";
 import profileRoutes from "./routes/profile.js";
 import setupSocket from "./socket.js";
 import requireAuth from "./middleware/requireAuth.js";
+import scoutsRoutes from "./routes/scout.js";
 
 env.config();
 
@@ -130,6 +131,7 @@ app.use(usersRoute(supabase));
 app.use(authRoutes(supabase, createToken, validateUserInput, transport));
 app.use(profileRoutes(supabase, upload, requireAuth));
 app.use("/fighters", fightersRoute(supabase, requireAuth));
+app.use("/scouts", scoutsRoutes(supabase, requireAuth));
 
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));
