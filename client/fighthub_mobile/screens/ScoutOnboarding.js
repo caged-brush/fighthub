@@ -30,7 +30,6 @@ export default function ScoutOnboarding() {
     date_of_birth: "",
     organization: "",
     region: "",
-    experience_level: "",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -71,7 +70,6 @@ export default function ScoutOnboarding() {
     const dob = form.date_of_birth.trim();
     const org = form.organization.trim();
     const region = form.region.trim();
-    const exp = form.experience_level.trim();
 
     if (!dob) {
       Alert.alert("Missing info", "Please select your date of birth.");
@@ -90,7 +88,6 @@ export default function ScoutOnboarding() {
         date_of_birth: dob,
         organization: org,
         region,
-        experience_level: exp || null,
       };
 
       console.log("SCOUT ONBOARDING SUBMIT:", payload);
@@ -188,14 +185,6 @@ export default function ScoutOnboarding() {
             onChangeText={(v) => handleChange("region", v)}
           />
 
-          <Text style={styles.label}>Experience level (optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Amateur, Pro, Matchmaker"
-            placeholderTextColor="#888"
-            value={form.experience_level}
-            onChangeText={(v) => handleChange("experience_level", v)}
-          />
 
           <TouchableOpacity
             style={[styles.button, !canSubmit && styles.buttonDisabled]}
