@@ -65,12 +65,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (token, id) => {
+  const login = async (token, id, incomingRole) => {
     setIsLoading(true);
     try {
-      if (!token || !id) {
-        throw new Error(`[Auth] Bad login params: token=${token}, id=${id}`);
-      }
+      if (!token || !id) throw new Error(`[Auth] Bad login params`);
 
       setUserToken(token);
       setUserId(id);
@@ -78,15 +76,18 @@ export const AuthProvider = ({ children }) => {
       await safeSetItem("userToken", token);
       await safeSetItem("userId", id);
 
-      // onboarding status
+      // overwrite stale role every login
+      if (incomingRole) {
+        await setUserRole(incomingRole);
+      } else {
+        await AsyncStorage.removeItem("role");
+        setRole(null);
+      }
+
       const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
       setIsOnBoarded(onBoardingStatus === "true");
-
-      // load role
-      const storedRole = await AsyncStorage.getItem("role");
-      setRole(storedRole);
-    } catch (error) {
-      console.log("login error:", error?.message || error);
+    } catch (e) {
+      console.log("login error:", e?.message || e);
     } finally {
       setIsLoading(false);
     }

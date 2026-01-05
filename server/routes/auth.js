@@ -149,16 +149,13 @@ export default function authRoutes(
         .maybeSingle();
 
       if (error) throw error;
-      if (!user) {
+      if (!user)
         return res.status(401).json({ message: "Invalid credentials" });
-      }
 
       const valid = await bcrypt.compare(password, user.password);
-      if (!valid) {
+      if (!valid)
         return res.status(401).json({ message: "Invalid credentials" });
-      }
 
-      // Fetch roles
       const { data: rolesData, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
@@ -166,17 +163,20 @@ export default function authRoutes(
 
       if (rolesError) throw rolesError;
 
-      const roles = rolesData.map((r) => r.role);
+      const role = rolesData?.[0]?.role;
+      if (!role)
+        return res.status(500).json({ message: "Role not found for user" });
+
       const token = createToken(user.id);
 
-      res.status(200).json({
+      return res.status(200).json({
         token,
         userId: user.id,
-        roles,
+        role,
       });
     } catch (err) {
       console.error("Login error:", err);
-      res.status(500).json({ message: "Server error" });
+      return res.status(500).json({ message: "Server error" });
     }
   });
 
