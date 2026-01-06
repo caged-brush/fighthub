@@ -40,27 +40,27 @@ export default function scoutsRoutes(supabase, requireAuth) {
 
     const { organization, region, experience_level, date_of_birth } = req.body;
 
-    // basic validation (don’t mark onboarded if they send empty junk)
-    if (!organization || !region || !date_of_birth) {
+    // Don't mark onboarded unless these exist
+    if (!date_of_birth || !organization || !region) {
       return res.status(400).json({
-        message: "organization, region, and date_of_birth are required",
+        message: "date_of_birth, organization, and region are required",
       });
     }
 
     try {
-      // 1) update DOB + onboarded flag in users table
-      const { error: userUpdateError } = await supabase
+      // 1) update users table (DOB + onboarding flag)
+      const { error: usersErr } = await supabase
         .from("users")
         .update({
           date_of_birth,
-          scout_onboarded: true, // ✅ this is the key line
+          scout_onboarded: true,
         })
         .eq("id", userId);
 
-      if (userUpdateError) throw userUpdateError;
+      if (usersErr) throw usersErr;
 
       // 2) upsert scout profile
-      const { data, error } = await supabase
+      const { data: scout, error: scoutErr } = await supabase
         .from("scouts")
         .upsert(
           { user_id: userId, organization, region, experience_level },
@@ -69,11 +69,11 @@ export default function scoutsRoutes(supabase, requireAuth) {
         .select()
         .single();
 
-      if (error) throw error;
+      if (scoutErr) throw scoutErr;
 
       return res.json({
         message: "Scout profile saved",
-        scout: data,
+        scout,
         scout_onboarded: true,
       });
     } catch (err) {
