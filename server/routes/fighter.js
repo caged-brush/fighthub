@@ -1,14 +1,9 @@
+// fightersRoutes.js
 import express from "express";
 
 const router = express.Router();
 
 export default function fightersRoutes(supabase, requireAuth) {
-  /**
-   * =====================================
-   * SEARCH / DISCOVER FIGHTERS (PUBLIC)
-   * =====================================
-   * Scouts + Fighters can access
-   */
   router.get("/search", async (req, res) => {
     const {
       weight_class,
@@ -20,6 +15,26 @@ export default function fightersRoutes(supabase, requireAuth) {
     } = req.query;
 
     try {
+      let userIds = null;
+
+      // 1) REGION FILTER (reliable)
+      if (region && String(region).trim()) {
+        const regionQuery = String(region).trim();
+
+        const { data: users, error: usersErr } = await supabase
+          .from("users")
+          .select("id")
+          .ilike("region", `%${regionQuery}%`);
+
+        if (usersErr) throw usersErr;
+
+        userIds = (users || []).map((u) => u.id);
+
+        // no matching users => no fighters
+        if (userIds.length === 0) return res.status(200).json([]);
+      }
+
+      // 2) FIGHTER QUERY
       let query = supabase
         .from("fighters")
         .select(
@@ -35,36 +50,38 @@ export default function fightersRoutes(supabase, requireAuth) {
           users (
             fname,
             lname,
-            profile_picture_url
+            profile_picture_url,
+            region
           )
         `
         )
         .order("wins", { ascending: false })
-        .range(offset, offset + limit - 1);
+        .range(Number(offset), Number(offset) + Number(limit) - 1);
 
       if (weight_class) query = query.eq("weight_class", weight_class);
-      if (min_wins) query = query.gte("wins", min_wins);
-      if (style)
-        query = query.textSearch("fight_style", style, {
+
+      if (min_wins !== undefined && String(min_wins).trim() !== "") {
+        query = query.gte("wins", Number(min_wins));
+      }
+
+      if (style && String(style).trim()) {
+        query = query.textSearch("fight_style", String(style).trim(), {
           type: "websearch",
         });
+      }
+
+      if (userIds) query = query.in("user_id", userIds);
 
       const { data, error } = await query;
-
       if (error) throw error;
 
-      res.status(200).json(data);
+      return res.status(200).json(data || []);
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Search failed" });
+      console.error("GET /fighters/search error:", err);
+      return res.status(500).json({ message: "Search failed" });
     }
   });
 
-  /**
-   * =====================================
-   * GET SINGLE FIGHTER PROFILE (PUBLIC)
-   * =====================================
-   */
   router.get("/:userId", async (req, res) => {
     const { userId } = req.params;
 
@@ -77,7 +94,8 @@ export default function fightersRoutes(supabase, requireAuth) {
           users (
             fname,
             lname,
-            profile_picture_url
+            profile_picture_url,
+            region
           )
         `
         )
@@ -86,18 +104,12 @@ export default function fightersRoutes(supabase, requireAuth) {
 
       if (error) throw error;
 
-      res.status(200).json(data);
-    } catch (err) {
-      res.status(404).json({ message: "Fighter not found" });
+      return res.status(200).json(data);
+    } catch {
+      return res.status(404).json({ message: "Fighter not found" });
     }
   });
 
-  /**
-   * =====================================
-   * CREATE / UPDATE OWN FIGHTER PROFILE
-   * (FIGHTER ONLY)
-   * =====================================
-   */
   router.put("/me", requireAuth, async (req, res) => {
     const userId = req.user.id;
     const role = req.user.role;
@@ -111,6 +123,7 @@ export default function fightersRoutes(supabase, requireAuth) {
     const {
       weight_class,
       date_of_birth,
+      region, // ✅ add this to your fighter onboarding UI
       wins,
       losses,
       draws,
@@ -119,7 +132,6 @@ export default function fightersRoutes(supabase, requireAuth) {
       weight,
     } = req.body;
 
-    // Safer numeric validation (your current check misses undefined/null)
     const toNum = (v) => (v === undefined || v === null ? null : Number(v));
     const w = toNum(wins);
     const l = toNum(losses);
@@ -130,7 +142,7 @@ export default function fightersRoutes(supabase, requireAuth) {
     }
 
     try {
-      // 1) Update fighter stats
+      // 1) Update fighter row
       const { data: fighter, error: fighterErr } = await supabase
         .from("fighters")
         .upsert(
@@ -143,7 +155,7 @@ export default function fightersRoutes(supabase, requireAuth) {
             fight_style,
             height,
             weight,
-            updated_at: new Date().toISOString(), // ✅ better for Supabase
+            updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id" }
         )
@@ -152,9 +164,12 @@ export default function fightersRoutes(supabase, requireAuth) {
 
       if (fighterErr) throw fighterErr;
 
-      // 2) Mark onboarding in users table
-      const userUpdate = { fighter_onboarded: true };
+      // 2) Update users row (onboarding + optional DOB + optional region)
+      const userUpdate = {
+        fighter_onboarded: true,
+      };
       if (date_of_birth) userUpdate.date_of_birth = date_of_birth;
+      if (region) userUpdate.region = region; // ✅ store region on users
 
       const { error: userErr } = await supabase
         .from("users")
@@ -169,35 +184,8 @@ export default function fightersRoutes(supabase, requireAuth) {
         fighter_onboarded: true,
       });
     } catch (err) {
-      console.error("update fighter error:", err);
+      console.error("PUT /fighters/me error:", err);
       return res.status(500).json({ message: "Failed to update fighter" });
-    }
-  });
-
-  /**
-   * =====================================
-   * DELETE FIGHTER PROFILE (ADMIN ONLY)
-   * =====================================
-   * Fighters should NEVER delete their own record
-   */
-  router.delete("/:userId", requireAuth, async (req, res) => {
-    const role = req.user.role;
-
-    if (role !== "admin") {
-      return res.status(403).json({ message: "Admins only" });
-    }
-
-    try {
-      const { error } = await supabase
-        .from("fighters")
-        .delete()
-        .eq("user_id", req.params.userId);
-
-      if (error) throw error;
-
-      res.status(200).json({ message: "Fighter removed" });
-    } catch (err) {
-      res.status(500).json({ message: "Delete failed" });
     }
   });
 

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -26,9 +32,9 @@ const WEIGHT_CLASSES = [
   "Heavyweight",
 ];
 
+const PAGE_SIZE = 20;
+
 function calcScore(f) {
-  // Simple, good-enough ranking for v1.
-  // You can replace later with something smarter.
   const wins = Number(f?.wins ?? 0);
   const losses = Number(f?.losses ?? 0);
   const draws = Number(f?.draws ?? 0);
@@ -37,7 +43,6 @@ function calcScore(f) {
   const hasWeight = f?.weight != null;
   const hasHeight = f?.height != null;
 
-  // reward wins, penalize losses, reward profile completeness
   const completion =
     (hasStyle ? 1 : 0) +
     (hasWeightClass ? 1 : 0) +
@@ -50,81 +55,134 @@ function calcScore(f) {
 export default function ScoutHome() {
   const navigation = useNavigation();
 
-  const [loading, setLoading] = useState(true);
+  // UI state
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // filters
   const [weightClass, setWeightClass] = useState("All");
-  const [region, setRegion] = useState(""); // not wired server-side in your /fighters/search yet
+  const [region, setRegion] = useState("");
   const [minWins, setMinWins] = useState("");
   const [style, setStyle] = useState("");
 
+  // data
   const [fighters, setFighters] = useState([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  const fetchFighters = useCallback(async () => {
-    try {
-      // Server supports: weight_class, min_wins, style, limit, offset
-      // NOTE: your backend route currently ignores `region` (not implemented).
+  // prevent double-fetch storms
+  const inFlightRef = useRef(false);
+
+  const buildParams = useCallback(
+    (pageOffset) => {
       const params = {
-        limit: 50,
-        offset: 0,
+        limit: PAGE_SIZE,
+        offset: pageOffset,
       };
 
       if (weightClass && weightClass !== "All")
         params.weight_class = weightClass;
-      if (minWins.trim() !== "") params.min_wins = minWins.trim();
-      if (style.trim() !== "") params.style = style.trim();
 
-      const res = await axios.get(`${API_URL}/fighters/search`, { params });
+      const mw = minWins.trim();
+      if (mw !== "") params.min_wins = mw;
 
-      const list = Array.isArray(res.data) ? res.data : [];
-      setFighters(list);
-    } catch (err) {
-      console.error(
-        "ScoutHome fetch error:",
-        err?.response?.data || err?.message || err
-      );
-      Alert.alert(
-        "Error",
-        "Failed to load fighters. Check your server and try again."
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [minWins, style, weightClass]);
+      const st = style.trim();
+      if (st !== "") params.style = st;
 
+      const rg = region.trim();
+      if (rg !== "") params.region = rg;
+
+      return params;
+    },
+    [weightClass, minWins, style, region]
+  );
+
+  const fetchPage = useCallback(
+    async ({ pageOffset, mode }) => {
+      // mode: "replace" | "append"
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+
+      try {
+        const params = buildParams(pageOffset);
+        const res = await axios.get(`${API_URL}/fighters/search`, { params });
+
+        const list = Array.isArray(res.data) ? res.data : [];
+
+        // detect end
+        const noMore = list.length < PAGE_SIZE;
+        setHasMore(!noMore);
+
+        if (mode === "replace") {
+          setFighters(list);
+          setOffset(pageOffset + list.length);
+        } else {
+          // de-dupe by user_id (protect against weird paging)
+          setFighters((prev) => {
+            const seen = new Set(prev.map((x) => x.user_id));
+            const merged = [...prev];
+            for (const item of list) {
+              if (!seen.has(item.user_id)) merged.push(item);
+            }
+            return merged;
+          });
+          setOffset((prev) => prev + list.length);
+        }
+      } catch (err) {
+        console.error(
+          "ScoutHome fetch error:",
+          err?.response?.data || err?.message || err
+        );
+        Alert.alert("Error", "Failed to load fighters. Try again.");
+      } finally {
+        inFlightRef.current = false;
+        setInitialLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+      }
+    },
+    [buildParams]
+  );
+
+  // initial load
   useEffect(() => {
-    fetchFighters();
-  }, [fetchFighters]);
+    fetchPage({ pageOffset: 0, mode: "replace" });
+  }, [fetchPage]);
 
   const ranked = useMemo(() => {
-    // Region filter is client-side placeholder until you add region to fighters/users
-    const regionQuery = region.trim().toLowerCase();
-
-    const filtered = fighters.filter((f) => {
-      if (!regionQuery) return true;
-
-      // If you later add users.region or fighters.region, update this.
-      // Right now we have no region data in the payload, so this does nothing meaningful.
-      const name = `${f?.users?.fname || ""} ${
-        f?.users?.lname || ""
-      }`.toLowerCase();
-      return name.includes(regionQuery);
-    });
-
-    return filtered
+    // No fake region filtering here. Region is server-side now.
+    return fighters
       .map((f) => ({ ...f, _score: calcScore(f) }))
       .sort((a, b) => b._score - a._score);
-  }, [fighters, region]);
+  }, [fighters]);
+
+  const applyFilters = useCallback(() => {
+    // hard reset paging and replace list
+    setHasMore(true);
+    setOffset(0);
+    setInitialLoading(true);
+    fetchPage({ pageOffset: 0, mode: "replace" });
+  }, [fetchPage]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchFighters();
-  }, [fetchFighters]);
+    setHasMore(true);
+    setOffset(0);
+    fetchPage({ pageOffset: 0, mode: "replace" });
+  }, [fetchPage]);
+
+  const loadMore = useCallback(() => {
+    if (!hasMore) return;
+    if (loadingMore) return;
+    if (refreshing) return;
+    if (initialLoading) return;
+
+    setLoadingMore(true);
+    fetchPage({ pageOffset: offset, mode: "append" });
+  }, [hasMore, loadingMore, refreshing, initialLoading, fetchPage, offset]);
 
   const openProfile = (fighter) => {
-    // Adjust param name to what your UserProfile screen expects.
     navigation.navigate("UserProfile", { userId: fighter.user_id });
   };
 
@@ -134,31 +192,28 @@ export default function ScoutHome() {
       `${fighter?.users?.fname || ""} ${fighter?.users?.lname || ""}`.trim() ||
       "Fighter";
 
-    // Your ChatScreen title uses route.params?.recipientName
     navigation.navigate("ChatScreen", { recipientId, recipientName });
   };
 
-  const renderWeightPills = () => {
-    return (
-      <View style={styles.pillsRow}>
-        {WEIGHT_CLASSES.map((wc) => {
-          const active = wc === weightClass;
-          return (
-            <TouchableOpacity
-              key={wc}
-              onPress={() => setWeightClass(wc)}
-              style={[styles.pill, active && styles.pillActive]}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.pillText, active && styles.pillTextActive]}>
-                {wc}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  };
+  const renderWeightPills = () => (
+    <View style={styles.pillsRow}>
+      {WEIGHT_CLASSES.map((wc) => {
+        const active = wc === weightClass;
+        return (
+          <TouchableOpacity
+            key={wc}
+            onPress={() => setWeightClass(wc)}
+            style={[styles.pill, active && styles.pillActive]}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.pillText, active && styles.pillTextActive]}>
+              {wc}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 
   const renderItem = ({ item }) => {
     const name =
@@ -170,6 +225,7 @@ export default function ScoutHome() {
     }`;
     const wc = item?.weight_class || "—";
     const styleText = (item?.fight_style || "").trim() || "—";
+    const regionText = (item?.users?.region || "").trim() || "—";
 
     return (
       <View style={styles.card}>
@@ -177,7 +233,8 @@ export default function ScoutHome() {
           <Text style={styles.name}>{name}</Text>
 
           <Text style={styles.meta}>
-            {wc} • Record {record} • Score {item._score.toFixed(1)}
+            {wc} • {regionText} • Record {record} • Score{" "}
+            {item._score.toFixed(1)}
           </Text>
 
           <Text style={styles.metaSmall}>Style: {styleText}</Text>
@@ -202,17 +259,8 @@ export default function ScoutHome() {
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading fighters…</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.safe}>
+  const ListHeader = () => (
+    <View>
       <Text style={styles.header}>Scout Home</Text>
       <Text style={styles.subheader}>Find bookable fighters fast.</Text>
 
@@ -243,26 +291,53 @@ export default function ScoutHome() {
         </View>
 
         <View style={styles.filterCol}>
-          <Text style={styles.label}>Region (v1)</Text>
+          <Text style={styles.label}>Region</Text>
           <TextInput
             value={region}
             onChangeText={setRegion}
-            placeholder="(client-only filter)"
+            placeholder="e.g. Vancouver"
             placeholderTextColor="#777"
             style={styles.input}
           />
         </View>
       </View>
 
-      <TouchableOpacity style={styles.applyBtn} onPress={fetchFighters}>
+      <TouchableOpacity style={styles.applyBtn} onPress={applyFilters}>
         <Text style={styles.applyBtnText}>Apply Filters</Text>
       </TouchableOpacity>
+    </View>
+  );
 
+  const ListFooter = () => {
+    if (!loadingMore) return <View style={{ height: 20 }} />;
+    return (
+      <View style={styles.footer}>
+        <ActivityIndicator />
+        <Text style={styles.footerText}>Loading more…</Text>
+      </View>
+    );
+  };
+
+  if (initialLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+        <Text style={styles.loadingText}>Loading fighters…</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.safe}>
       <FlatList
         data={ranked}
         keyExtractor={(item) => String(item.user_id)}
         renderItem={renderItem}
         contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
+        ListHeaderComponent={ListHeader}
+        ListFooterComponent={ListFooter}
+        onEndReachedThreshold={0.6}
+        onEndReached={loadMore}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -284,16 +359,14 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "900",
     paddingTop: 18,
-    paddingHorizontal: 16,
+    paddingBottom: 4,
   },
   subheader: {
     color: "#bbb",
-    paddingHorizontal: 16,
     paddingBottom: 10,
   },
 
   pillsRow: {
-    paddingHorizontal: 12,
     paddingBottom: 8,
     flexDirection: "row",
     flexWrap: "wrap",
@@ -307,16 +380,11 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
   },
-  pillActive: {
-    borderColor: "#e0245e",
-  },
+  pillActive: { borderColor: "#e0245e" },
   pillText: { color: "#ccc", fontWeight: "700" },
   pillTextActive: { color: "#fff" },
 
-  filters: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
+  filters: { gap: 10, paddingTop: 6 },
   filterCol: { marginTop: 8 },
   label: { color: "#ffd700", fontWeight: "800", marginBottom: 6 },
 
@@ -332,7 +400,6 @@ const styles = StyleSheet.create({
 
   applyBtn: {
     marginTop: 12,
-    marginHorizontal: 16,
     backgroundColor: "#e0245e",
     borderRadius: 12,
     paddingVertical: 12,
@@ -354,10 +421,7 @@ const styles = StyleSheet.create({
   meta: { color: "#bbb", marginTop: 4, fontWeight: "700" },
   metaSmall: { color: "#888", marginTop: 6 },
 
-  cardActions: {
-    justifyContent: "center",
-    gap: 8,
-  },
+  cardActions: { justifyContent: "center", gap: 8 },
   btnGhost: {
     borderWidth: 1,
     borderColor: "#ffd700",
@@ -379,4 +443,7 @@ const styles = StyleSheet.create({
   loadingText: { color: "#bbb", marginTop: 10 },
 
   empty: { color: "#bbb", textAlign: "center" },
+
+  footer: { paddingVertical: 14, alignItems: "center", gap: 8 },
+  footerText: { color: "#bbb", fontWeight: "700" },
 });

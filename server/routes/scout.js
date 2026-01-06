@@ -1,13 +1,9 @@
+// scoutsRoutes.js
 import express from "express";
 
 const router = express.Router();
 
 export default function scoutsRoutes(supabase, requireAuth) {
-  /**
-   * =====================================
-   * GET OWN SCOUT PROFILE
-   * =====================================
-   */
   router.get("/me", requireAuth, async (req, res) => {
     const userId = req.user.id;
 
@@ -19,17 +15,12 @@ export default function scoutsRoutes(supabase, requireAuth) {
         .single();
 
       if (error) throw error;
-      res.json(data);
+      return res.json(data);
     } catch {
-      res.status(404).json({ message: "Scout profile not found" });
+      return res.status(404).json({ message: "Scout profile not found" });
     }
   });
 
-  /**
-   * =====================================
-   * CREATE / UPDATE OWN SCOUT PROFILE
-   * =====================================
-   */
   router.put("/me", requireAuth, async (req, res) => {
     const userId = req.user.id;
     const role = req.user.role;
@@ -48,18 +39,19 @@ export default function scoutsRoutes(supabase, requireAuth) {
     }
 
     try {
-      // 1) update users table (DOB + onboarding flag)
+      // 1) update users table (DOB + region + onboarding flag)
       const { error: usersErr } = await supabase
         .from("users")
         .update({
           date_of_birth,
+          region, // ✅ store region on users
           scout_onboarded: true,
         })
         .eq("id", userId);
 
       if (usersErr) throw usersErr;
 
-      // 2) upsert scout profile
+      // 2) upsert scout profile (region here is optional, but fine)
       const { data: scout, error: scoutErr } = await supabase
         .from("scouts")
         .upsert(
