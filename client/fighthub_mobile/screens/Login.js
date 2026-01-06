@@ -117,11 +117,10 @@ const Login = () => {
         password,
       });
       if (response.data.token) {
-        const { token, userId, role } = response.data;
+        const { token, userId, role, isOnBoarded } = response.data;
+        await login(token, userId, role, isOnBoarded);
 
         console.log("LOGIN PAYLOAD:", response.data); // keep temporarily
-
-        await login(token, userId, role);
       } else {
         Alert.alert("Error", response.data.message || "Login failed");
       }

@@ -57,26 +57,27 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (token, id, incomingRole) => {
+  const login = async (token, id, incomingRole, incomingIsOnBoarded) => {
     setIsLoading(true);
     try {
       if (!token || !id) throw new Error("Missing token/id on login");
       if (!incomingRole) throw new Error("Missing role on login");
 
-      // 1) set role + onboarding FIRST (before token triggers nav)
-      await setUserRole(incomingRole);
-      const onboarded = await getOnboardingStatusForRole(incomingRole);
-      setIsOnBoarded(onboarded);
+      setRole(incomingRole);
+      setIsOnBoarded(!!incomingIsOnBoarded);
 
-      // 2) now set token/id + persist
       setUserToken(token);
       setUserId(id);
 
       await safeSetItem("userToken", token);
       await safeSetItem("userId", id);
-    } catch (e) {
-      console.log("login error:", e?.message || e);
-      throw e;
+      await safeSetItem("role", incomingRole);
+
+      // ✅ cache the server truth locally so app restart doesn't regress
+      await AsyncStorage.setItem(
+        onboardingKeyFor(incomingRole),
+        incomingIsOnBoarded ? "true" : "false"
+      );
     } finally {
       setIsLoading(false);
     }
