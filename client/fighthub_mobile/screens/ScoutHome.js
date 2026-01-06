@@ -19,6 +19,8 @@ import {
 import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import { API_URL } from "../Constants";
+import { useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
 const WEIGHT_CLASSES = [
   "All",
@@ -53,6 +55,7 @@ function calcScore(f) {
 }
 
 export default function ScoutHome() {
+  const { userToken } = useContext(AuthContext);
   const navigation = useNavigation();
 
   // UI state
@@ -73,6 +76,8 @@ export default function ScoutHome() {
 
   // prevent double-fetch storms
   const inFlightRef = useRef(false);
+
+  const [watchSet, setWatchSet] = useState(new Set());
 
   const buildParams = useCallback(
     (pageOffset) => {
@@ -215,6 +220,63 @@ export default function ScoutHome() {
     </View>
   );
 
+  const authHeaders = useMemo(() => {
+    return userToken ? { Authorization: `Bearer ${userToken}` } : {};
+  }, [userToken]);
+
+  const loadWatchlistIds = useCallback(async () => {
+    if (!userToken) return;
+
+    const res = await axios.get(`${API_URL}/scouts/watchlist`, {
+      headers: authHeaders,
+    });
+
+    const ids = new Set((res.data?.watchlist || []).map((f) => f.user_id));
+    setWatchSet(ids);
+  }, [userToken, authHeaders]);
+
+  useEffect(() => {
+    loadWatchlistIds();
+  }, [loadWatchlistIds]);
+
+  const toggleWatch = async (fighterId) => {
+    if (!userToken) return;
+
+    const isSaved = watchSet.has(fighterId);
+
+    // optimistic UI
+    setWatchSet((prev) => {
+      const next = new Set(prev);
+      if (isSaved) next.delete(fighterId);
+      else next.add(fighterId);
+      return next;
+    });
+
+    try {
+      if (isSaved) {
+        await axios.delete(`${API_URL}/scouts/watchlist/${fighterId}`, {
+          headers: authHeaders,
+        });
+      } else {
+        await axios.post(
+          `${API_URL}/scouts/watchlist/${fighterId}`,
+          {},
+          { headers: authHeaders }
+        );
+      }
+    } catch (e) {
+      // rollback if API failed
+      setWatchSet((prev) => {
+        const next = new Set(prev);
+        if (isSaved) next.add(fighterId);
+        else next.delete(fighterId);
+        return next;
+      });
+
+      Alert.alert("Error", "Watchlist update failed.");
+    }
+  };
+
   const renderItem = ({ item }) => {
     const name =
       `${item?.users?.fname || ""} ${item?.users?.lname || ""}`.trim() ||
@@ -226,10 +288,20 @@ export default function ScoutHome() {
     const wc = item?.weight_class || "—";
     const styleText = (item?.fight_style || "").trim() || "—";
     const regionText = (item?.users?.region || "").trim() || "—";
+    const saved = watchSet.has(item.user_id);
 
     return (
       <View style={styles.card}>
         <View style={{ flex: 1 }}>
+          <TouchableOpacity
+            onPress={() => toggleWatch(item.user_id)}
+            style={[styles.starBtn, saved && styles.starBtnActive]}
+          >
+            <Text style={[styles.starText, saved && styles.starTextActive]}>
+              {saved ? "★" : "☆"}
+            </Text>
+          </TouchableOpacity>
+
           <Text style={styles.name}>{name}</Text>
 
           <Text style={styles.meta}>
@@ -259,54 +331,56 @@ export default function ScoutHome() {
     );
   };
 
-  const ListHeader = () => (
-    <View>
-      <Text style={styles.header}>Scout Home</Text>
-      <Text style={styles.subheader}>Find bookable fighters fast.</Text>
+  const ListHeader = useMemo(() => {
+    return (
+      <View>
+        <Text style={styles.header}>Scout Home</Text>
+        <Text style={styles.subheader}>Find bookable fighters fast.</Text>
 
-      {renderWeightPills()}
+        {renderWeightPills()}
 
-      <View style={styles.filters}>
-        <View style={styles.filterCol}>
-          <Text style={styles.label}>Min wins</Text>
-          <TextInput
-            value={minWins}
-            onChangeText={setMinWins}
-            placeholder="e.g. 3"
-            placeholderTextColor="#777"
-            keyboardType="number-pad"
-            style={styles.input}
-          />
+        <View style={styles.filters}>
+          <View style={styles.filterCol}>
+            <Text style={styles.label}>Min wins</Text>
+            <TextInput
+              value={minWins}
+              onChangeText={setMinWins}
+              placeholder="e.g. 3"
+              placeholderTextColor="#777"
+              keyboardType="number-pad"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.filterCol}>
+            <Text style={styles.label}>Style</Text>
+            <TextInput
+              value={style}
+              onChangeText={setStyle}
+              placeholder="e.g. wrestling"
+              placeholderTextColor="#777"
+              style={styles.input}
+            />
+          </View>
+
+          <View style={styles.filterCol}>
+            <Text style={styles.label}>Region</Text>
+            <TextInput
+              value={region}
+              onChangeText={setRegion}
+              placeholder="e.g. Vancouver"
+              placeholderTextColor="#777"
+              style={styles.input}
+            />
+          </View>
         </View>
 
-        <View style={styles.filterCol}>
-          <Text style={styles.label}>Style</Text>
-          <TextInput
-            value={style}
-            onChangeText={setStyle}
-            placeholder="e.g. wrestling"
-            placeholderTextColor="#777"
-            style={styles.input}
-          />
-        </View>
-
-        <View style={styles.filterCol}>
-          <Text style={styles.label}>Region</Text>
-          <TextInput
-            value={region}
-            onChangeText={setRegion}
-            placeholder="e.g. Vancouver"
-            placeholderTextColor="#777"
-            style={styles.input}
-          />
-        </View>
+        <TouchableOpacity style={styles.applyBtn} onPress={applyFilters}>
+          <Text style={styles.applyBtnText}>Apply Filters</Text>
+        </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={styles.applyBtn} onPress={applyFilters}>
-        <Text style={styles.applyBtnText}>Apply Filters</Text>
-      </TouchableOpacity>
-    </View>
-  );
+    );
+  }, [minWins, style, region, weightClass, applyFilters]); // include deps
 
   const ListFooter = () => {
     if (!loadingMore) return <View style={{ height: 20 }} />;
@@ -336,6 +410,9 @@ export default function ScoutHome() {
         contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
+        removeClippedSubviews={false}
         onEndReachedThreshold={0.6}
         onEndReached={loadMore}
         refreshControl={
@@ -446,4 +523,26 @@ const styles = StyleSheet.create({
 
   footer: { paddingVertical: 14, alignItems: "center", gap: 8 },
   footerText: { color: "#bbb", fontWeight: "700" },
+
+  starBtn: {
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#1c1c1c",
+  },
+  starBtnActive: {
+    borderColor: "#ffd700",
+  },
+  starText: {
+    color: "#bbb",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  starTextActive: {
+    color: "#ffd700",
+  },
 });
