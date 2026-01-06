@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }) => {
   const [userId, setUserId] = useState(null);
   const [isOnBoarded, setIsOnBoarded] = useState(false);
   const [role, setRole] = useState(null);
+  const onboardingKeyFor = (r) => `isOnBoarded_${r}`;
 
   // ✅ set role safely
   const setUserRole = async (newRole) => {
@@ -34,32 +35,23 @@ export const AuthProvider = ({ children }) => {
   const signup = async (token, id, initialRole) => {
     setIsLoading(true);
     try {
-      if (!token || !id) {
-        throw new Error(
-          `[Auth] Bad signup params: token=${token}, id=${id}, role=${initialRole}`
-        );
-      }
+      if (!token || !id) throw new Error("Missing token/id on signup");
+      if (!initialRole) throw new Error("Missing role on signup");
 
-      // update state
+      // state
       setUserToken(token);
       setUserId(id);
       setIsOnBoarded(false);
+      setRole(initialRole);
 
       // persist
       await safeSetItem("userToken", token);
       await safeSetItem("userId", id);
-      await AsyncStorage.setItem("isOnBoarded", "false");
-
-      // persist role if provided
-      if (initialRole) {
-        await setUserRole(initialRole);
-      } else {
-        // optional: clear stale role if you want strict behavior
-        // await AsyncStorage.removeItem("role");
-        // setRole(null);
-      }
-    } catch (error) {
-      console.log("signup error:", error?.message || error);
+      await safeSetItem("role", initialRole);
+      await AsyncStorage.setItem(onboardingKeyFor(initialRole), "false");
+    } catch (e) {
+      console.log("signup error:", e?.message || e);
+      throw e; // optional, but consistent with login()
     } finally {
       setIsLoading(false);
     }
@@ -68,26 +60,23 @@ export const AuthProvider = ({ children }) => {
   const login = async (token, id, incomingRole) => {
     setIsLoading(true);
     try {
-      if (!token || !id) throw new Error(`[Auth] Bad login params`);
+      if (!token || !id) throw new Error("Missing token/id on login");
+      if (!incomingRole) throw new Error("Missing role on login");
 
+      // 1) set role + onboarding FIRST (before token triggers nav)
+      await setUserRole(incomingRole);
+      const onboarded = await getOnboardingStatusForRole(incomingRole);
+      setIsOnBoarded(onboarded);
+
+      // 2) now set token/id + persist
       setUserToken(token);
       setUserId(id);
 
       await safeSetItem("userToken", token);
       await safeSetItem("userId", id);
-
-      // overwrite stale role every login
-      if (incomingRole) {
-        await setUserRole(incomingRole);
-      } else {
-        await AsyncStorage.removeItem("role");
-        setRole(null);
-      }
-
-      const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
-      setIsOnBoarded(onBoardingStatus === "true");
     } catch (e) {
       console.log("login error:", e?.message || e);
+      throw e;
     } finally {
       setIsLoading(false);
     }
@@ -104,9 +93,10 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.multiRemove([
         "userToken",
         "userId",
-        "isOnBoarded",
-        "onboardingStep",
         "role",
+        "onboardingStep",
+        "isOnBoarded_fighter",
+        "isOnBoarded_scout",
       ]);
     } catch (error) {
       console.log("logout error:", error?.message || error);
@@ -117,10 +107,13 @@ export const AuthProvider = ({ children }) => {
 
   const completeOnboarding = async () => {
     try {
+      if (!role) throw new Error("No role set");
+
       setIsOnBoarded(true);
-      await AsyncStorage.setItem("isOnBoarded", "true");
+      await AsyncStorage.setItem(onboardingKeyFor(role), "true");
       await AsyncStorage.removeItem("onboardingStep");
-      console.log("Onboarding completed and status saved.");
+
+      console.log("Onboarding completed for role:", role);
     } catch (error) {
       console.log("Failed to complete onboarding:", error?.message || error);
     }
@@ -131,19 +124,43 @@ export const AuthProvider = ({ children }) => {
     try {
       const storedToken = await AsyncStorage.getItem("userToken");
       const storedUserId = await AsyncStorage.getItem("userId");
-      const onBoardingStatus = await AsyncStorage.getItem("isOnBoarded");
       const storedRole = await AsyncStorage.getItem("role");
+
+      let onboarded = false;
+      if (storedToken && storedUserId && storedRole) {
+        onboarded = await getOnboardingStatusForRole(storedRole);
+      }
+
+      // set onboarding BEFORE token triggers navigation
+      setIsOnBoarded(onboarded);
 
       setUserToken(storedToken);
       setUserId(storedUserId);
-      setIsOnBoarded(onBoardingStatus === "true");
       setRole(storedRole);
-    } catch (error) {
-      console.log("isLoggedIn error:", error?.message || error);
+    } catch (e) {
+      console.log("isLoggedIn error:", e?.message || e);
     } finally {
       setIsLoading(false);
     }
   };
+
+  async function getOnboardingStatusForRole(r) {
+    const key = onboardingKeyFor(r);
+    const perRole = await AsyncStorage.getItem(key);
+    const legacy = await AsyncStorage.getItem("isOnBoarded");
+
+    console.log("[OnboardingCheck]", { role: r, key, perRole, legacy });
+
+    if (perRole === "true" || perRole === "false") return perRole === "true";
+
+    if (legacy === "true") {
+      await AsyncStorage.setItem(key, "true");
+      await AsyncStorage.removeItem("isOnBoarded");
+      return true;
+    }
+
+    return false;
+  }
 
   useEffect(() => {
     isLoggedIn();

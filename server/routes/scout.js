@@ -40,13 +40,26 @@ export default function scoutsRoutes(supabase, requireAuth) {
 
     const { organization, region, experience_level, date_of_birth } = req.body;
 
-    try {
-      // update DOB in users table
-      if (date_of_birth) {
-        await supabase.from("users").update({ date_of_birth }).eq("id", userId);
-      }
+    // basic validation (don’t mark onboarded if they send empty junk)
+    if (!organization || !region || !date_of_birth) {
+      return res.status(400).json({
+        message: "organization, region, and date_of_birth are required",
+      });
+    }
 
-      // upsert scout profile
+    try {
+      // 1) update DOB + onboarded flag in users table
+      const { error: userUpdateError } = await supabase
+        .from("users")
+        .update({
+          date_of_birth,
+          scout_onboarded: true, // ✅ this is the key line
+        })
+        .eq("id", userId);
+
+      if (userUpdateError) throw userUpdateError;
+
+      // 2) upsert scout profile
       const { data, error } = await supabase
         .from("scouts")
         .upsert(
@@ -58,10 +71,16 @@ export default function scoutsRoutes(supabase, requireAuth) {
 
       if (error) throw error;
 
-      res.json({ message: "Scout profile saved", scout: data });
+      return res.json({
+        message: "Scout profile saved",
+        scout: data,
+        scout_onboarded: true,
+      });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to update scout profile" });
+      console.error("PUT /scouts/me error:", err);
+      return res
+        .status(500)
+        .json({ message: "Failed to update scout profile" });
     }
   });
 

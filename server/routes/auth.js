@@ -144,7 +144,7 @@ export default function authRoutes(
     try {
       const { data: user, error } = await supabase
         .from("users")
-        .select("id, password")
+        .select("id, password, scout_onboarded, fighter_onboarded, role")
         .eq("email", email)
         .maybeSingle();
 
@@ -156,16 +156,26 @@ export default function authRoutes(
       if (!valid)
         return res.status(401).json({ message: "Invalid credentials" });
 
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
+      // Prefer users.role if you store it there already (you do on register)
+      let role = user.role;
 
-      if (rolesError) throw rolesError;
+      // Fallback to user_roles if role missing
+      if (!role) {
+        const { data: rolesData, error: rolesError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id);
 
-      const role = rolesData?.[0]?.role;
-      if (!role)
+        if (rolesError) throw rolesError;
+        role = rolesData?.[0]?.role;
+      }
+
+      if (!role) {
         return res.status(500).json({ message: "Role not found for user" });
+      }
+
+      const isOnBoarded =
+        role === "scout" ? !!user.scout_onboarded : !!user.fighter_onboarded;
 
       const token = createToken(user.id);
 
@@ -173,6 +183,7 @@ export default function authRoutes(
         token,
         userId: user.id,
         role,
+        isOnBoarded,
       });
     } catch (err) {
       console.error("Login error:", err);

@@ -16,6 +16,7 @@ import Welcome from "./screens/Welcome";
 import { useFonts } from "expo-font";
 import ChatScreen from "./screens/ChatScreen";
 import UserProfile from "./screens/UserProfile"; // Import UserProfile
+import ScoutHome from "./screens/ScoutHome";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId, role } =
@@ -74,11 +75,20 @@ function AppNavigator() {
           )
         ) : (
           <>
-            <Stack.Screen
-              name="Dashboard"
-              component={Dashboard}
-              options={{ headerShown: false }}
-            />
+            {role === "scout" ? (
+              <Stack.Screen
+                name="ScoutHome"
+                component={ScoutHome}
+                options={{ headerShown: false }}
+              />
+            ) : (
+              <Stack.Screen
+                name="Dashboard"
+                component={Dashboard}
+                options={{ headerShown: false }}
+              />
+            )}
+
             <Stack.Screen
               name="ChatScreen"
               component={ChatScreen}
@@ -90,18 +100,19 @@ function AppNavigator() {
                 headerTintColor: "white",
               })}
             />
+
             <Stack.Screen
               name="UserProfile"
               component={UserProfile}
               options={{
-                headerBackTitleVisible: false, // hides the "Back" text
-                title: "", // removes title
-                headerTransparent: true, // optional: makes header see-through if needed
-                headerShadowVisible: false, // removes bottom shadow (RN >= 0.70+)
+                headerBackTitleVisible: false,
+                title: "",
+                headerTransparent: true,
+                headerShadowVisible: false,
                 headerStyle: {
-                  backgroundColor: "transparent", // or set your own background color
-                  elevation: 0, // Android
-                  shadowOpacity: 0, // iOS
+                  backgroundColor: "transparent",
+                  elevation: 0,
+                  shadowOpacity: 0,
                 },
               }}
             />
