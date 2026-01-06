@@ -110,7 +110,7 @@ export default function fightersRoutes(supabase, requireAuth) {
 
     const {
       weight_class,
-      date_of_birth, // keep reading it
+      date_of_birth,
       wins,
       losses,
       draws,
@@ -119,46 +119,54 @@ export default function fightersRoutes(supabase, requireAuth) {
       weight,
     } = req.body;
 
-    if (wins < 0 || losses < 0 || draws < 0) {
+    // Safer numeric validation (your current check misses undefined/null)
+    const toNum = (v) => (v === undefined || v === null ? null : Number(v));
+    const w = toNum(wins);
+    const l = toNum(losses);
+    const d = toNum(draws);
+
+    if ([w, l, d].some((n) => n !== null && (!Number.isFinite(n) || n < 0))) {
       return res.status(400).json({ message: "Invalid record values" });
     }
 
     try {
-      // 1) Update fighter stats (fighters table)
+      // 1) Update fighter stats
       const { data: fighter, error: fighterErr } = await supabase
         .from("fighters")
         .upsert(
           {
             user_id: userId,
             weight_class,
-            wins,
-            losses,
-            draws,
+            wins: w ?? 0,
+            losses: l ?? 0,
+            draws: d ?? 0,
             fight_style,
             height,
             weight,
-            updated_at: new Date(),
+            updated_at: new Date().toISOString(), // ✅ better for Supabase
           },
-          { onConflict: "user_id" } // <-- keep it simple
+          { onConflict: "user_id" }
         )
         .select()
         .single();
 
       if (fighterErr) throw fighterErr;
 
-      // 2) Update DOB (users table)
-      if (date_of_birth) {
-        const { error: userErr } = await supabase
-          .from("users")
-          .update({ date_of_birth })
-          .eq("id", userId);
+      // 2) Mark onboarding in users table
+      const userUpdate = { fighter_onboarded: true };
+      if (date_of_birth) userUpdate.date_of_birth = date_of_birth;
 
-        if (userErr) throw userErr;
-      }
+      const { error: userErr } = await supabase
+        .from("users")
+        .update(userUpdate)
+        .eq("id", userId);
+
+      if (userErr) throw userErr;
 
       return res.status(200).json({
         message: "Fighter profile saved",
         fighter,
+        fighter_onboarded: true,
       });
     } catch (err) {
       console.error("update fighter error:", err);
