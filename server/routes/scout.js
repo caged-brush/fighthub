@@ -15,7 +15,6 @@ export default function scoutsRoutes(supabase, requireAuth) {
         user_id,
         organization,
         region,
-        experience_level,
         users (
           fname,
           lname,
@@ -51,7 +50,7 @@ export default function scoutsRoutes(supabase, requireAuth) {
       return res.status(403).json({ message: "Only scouts allowed" });
     }
 
-    const { organization, region, experience_level, date_of_birth } = req.body;
+    const { organization, region, date_of_birth } = req.body;
 
     // Don't mark onboarded unless these exist
     if (!date_of_birth || !organization || !region) {
@@ -77,7 +76,7 @@ export default function scoutsRoutes(supabase, requireAuth) {
       const { data: scout, error: scoutErr } = await supabase
         .from("scouts")
         .upsert(
-          { user_id: userId, organization, region, experience_level },
+          { user_id: userId, organization, region },
           { onConflict: "user_id" }
         )
         .select()
