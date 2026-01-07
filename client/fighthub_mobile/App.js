@@ -17,6 +17,7 @@ import { useFonts } from "expo-font";
 import ChatScreen from "./screens/ChatScreen";
 import UserProfile from "./screens/UserProfile"; // Import UserProfile
 import ScoutHome from "./screens/ScoutHome";
+import ScoutTabs from "./screens/ScoutTabs";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId, role } =
@@ -77,8 +78,8 @@ function AppNavigator() {
           <>
             {role === "scout" ? (
               <Stack.Screen
-                name="ScoutHome"
-                component={ScoutHome}
+                name="ScoutTabs"
+                component={ScoutTabs}
                 options={{ headerShown: false }}
               />
             ) : (

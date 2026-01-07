@@ -4,49 +4,49 @@ const router = express.Router();
 
 export default function scoutWatchlistRoutes(supabase, requireAuth) {
   // GET /scouts/watchlist  -> list fighters the scout saved
+  // GET /scouts/watchlist
   router.get("/watchlist", requireAuth, async (req, res) => {
-    const userId = req.user.id;
-
-    if (req.user.role !== "scout") {
-      return res.status(403).json({ message: "Only scouts allowed" });
-    }
+    const scoutId = req.user.id;
 
     try {
-      const { data, error } = await supabase
+      const { data: rows, error: wlErr } = await supabase
         .from("scout_watchlist")
+        .select("fighter_user_id") // this is users.id
+        .eq("scout_user_id", scoutId);
+
+      if (wlErr) throw wlErr;
+
+      const ids = (rows || []).map((r) => r.fighter_user_id);
+      if (ids.length === 0) return res.json({ watchlist: [] });
+
+      const { data: fighters, error: fErr } = await supabase
+        .from("fighters")
         .select(
           `
-          fighter_user_id,
-          created_at,
-          fighters (
-            user_id,
-            weight_class,
-            wins,
-            losses,
-            draws,
-            height,
-            weight,
-            fight_style,
-            users (
-              fname,
-              lname,
-              profile_picture_url,
-              region
-            )
-          )
-        `
+        user_id,
+        weight_class,
+        wins,
+        losses,
+        draws,
+        height,
+        weight,
+        fight_style,
+        users (
+          id,
+          fname,
+          lname,
+          profile_picture_url,
+          region
         )
-        .eq("scout_user_id", userId)
-        .order("created_at", { ascending: false });
+      `
+        )
+        .in("user_id", ids);
 
-      if (error) throw error;
+      if (fErr) throw fErr;
 
-      // flatten into a nice list for the app
-      const list = (data || []).map((row) => row.fighters).filter(Boolean);
-
-      return res.json({ watchlist: list });
-    } catch (err) {
-      console.error("GET /scouts/watchlist error:", err);
+      return res.json({ watchlist: fighters });
+    } catch (e) {
+      console.error("GET /scouts/watchlist error:", e);
       return res.status(500).json({ message: "Failed to load watchlist" });
     }
   });
