@@ -1,459 +1,471 @@
+import React, { useContext, useMemo, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   Platform,
-  Image,
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  Alert,
+  ActivityIndicator,
+  Switch,
 } from "react-native";
-import React, { useContext, useEffect, useState } from "react";
 import axios from "axios";
-import { useNavigation } from "@react-navigation/native";
-import { AuthContext } from "../context/AuthContext";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
-import wrestlingImg from "../images/wrestling.jpg";
-import boxingImg from "../images/boxing.jpg";
-import bjjImg from "../images/bjj.jpg";
-import mmaImg from "../images/mma.jpg";
-import muayThaiImg from "../images/muay_thai.jpg";
-import kickboxingImg from "../images/kickboxing.jpg";
-import judoImg from "../images/judo.jpg";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as ImagePicker from "expo-image-picker";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { API_URL } from "../Constants";
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#181818",
-  },
-  scroll: {
-    padding: 24,
-    backgroundColor: "#181818",
-  },
-  sectionTitle: {
-    color: "#ffd700",
-    fontWeight: "bold",
-    fontSize: 22,
-    marginBottom: 18,
-    letterSpacing: 1,
-    textAlign: "center",
-  },
-  label: {
-    color: "#ffd700",
-    fontWeight: "bold",
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: "#232323",
-    borderRadius: 10,
-    height: 44,
-    paddingHorizontal: 14,
-    fontSize: 16,
-    color: "#fff",
-    borderWidth: 2,
-    borderColor: "#e0245e",
-    marginBottom: 12,
-  },
-  recordRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  recordCol: {
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  fightStylesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    marginBottom: 18,
-  },
-  fightStyleCard: {
-    margin: 8,
-    borderRadius: 12,
-    borderWidth: 3,
-    borderColor: "#232323",
-    overflow: "hidden",
-    alignItems: "center",
-    backgroundColor: "#232323",
-    width: 120,
-    elevation: 2,
-  },
-  fightStyleSelected: {
-    borderColor: "#e0245e",
-    backgroundColor: "#292929",
-  },
-  fightStyleText: {
-    color: "#e0245e",
-    fontWeight: "bold",
-    fontSize: 15,
-    marginTop: 8,
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  fightStyleImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  profilePicContainer: {
-    alignItems: "center",
-    marginVertical: 18,
-  },
-  profilePic: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 3,
-    borderColor: "#ffd700",
-    backgroundColor: "#232323",
-  },
-  selectPhotoText: {
-    color: "#ffd700",
-    fontWeight: "bold",
-    fontSize: 16,
-    marginTop: 10,
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  button: {
-    marginVertical: 8,
-  },
-});
-
-const fightStyleImage = [
-  { style: "Wrestling", source: wrestlingImg },
-  { style: "Boxing", source: boxingImg },
-  { style: "Bjj", source: bjjImg },
-  { style: "MMA", source: mmaImg },
-  { style: "Muay thai", source: muayThaiImg },
-  { style: "Kickboxing", source: kickboxingImg },
-  { style: "Judo", source: judoImg },
+const WEIGHT_CLASSES = [
+  "Flyweight",
+  "Bantamweight",
+  "Featherweight",
+  "Lightweight",
+  "Welterweight",
+  "Middleweight",
+  "Light Heavyweight",
+  "Heavyweight",
 ];
 
-const Onboarding = () => {
-  const { logout, completeOnboarding, userId, userToken } =
-    useContext(AuthContext);
+const FIGHT_STYLES = [
+  "Wrestling",
+  "Boxing",
+  "BJJ",
+  "MMA",
+  "Muay Thai",
+  "Kickboxing",
+  "Judo",
+];
+
+const toYMD = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const toInt = (v) => {
+  const n = parseInt(String(v ?? "").replace(/[^\d]/g, ""), 10);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const toFloat = (v) => {
+  const cleaned = String(v ?? "").replace(/[^0-9.]/g, "");
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : 0;
+};
+
+export default function FighterOnboarding() {
+  const { userToken, completeOnboarding, logout } = useContext(AuthContext);
+
+  const [submitting, setSubmitting] = useState(false);
+
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [step, setStep] = useState(1);
-  const [fighterInfo, setFighterInfo] = useState({
-    weight_class: "",
-    dob: "",
-    wins: 0,
-    losses: 0,
-    draws: 0,
-    profile_url: "",
-    height: 0.0,
-    weight: 0.0,
-    fight_style: "",
-    userId: userId,
-  });
+  const [dobDate, setDobDate] = useState(new Date(2000, 0, 1));
+  const [tempDob, setTempDob] = useState(dobDate);
 
-  useEffect(() => {
-    const saveStep = async () => {
-      try {
-        await AsyncStorage.setItem("onboardingStep", step.toString());
-      } catch (error) {
-        console.log("failed to save step", error);
-      }
-    };
-    saveStep();
-  }, [step]);
+  const [weightClass, setWeightClass] = useState("");
+  const [region, setRegion] = useState("");
 
-  useEffect(() => {
-    const loadStep = async () => {
-      try {
-        const savedStep = await AsyncStorage.getItem("onboardingStep");
-        if (savedStep) {
-          setStep(parseInt(savedStep, 10));
-        }
-      } catch (error) {
-        console.log("Failed to load step: ", error);
-      }
-    };
-    loadStep();
-  }, []);
+  const [wins, setWins] = useState("0");
+  const [losses, setLosses] = useState("0");
+  const [draws, setDraws] = useState("0");
 
-  const handleDateChange = (e, selectedDate) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setFighterInfo({
-        ...fighterInfo,
-        dob: selectedDate.toLocaleDateString("en-CA"),
-      });
-    }
-  };
+  const [heightCm, setHeightCm] = useState("");
+  const [weightLbs, setWeightLbs] = useState("");
 
-  const handleNext = () => setStep((prevStep) => prevStep + 1);
-  const handleBack = () => setStep((prevStep) => prevStep - 1);
-  const handleChange = (field, value) => {
-    setFighterInfo((prevState) => ({
-      ...prevState,
-      [field]: value,
-    }));
+  const [fightStyle, setFightStyle] = useState("");
+
+  // ✅ NEW FIELDS
+  const [gym, setGym] = useState("");
+  const [bio, setBio] = useState("");
+  const [isAvailable, setIsAvailable] = useState(true);
+
+  const canSubmit = useMemo(() => {
+    if (!dateOfBirth || dateOfBirth.length !== 10) return false;
+    if (!weightClass) return false;
+    if (!fightStyle) return false;
+    if (region.trim().length < 2) return false;
+
+    // ✅ required
+    if (gym.trim().length < 2) return false;
+    if (bio.trim().length < 10) return false; // force something meaningful
+
+    if (submitting) return false;
+    return true;
+  }, [dateOfBirth, weightClass, fightStyle, region, gym, bio, submitting]);
+
+  const onDobChange = (_, selectedDate) => {
+    if (!selectedDate) return;
+    setTempDob(selectedDate);
   };
 
   const handleFinish = async () => {
-    try {
-      if (!userToken) {
-        Alert.alert("Error", "Session expired. Please log in again.");
-        return;
-      }
-
-      const response = await axios.put(
-        `${API_URL}/fighters/me`,
-        {
-          weight_class: fighterInfo.weight_class,
-          date_of_birth: fighterInfo.dob,
-          wins: fighterInfo.wins,
-          losses: fighterInfo.losses,
-          draws: fighterInfo.draws,
-          fight_style: fighterInfo.fight_style,
-          height: fighterInfo.height,
-          weight: fighterInfo.weight,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${userToken}`,
-          },
-        }
-      );
-
-      if (response.data) {
-        await completeOnboarding();
-      }
-    } catch (error) {
-      console.error(
-        "Finish onboarding error:",
-        error.response?.data || error.message
-      );
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to save profile"
-      );
+    if (!userToken) {
+      Alert.alert("Session error", "Please log in again.");
+      return;
     }
-  };
-
-  const handleImagePick = async () => {
-    const permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (permissionResult.granted === false) {
-      alert("Permission to access the media library is required!");
+    if (!canSubmit) {
+      Alert.alert(
+        "Missing info",
+        "DOB, Weight Class, Region, Fight Style, Gym, and Bio are required.\nBio must be at least 10 characters."
+      );
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      quality: 1,
-    });
+    setSubmitting(true);
+    try {
+      const payload = {
+        date_of_birth: dateOfBirth,
+        weight_class: weightClass,
+        region: region.trim(),
 
-    if (!result.canceled) {
-      setFighterInfo((prevState) => ({
-        ...prevState,
-        profile_url: result.assets[0].uri,
-      }));
+        wins: toInt(wins),
+        losses: toInt(losses),
+        draws: toInt(draws),
+
+        height: heightCm ? toFloat(heightCm) : null,
+        weight: weightLbs ? toFloat(weightLbs) : null,
+
+        fight_style: fightStyle,
+
+        // ✅ NEW
+        gym: gym.trim(),
+        bio: bio.trim(),
+        is_available: !!isAvailable,
+      };
+
+      const res = await axios.put(`${API_URL}/fighters/me`, payload, {
+        headers: { Authorization: `Bearer ${userToken}` },
+      });
+
+      console.log("FIGHTER ONBOARDING RESPONSE:", res.data);
+      await completeOnboarding();
+    } catch (err) {
+      console.error(
+        "FIGHTER ONBOARDING ERROR:",
+        err?.response?.data || err?.message
+      );
+      Alert.alert(
+        "Error",
+        err?.response?.data?.message || "Failed to save fighter profile"
+      );
+    } finally {
+      setSubmitting(false);
     }
-  };
-  const handleLogout = async () => {
-    await logout();
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        {step === 1 && (
-          <>
-            <Text style={styles.sectionTitle}>
-              Your Birthday & Fight Record
-            </Text>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Text style={styles.title}>Fighter Profile</Text>
+        <Text style={styles.subtitle}>
+          Set the basics so scouts can find and book you.
+        </Text>
+
+        <Text style={styles.label}>Date of birth *</Text>
+        <TouchableOpacity
+          style={styles.dateField}
+          onPress={() => setShowDatePicker(true)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.dateText}>
+            {dateOfBirth ? dateOfBirth : "Select date (YYYY-MM-DD)"}
+          </Text>
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <View style={{ marginTop: 10 }}>
+            <DateTimePicker
+              value={tempDob}
+              mode="date"
+              display={Platform.OS === "ios" ? "inline" : "default"}
+              maximumDate={new Date()}
+              onChange={onDobChange}
+            />
             <TouchableOpacity
-              onPress={() => setShowDatePicker(!showDatePicker)}
-              style={{
-                backgroundColor: "#232323",
-                borderRadius: 10,
-                height: 44,
-                justifyContent: "center",
-                paddingHorizontal: 14,
-                marginBottom: 18,
-                borderWidth: 2,
-                borderColor: "#e0245e",
+              style={styles.doneBtn}
+              onPress={() => {
+                setDobDate(tempDob);
+                setDateOfBirth(toYMD(tempDob));
+                setShowDatePicker(false);
               }}
             >
-              <Text style={{ color: "#ffd700", fontSize: 16 }}>
-                {fighterInfo.dob || "YYYY-MM-DD"}
-              </Text>
+              <Text style={styles.doneBtnText}>Done</Text>
             </TouchableOpacity>
-            {showDatePicker && (
-              <DateTimePicker
-                value={fighterInfo.dob ? new Date(fighterInfo.dob) : new Date()}
-                mode="date"
-                display={Platform.OS === "ios" ? "inline" : "default"}
-                maximumDate={new Date()}
-                onChange={handleDateChange}
-                style={{
-                  backgroundColor: "#232323",
-                  color: "#ffd700",
-                }}
-              />
-            )}
-            <View style={styles.recordRow}>
-              <View style={styles.recordCol}>
-                <Text style={styles.label}>Wins</Text>
-                <TextInput
-                  style={styles.input}
-                  value={fighterInfo.wins.toString()}
-                  onChangeText={(value) =>
-                    handleChange("wins", parseInt(value || "0", 10))
-                  }
-                  keyboardType="number-pad"
-                />
-              </View>
-              <View style={styles.recordCol}>
-                <Text style={styles.label}>Losses</Text>
-                <TextInput
-                  style={styles.input}
-                  value={fighterInfo.losses.toString()}
-                  onChangeText={(value) =>
-                    handleChange("losses", parseInt(value || "0", 10))
-                  }
-                  keyboardType="number-pad"
-                />
-              </View>
-              <View style={styles.recordCol}>
-                <Text style={styles.label}>Draws</Text>
-                <TextInput
-                  style={styles.input}
-                  value={fighterInfo.draws.toString()}
-                  onChangeText={(value) =>
-                    handleChange("draws", parseInt(value || "0", 10))
-                  }
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-            <CustomButton style={styles.button} onPress={handleNext}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Next
-              </Text>
-            </CustomButton>
-            <CustomButton style={styles.button} onPress={handleLogout}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Logout
-              </Text>
-            </CustomButton>
-          </>
+          </View>
         )}
-        {step === 2 && (
-          <>
-            <Text style={styles.sectionTitle}>Physical Attributes</Text>
-            <View style={styles.recordRow}>
-              <View style={styles.recordCol}>
-                <Text style={styles.label}>Height (cm)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={fighterInfo.height.toString()}
-                  onChangeText={(value) =>
-                    handleChange("height", parseFloat(value || "0.0"))
-                  }
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <View style={styles.recordCol}>
-                <Text style={styles.label}>Weight (lbs)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={fighterInfo.weight.toString()}
-                  onChangeText={(value) =>
-                    handleChange("weight", parseFloat(value || "0.0"))
-                  }
-                  keyboardType="decimal-pad"
-                />
-              </View>
-            </View>
-            <CustomButton style={styles.button} onPress={handleNext}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Next
-              </Text>
-            </CustomButton>
-            <CustomButton style={styles.button} onPress={handleBack}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Back
-              </Text>
-            </CustomButton>
-          </>
-        )}
-        {step === 3 && (
-          <>
-            <Text style={styles.sectionTitle}>Choose Your Fight Style</Text>
-            <View style={styles.fightStylesGrid}>
-              {fightStyleImage.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.fightStyleCard,
-                    fighterInfo.fight_style === item.style &&
-                      styles.fightStyleSelected,
-                  ]}
-                  onPress={() => handleChange("fight_style", item.style)}
+
+        <Text style={styles.label}>Weight class *</Text>
+        <View style={styles.pillsRow}>
+          {WEIGHT_CLASSES.map((wc) => {
+            const active = wc === weightClass;
+            return (
+              <TouchableOpacity
+                key={wc}
+                onPress={() => setWeightClass(wc)}
+                style={[styles.pill, active && styles.pillActive]}
+              >
+                <Text
+                  style={[styles.pillText, active && styles.pillTextActive]}
                 >
-                  <Text style={styles.fightStyleText}>{item.style}</Text>
-                  <Image source={item.source} style={styles.fightStyleImage} />
-                </TouchableOpacity>
-              ))}
-            </View>
-            <CustomButton style={styles.button} onPress={handleNext}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Next
-              </Text>
-            </CustomButton>
-            <CustomButton style={styles.button} onPress={handleBack}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Back
-              </Text>
-            </CustomButton>
-          </>
-        )}
-        {step === 4 && (
-          <>
-            <Text style={styles.sectionTitle}>Upload Profile Picture</Text>
-            <TouchableOpacity
-              onPress={handleImagePick}
-              style={styles.profilePicContainer}
-            >
-              <Text style={styles.selectPhotoText}>Select a Photo</Text>
-              {fighterInfo.profile_url ? (
-                <Image
-                  source={{ uri: fighterInfo.profile_url }}
-                  style={styles.profilePic}
-                />
-              ) : (
-                <Ionicons name="body-outline" size={70} color="#ffd700" />
-              )}
-            </TouchableOpacity>
-            <CustomButton style={styles.button} onPress={handleFinish}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Finish
-              </Text>
-            </CustomButton>
-            <CustomButton style={styles.button} onPress={handleBack}>
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 18 }}>
-                Back
-              </Text>
-            </CustomButton>
-          </>
-        )}
+                  {wc}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={styles.label}>Region *</Text>
+        <TextInput
+          style={styles.input}
+          value={region}
+          onChangeText={setRegion}
+          placeholder="e.g. Vancouver, BC"
+          placeholderTextColor="#777"
+          autoCapitalize="words"
+          returnKeyType="done"
+        />
+
+        {/* ✅ NEW: Gym */}
+        <Text style={styles.label}>Gym *</Text>
+        <TextInput
+          style={styles.input}
+          value={gym}
+          onChangeText={setGym}
+          placeholder="e.g. Tristar Gym"
+          placeholderTextColor="#777"
+          autoCapitalize="words"
+          returnKeyType="next"
+        />
+
+        {/* ✅ NEW: Availability */}
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.labelNoMargin}>Available to book *</Text>
+            <Text style={styles.smallHint}>
+              Scouts will filter for available fighters.
+            </Text>
+          </View>
+          <Switch
+            value={isAvailable}
+            onValueChange={setIsAvailable}
+            trackColor={{ false: "#333", true: "#ffd700" }}
+            thumbColor={isAvailable ? "#e0245e" : "#888"}
+          />
+        </View>
+
+        {/* ✅ NEW: Bio */}
+        <Text style={styles.label}>Bio *</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={bio}
+          onChangeText={setBio}
+          placeholder="Short bio: style, experience, achievements, who you want to fight..."
+          placeholderTextColor="#777"
+          multiline
+          textAlignVertical="top"
+          maxLength={240}
+        />
+        <Text style={styles.charCount}>{bio.trim().length}/240</Text>
+
+        <Text style={styles.label}>Record</Text>
+        <View style={styles.row}>
+          <View style={styles.col}>
+            <Text style={styles.smallLabel}>Wins</Text>
+            <TextInput
+              style={styles.input}
+              value={wins}
+              onChangeText={setWins}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor="#777"
+            />
+          </View>
+          <View style={styles.col}>
+            <Text style={styles.smallLabel}>Losses</Text>
+            <TextInput
+              style={styles.input}
+              value={losses}
+              onChangeText={setLosses}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor="#777"
+            />
+          </View>
+          <View style={styles.col}>
+            <Text style={styles.smallLabel}>Draws</Text>
+            <TextInput
+              style={styles.input}
+              value={draws}
+              onChangeText={setDraws}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor="#777"
+            />
+          </View>
+        </View>
+
+        <Text style={styles.label}>Physical (optional)</Text>
+        <View style={styles.row}>
+          <View style={styles.col}>
+            <Text style={styles.smallLabel}>Height (cm)</Text>
+            <TextInput
+              style={styles.input}
+              value={heightCm}
+              onChangeText={setHeightCm}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 188"
+              placeholderTextColor="#777"
+            />
+          </View>
+          <View style={styles.col}>
+            <Text style={styles.smallLabel}>Weight (lbs)</Text>
+            <TextInput
+              style={styles.input}
+              value={weightLbs}
+              onChangeText={setWeightLbs}
+              keyboardType="decimal-pad"
+              placeholder="e.g. 170"
+              placeholderTextColor="#777"
+            />
+          </View>
+        </View>
+
+        <Text style={styles.label}>Fight style *</Text>
+        <View style={styles.pillsRow}>
+          {FIGHT_STYLES.map((fs) => {
+            const active = fs === fightStyle;
+            return (
+              <TouchableOpacity
+                key={fs}
+                onPress={() => setFightStyle(fs)}
+                style={[styles.pill, active && styles.pillActive]}
+              >
+                <Text
+                  style={[styles.pillText, active && styles.pillTextActive]}
+                >
+                  {fs}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <CustomButton
+          style={[styles.primaryBtn, !canSubmit && styles.btnDisabled]}
+          onPress={handleFinish}
+        >
+          {submitting ? (
+            <ActivityIndicator />
+          ) : (
+            <Text style={styles.primaryText}>Finish</Text>
+          )}
+        </CustomButton>
+
+        <CustomButton style={styles.secondaryBtn} onPress={logout}>
+          <Text style={styles.secondaryText}>Logout</Text>
+        </CustomButton>
+
+        <Text style={styles.hint}>* Required fields</Text>
       </ScrollView>
     </SafeAreaView>
   );
-};
+}
 
-export default Onboarding;
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: "#181818" },
+  container: { padding: 20, paddingBottom: 30 },
+  title: { color: "#ffd700", fontSize: 26, fontWeight: "900", marginBottom: 4 },
+  subtitle: { color: "#bbb", marginBottom: 16 },
+
+  label: {
+    color: "#ffd700",
+    fontWeight: "900",
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  labelNoMargin: { color: "#ffd700", fontWeight: "900" },
+  smallLabel: { color: "#bbb", fontWeight: "700", marginBottom: 6 },
+  smallHint: { color: "#888", marginTop: 4 },
+
+  dateField: {
+    backgroundColor: "#1c1c1c",
+    borderRadius: 12,
+    height: 46,
+    paddingHorizontal: 14,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e0245e",
+  },
+  dateText: { color: "#fff", fontSize: 16 },
+
+  doneBtn: {
+    marginTop: 12,
+    backgroundColor: "#e0245e",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  doneBtnText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+
+  row: { flexDirection: "row", gap: 10 },
+  col: { flex: 1 },
+
+  input: {
+    backgroundColor: "#1c1c1c",
+    borderRadius: 12,
+    height: 46,
+    paddingHorizontal: 14,
+    color: "#fff",
+    borderWidth: 1,
+    borderColor: "#e0245e",
+  },
+
+  textArea: {
+    height: 110,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  charCount: { color: "#777", marginTop: 6, textAlign: "right" },
+
+  pillsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  pill: {
+    backgroundColor: "#232323",
+    borderWidth: 1,
+    borderColor: "#333",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  pillActive: { borderColor: "#e0245e" },
+  pillText: { color: "#ccc", fontWeight: "800" },
+  pillTextActive: { color: "#fff" },
+
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#333",
+    backgroundColor: "#232323",
+  },
+
+  primaryBtn: { marginTop: 18, backgroundColor: "#e0245e" },
+  btnDisabled: { opacity: 0.5 },
+  primaryText: { color: "#fff", fontWeight: "900", fontSize: 18 },
+
+  secondaryBtn: { marginTop: 10, backgroundColor: "#292929" },
+  secondaryText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+
+  hint: { marginTop: 12, color: "#777", textAlign: "center" },
+});

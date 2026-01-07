@@ -39,22 +39,28 @@ export default function fightersRoutes(supabase, requireAuth) {
         .from("fighters")
         .select(
           `
-          user_id,
-          weight_class,
-          wins,
-          losses,
-          draws,
-          height,
-          weight,
-          fight_style,
-          users (
-            fname,
-            lname,
-            profile_picture_url,
-            region
-          )
-        `
+  user_id,
+  weight_class,
+  wins,
+  losses,
+  draws,
+  height,
+  weight,
+  fight_style,
+
+  gym,
+  bio,
+  is_available,
+
+  users (
+    fname,
+    lname,
+    profile_picture_url,
+    region
+  )
+`
         )
+
         .order("wins", { ascending: false })
         .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -123,13 +129,18 @@ export default function fightersRoutes(supabase, requireAuth) {
     const {
       weight_class,
       date_of_birth,
-      region, // ✅ add this to your fighter onboarding UI
+      region,
       wins,
       losses,
       draws,
       fight_style,
       height,
       weight,
+
+      // ✅ NEW
+      gym,
+      bio,
+      is_available,
     } = req.body;
 
     const toNum = (v) => (v === undefined || v === null ? null : Number(v));
@@ -140,6 +151,14 @@ export default function fightersRoutes(supabase, requireAuth) {
     if ([w, l, d].some((n) => n !== null && (!Number.isFinite(n) || n < 0))) {
       return res.status(400).json({ message: "Invalid record values" });
     }
+
+    // ✅ basic validation (don’t overthink this)
+    const gymClean = typeof gym === "string" ? gym.trim() : null;
+    const bioClean = typeof bio === "string" ? bio.trim() : null;
+    const avail =
+      is_available === undefined || is_available === null
+        ? null
+        : Boolean(is_available);
 
     try {
       // 1) Update fighter row
@@ -155,6 +174,12 @@ export default function fightersRoutes(supabase, requireAuth) {
             fight_style,
             height,
             weight,
+
+            // ✅ NEW
+            gym: gymClean,
+            bio: bioClean,
+            is_available: avail ?? true,
+
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id" }
@@ -169,7 +194,7 @@ export default function fightersRoutes(supabase, requireAuth) {
         fighter_onboarded: true,
       };
       if (date_of_birth) userUpdate.date_of_birth = date_of_birth;
-      if (region) userUpdate.region = region; // ✅ store region on users
+      if (region) userUpdate.region = region;
 
       const { error: userErr } = await supabase
         .from("users")
