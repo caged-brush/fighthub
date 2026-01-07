@@ -10,7 +10,20 @@ export default function scoutsRoutes(supabase, requireAuth) {
     try {
       const { data, error } = await supabase
         .from("scouts")
-        .select("*")
+        .select(
+          `
+    user_id,
+    organization,
+    region,
+    experience_level,
+    users (
+      fname,
+      lname,
+      profile_picture_url,
+      region
+    )
+  `
+        )
         .eq("user_id", userId)
         .single();
 
