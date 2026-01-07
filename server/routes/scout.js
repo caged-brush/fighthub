@@ -12,25 +12,34 @@ export default function scoutsRoutes(supabase, requireAuth) {
         .from("scouts")
         .select(
           `
-    user_id,
-    organization,
-    region,
-    experience_level,
-    users (
-      fname,
-      lname,
-      profile_picture_url,
-      region
-    )
-  `
+        user_id,
+        organization,
+        region,
+        experience_level,
+        users (
+          fname,
+          lname,
+          profile_picture_url,
+          region
+        )
+      `
         )
         .eq("user_id", userId)
-        .single();
+        .maybeSingle(); // <-- change this
 
-      if (error) throw error;
+      if (error) {
+        console.error("GET /scouts/me supabase error:", error);
+        return res.status(500).json({ message: "Server error" });
+      }
+
+      if (!data) {
+        return res.status(404).json({ message: "Scout profile not found" });
+      }
+
       return res.json(data);
-    } catch {
-      return res.status(404).json({ message: "Scout profile not found" });
+    } catch (err) {
+      console.error("GET /scouts/me crash:", err);
+      return res.status(500).json({ message: "Server error" });
     }
   });
 
