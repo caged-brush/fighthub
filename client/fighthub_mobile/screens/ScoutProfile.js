@@ -127,7 +127,7 @@ export default function ScoutProfile() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#181818", paddingTop: 18 },
+  safe: { flex: 1, backgroundColor: "#181818", paddingTop: 58 },
 
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
   loadingText: { color: "#bbb", marginTop: 10, fontWeight: "700" },
