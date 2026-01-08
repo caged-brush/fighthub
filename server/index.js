@@ -143,8 +143,7 @@ const io = new Server(httpServer, {
   cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true },
 });
 
-// ✅ pass db
-setupSocket(io, db);
+setupSocket(io, supabase);
 
 // ===== HEALTH CHECK =====
 app.get("/", (req, res) => res.send("FightHub backend is running ✅"));

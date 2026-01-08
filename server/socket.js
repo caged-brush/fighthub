@@ -1,15 +1,14 @@
-// setupSocket.js
-export default function setupSocket(io, db) {
-  if (!db) {
-    throw new Error("setupSocket(io, db) called without db");
-  }
+// socket.js
+export default function setupSocket(io, supabase) {
+  if (!supabase) throw new Error("setupSocket(io, supabase) missing supabase");
 
   // userId -> Set(socketId)
   const users = new Map();
 
   const addSocketForUser = (userId, socketId) => {
-    if (!users.has(userId)) users.set(userId, new Set());
-    users.get(userId).add(socketId);
+    const key = String(userId);
+    if (!users.has(key)) users.set(key, new Set());
+    users.get(key).add(socketId);
   };
 
   const removeSocketEverywhere = (socketId) => {
@@ -20,7 +19,7 @@ export default function setupSocket(io, db) {
   };
 
   const emitToUser = (userId, event, payload) => {
-    const socketSet = users.get(userId);
+    const socketSet = users.get(String(userId));
     if (!socketSet) return;
     for (const sid of socketSet) io.to(sid).emit(event, payload);
   };
@@ -34,23 +33,28 @@ export default function setupSocket(io, db) {
         return;
       }
 
-      addSocketForUser(String(userId), socket.id);
-      console.log(`User ${userId} registered with socket id ${socket.id}`);
+      addSocketForUser(userId, socket.id);
+      console.log(`User ${userId} registered with socket ${socket.id}`);
 
-      // Optional: send users list
+      // optional: users list (only if you actually use this)
       try {
-        const result = await db.query("SELECT id, fname, lname FROM users");
-        const userList = result.rows.map((u) => ({
+        const { data, error } = await supabase
+          .from("users")
+          .select("id, fname, lname");
+
+        if (error) throw error;
+
+        const userList = (data || []).map((u) => ({
           id: u.id,
-          name: `${u.fname} ${u.lname}`.trim(),
+          name: `${u.fname || ""} ${u.lname || ""}`.trim(),
         }));
 
         io.to(socket.id).emit(
           "users",
           userList.filter((u) => String(u.id) !== String(userId))
         );
-      } catch (error) {
-        console.error("Error fetching users:", error);
+      } catch (e) {
+        console.error("Error fetching users:", e?.message || e);
       }
     });
 
@@ -58,54 +62,46 @@ export default function setupSocket(io, db) {
       if (!userId || !recipientId) return;
 
       try {
-        const result = await db.query(
-          `
-          SELECT id, sender_id, recipient_id, message, timestamp
-          FROM messages
-          WHERE (sender_id = $1 AND recipient_id = $2)
-             OR (sender_id = $2 AND recipient_id = $1)
-          ORDER BY timestamp ASC
-        `,
-          [userId, recipientId]
-        );
+        const { data, error } = await supabase
+          .from("messages")
+          .select("id, sender_id, recipient_id, message, timestamp")
+          .or(
+            `and(sender_id.eq.${userId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${userId})`
+          )
+          .order("timestamp", { ascending: true });
 
-        io.to(socket.id).emit("message-history", result.rows);
-      } catch (err) {
-        console.error("Error loading message history:", err);
+        if (error) throw error;
+
+        io.to(socket.id).emit("message-history", data || []);
+      } catch (e) {
+        console.error("Error loading history:", e?.message || e);
       }
     });
 
     socket.on("private-message", async ({ recipientId, message, senderId }) => {
       if (!recipientId || !senderId || !message?.trim()) return;
 
-      let saved;
       try {
-        const result = await db.query(
-          `
-          INSERT INTO messages (sender_id, recipient_id, message)
-          VALUES ($1, $2, $3)
-          RETURNING id, sender_id, recipient_id, message, timestamp
-        `,
-          [senderId, recipientId, message.trim()]
-        );
-        saved = result.rows[0];
-      } catch (err) {
-        console.error("Error saving message:", err);
-        return;
+        const { data, error } = await supabase
+          .from("messages")
+          .insert([
+            {
+              sender_id: senderId,
+              recipient_id: recipientId,
+              message: message.trim(),
+            },
+          ])
+          .select("id, sender_id, recipient_id, message, timestamp")
+          .single();
+
+        if (error) throw error;
+
+        // deliver to both sides
+        emitToUser(recipientId, "private-message", data);
+        emitToUser(senderId, "private-message", data);
+      } catch (e) {
+        console.error("Error saving message:", e?.message || e);
       }
-
-      // ✅ consistent payload
-      const payload = {
-        id: saved.id,
-        sender_id: saved.sender_id,
-        recipient_id: saved.recipient_id,
-        message: saved.message,
-        timestamp: saved.timestamp,
-      };
-
-      // ✅ deliver to recipient + sender
-      emitToUser(String(recipientId), "private-message", payload);
-      emitToUser(String(senderId), "private-message", payload);
     });
 
     socket.on("disconnect", () => {
