@@ -46,7 +46,7 @@ export default function ChatScreen() {
         id: msg.id,
         text: msg.message,
         sender: String(msg.sender_id) === userId ? "me" : "them",
-        timestamp: msg.created_at,
+        timestamp: msg.timestamp,
       }));
       setMessages(formatted);
     };

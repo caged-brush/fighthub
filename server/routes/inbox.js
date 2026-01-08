@@ -11,9 +11,9 @@ export default function inboxRoutes(supabase, requireAuth) {
     try {
       const { data: msgs, error } = await supabase
         .from("messages")
-        .select("id, sender_id, recipient_id, message, created_at")
+        .select("id, sender_id, recipient_id, message, timestamp")
         .or(`sender_id.eq.${myId},recipient_id.eq.${myId}`)
-        .order("created_at", { ascending: false })
+        .order("timestamp", { ascending: false })
         .limit(300); // enough for MVP inbox
 
       if (error) throw error;
@@ -55,7 +55,7 @@ export default function inboxRoutes(supabase, requireAuth) {
           role: u?.role || null,
           profile_picture_url: u?.profile_picture_url || null,
           lastMessage: last?.message || "",
-          lastTimestamp: last?.created_at || null,
+          lastTimestamp: last?.timestamp || null,
         };
       });
 

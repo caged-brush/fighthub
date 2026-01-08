@@ -28,11 +28,11 @@ export default function setupSocket(io, supabase) {
         // messages between uid and rid
         const { data, error } = await supabase
           .from("messages")
-          .select("id, sender_id, recipient_id, message, created_at")
+          .select("id, sender_id, recipient_id, message, timestamp")
           .or(
             `and(sender_id.eq.${uid},recipient_id.eq.${rid}),and(sender_id.eq.${rid},recipient_id.eq.${uid})`
           )
-          .order("created_at", { ascending: true });
+          .order("timestamp", { ascending: true });
 
         if (error) throw error;
 
@@ -54,7 +54,7 @@ export default function setupSocket(io, supabase) {
         const { data, error } = await supabase
           .from("messages")
           .insert([{ sender_id: sid, recipient_id: rid, message: msg }])
-          .select("id, sender_id, recipient_id, message, created_at")
+          .select("id, sender_id, recipient_id, message, timestamp")
           .single();
 
         if (error) throw error;
@@ -69,7 +69,7 @@ export default function setupSocket(io, supabase) {
         message: saved.message,
         senderId: saved.sender_id,
         recipientId: saved.recipient_id,
-        timestamp: saved.created_at,
+        timestamp: saved.timestamp,
       };
 
       // send to recipient sockets
