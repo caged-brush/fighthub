@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useEffect, useMemo, useRef, useState, useContext } from "react";
 import {
   View,
   Text,
@@ -13,77 +13,115 @@ import { useRoute } from "@react-navigation/native";
 import { format } from "date-fns";
 import io from "socket.io-client";
 import { AuthContext } from "../context/AuthContext";
-import CustomButton from "../component/CustomButton";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 
-// Set the URL for your backend server here
-const socket = io("https://fighthub.onrender.com");
+const SOCKET_URL = "https://fighthub.onrender.com";
 
-const ChatScreen = () => {
+export default function ChatScreen() {
   const route = useRoute();
   const { recipientId, recipientName } = route.params;
+
   const { userId } = useContext(AuthContext);
+
+  const socketRef = useRef(null);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
 
-  useEffect(() => {
-    // Connect to the socket and join the chat room when the component is mounted
-    socket.emit("join", userId); // Send your user ID to join the socket room
-    socket.emit("load-messages", { userId, recipientId });
+  const chatKey = useMemo(() => {
+    if (!userId || !recipientId) return "";
+    return [String(userId), String(recipientId)].sort().join("-");
+  }, [userId, recipientId]);
 
-    socket.on("message-history", (messagesFromServer) => {
-      const formatted = messagesFromServer.map((msg) => ({
+  useEffect(() => {
+    if (!userId || !recipientId) return;
+
+    // ✅ create socket per mount
+    const socket = io(SOCKET_URL, {
+      transports: ["websocket"],
+      forceNew: true,
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      // ✅ join ONLY when we have userId
+      socket.emit("join", String(userId));
+      socket.emit("load-messages", {
+        userId: String(userId),
+        recipientId: String(recipientId),
+      });
+    });
+
+    socket.on("message-history", (rows) => {
+      const formatted = (rows || []).map((msg) => ({
         id: msg.id,
         text: msg.message,
-        sender: msg.sender_id === userId ? "me" : recipientName,
-        timestamp: msg.timestamp, // ✅ include timestamp
+        sender: String(msg.sender_id) === String(userId) ? "me" : recipientName,
+        timestamp: msg.timestamp,
+        _key: `${msg.id}`,
       }));
       setMessages(formatted);
     });
 
-    // Listen for private messages
-    socket.on("private-message", ({ message, senderId, timestamp, id }) => {
-      if (senderId !== recipientId && senderId !== userId) return;
-      setMessages((prevMessages) => [
-        ...prevMessages,
-        {
-          id: id || Date.now(),
-          text: message,
-          sender: senderId === userId ? "me" : recipientName,
-          timestamp, // ✅ now defined
-        },
-      ]);
+    socket.on("private-message", (msg) => {
+      // msg: {id, sender_id, recipient_id, message, timestamp}
+      if (!msg) return;
+
+      const s = String(msg.sender_id);
+      const r = String(msg.recipient_id);
+
+      const relevant =
+        (s === String(userId) && r === String(recipientId)) ||
+        (s === String(recipientId) && r === String(userId));
+
+      if (!relevant) return;
+
+      setMessages((prev) => {
+        // ✅ de-dupe by id (because sender receives echo)
+        if (prev.some((m) => String(m.id) === String(msg.id))) return prev;
+
+        return [
+          ...prev,
+          {
+            id: msg.id,
+            text: msg.message,
+            sender: s === String(userId) ? "me" : recipientName,
+            timestamp: msg.timestamp,
+            _key: `${msg.id}`,
+          },
+        ];
+      });
     });
 
-    // Clean up when the component is unmounted
+    socket.on("connect_error", (e) => {
+      console.log("socket connect_error:", e?.message);
+    });
+
     return () => {
-      socket.off("private-message");
       socket.off("message-history");
+      socket.off("private-message");
+      socket.disconnect();
+      socketRef.current = null;
     };
-  }, [recipientId]);
+  }, [chatKey, userId, recipientId, recipientName]);
 
   const sendMessage = () => {
-    if (input.trim() === "") return;
+    if (!userId || !recipientId) return;
+    if (!input.trim()) return;
 
-    const timestamp = new Date().toISOString();
+    const socket = socketRef.current;
+    if (!socket || !socket.connected) return;
 
     socket.emit("private-message", {
-      recipientId,
-      message: input,
-      senderId: userId,
+      recipientId: String(recipientId),
+      message: input.trim(),
+      senderId: String(userId),
     });
 
-    setMessages((prevMessages) => [
-      ...prevMessages,
-      {
-        id: Date.now(),
-        text: input,
-        sender: "me",
-        timestamp, // ✅ add timestamp here
-      },
-    ]);
+    // ✅ don’t optimistic add (you already get echoed message back with real id)
+    // if you insist on optimistic, you'd need temp ids + reconciliation.
     setInput("");
   };
 
@@ -103,9 +141,10 @@ const ChatScreen = () => {
             />
             <Text style={styles.headerText}>Chat with {recipientName}</Text>
           </View>
+
           <FlatList
             data={messages}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => String(item._key ?? item.id)}
             renderItem={({ item }) => (
               <View
                 style={{
@@ -152,18 +191,11 @@ const ChatScreen = () => {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#181818",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#181818",
-    padding: 10,
-  },
+  safeArea: { flex: 1, backgroundColor: "#181818" },
+  container: { flex: 1, backgroundColor: "#181818", padding: 10 },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -186,13 +218,8 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    alignSelf: "flex-end",
     maxWidth: "80%",
     marginVertical: 4,
-    shadowColor: "#e0245e",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 2,
   },
   receiverBubble: {
     backgroundColor: "#232323",
@@ -202,21 +229,12 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    alignSelf: "flex-start",
     maxWidth: "80%",
     marginVertical: 4,
     borderWidth: 2,
     borderColor: "#ffd700",
-    shadowColor: "#ffd700",
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 2,
   },
-  messageText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "500",
-  },
+  messageText: { color: "#fff", fontSize: 16, fontWeight: "500" },
   timestamp: {
     fontSize: 10,
     color: "#ffd700",
@@ -241,11 +259,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     paddingHorizontal: 10,
     height: 40,
-    backgroundColor: "transparent",
   },
-  sendIcon: {
-    marginLeft: 8,
-  },
+  sendIcon: { marginLeft: 8 },
 });
-
-export default ChatScreen;

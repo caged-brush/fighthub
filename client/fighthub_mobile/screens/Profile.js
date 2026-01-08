@@ -1,7 +1,5 @@
 import React, { useCallback, useEffect, useState, useContext } from "react";
-
 import {
-  Pressable,
   Text,
   View,
   ScrollView,
@@ -11,6 +9,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { Video } from "expo-av";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -20,53 +19,62 @@ import CustomButton from "../component/CustomButton";
 import { useRoute } from "@react-navigation/native";
 import { API_URL } from "../Constants";
 
-// Helper function to check if a URL is valid (for profile images)
-const isValidUrl = (url) => {
-  return (
-    typeof url === "string" &&
-    url.length > 0 &&
-    (url.startsWith("http://") || url.startsWith("https://"))
-  );
-};
+const isValidUrl = (url) =>
+  typeof url === "string" &&
+  url.length > 0 &&
+  (url.startsWith("http://") || url.startsWith("https://"));
 
 const getFullMediaUrl = (url) => {
   if (!url) return "";
-  // If it’s already a valid full URL
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
-  // Otherwise combine safely with API_URL
   const base = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
   const path = url.startsWith("/") ? url : `/${url}`;
   return `${base}${path}`;
 };
 
-// Profile screen component
-const Profile = () => {
-  // Navigation and authentication context
+const isImage = (url) =>
+  typeof url === "string" &&
+  (url.toLowerCase().endsWith(".jpg") ||
+    url.toLowerCase().endsWith(".jpeg") ||
+    url.toLowerCase().endsWith(".png"));
+
+export default function Profile() {
   const route = useRoute();
-  const { logout, userId } = useContext(AuthContext);
-  // Determine which profile is being viewed
-  const profileUserId = route.params?.profileUserId ?? userId;
-  const viewingOwnProfile = profileUserId === userId;
-  // State for fighter info and UI
+  const { logout, userId: authedUserId } = useContext(AuthContext);
+
+  // Accept either param name from navigation
+  const profileUserId =
+    route.params?.profileUserId ?? route.params?.userId ?? authedUserId;
+
+  const viewingOwnProfile = profileUserId === authedUserId;
+
   const [fighterInfo, setFighterInfo] = useState({
     fname: "",
     lname: "",
-    wins: 0.0,
-    losses: 0.0,
-    draws: 0.0,
-    style: "",
-    weight: 0.0,
-    height: 0.0,
+    region: "",
+    weight_class: "",
+    gym: "",
+    bio: "",
+    is_available: false,
+
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    fight_style: "",
+    weight: null,
+    height: null,
     profileUrl: "",
   });
+
+  const [profileNotFound, setProfileNotFound] = useState(false);
+
   const [refreshing, setRefreshing] = useState(false);
-  const [showFollow, setShowFollow] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+
   const [userPosts, setUserPosts] = useState([]);
-  // Modal state for post preview
+
   const [selectedPost, setSelectedPost] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [likeLoading, setLikeLoading] = useState(false);
@@ -74,217 +82,208 @@ const Profile = () => {
   const [postLikes, setPostLikes] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
 
-  // Fetch likes for selected post
-  useEffect(() => {
-    const fetchLikes = async () => {
-      if (!selectedPost) return;
-      try {
-        const res = await axios.post(`${API_URL}/like-count`, {
-          postId: selectedPost.id,
-        });
-        setPostLikes(res.data.likes || 0);
-        // Check if user has liked using /liked-posts
-        const likedRes = await axios.post(`${API_URL}/liked-posts`, {
-          userId,
-        });
-        const likedPostIds = likedRes.data.likedPostIds || [];
-        setHasLiked(likedPostIds.includes(selectedPost.id));
-      } catch (err) {
-        setPostLikes(0);
-        setHasLiked(false);
-      }
-    };
-    if (modalVisible && selectedPost) {
-      fetchLikes();
-    }
-  }, [modalVisible, selectedPost, userId]);
+  const getUserProfile = useCallback(async () => {
+    if (!profileUserId) return;
 
-  const isImage = (url) =>
-    typeof url === "string" &&
-    (url.toLowerCase().endsWith(".jpg") ||
-      url.toLowerCase().endsWith(".jpeg") ||
-      url.toLowerCase().endsWith(".png"));
+    setProfileNotFound(false);
 
-  // Like/unlike handler
-  const handleLike = async () => {
-    if (!selectedPost) return;
-    setLikeLoading(true);
-    setLikeError("");
     try {
-      if (hasLiked) {
-        // Unlike
-        await axios.post(`${API_URL}/unlike`, {
-          userId,
-          postId: selectedPost.id,
-        });
-        setHasLiked(false);
-        setPostLikes((prev) => Math.max(prev - 1, 0));
-      } else {
-        // Like
-        await axios.post(`${API_URL}/like`, {
-          userId,
-          postId: selectedPost.id,
-        });
-        setHasLiked(true);
-        setPostLikes((prev) => prev + 1);
-      }
-    } catch (err) {
-      setLikeError("Error updating like");
-    }
-    setLikeLoading(false);
-  };
-  // Handle user logout
-  const handleLogout = () => {
-    console.log("Logging out");
-    logout();
-  };
+      const res = await axios.get(`${API_URL}/fighters/${profileUserId}`);
+      const f = res.data;
 
-  // Fetch user profile info, follower/following counts, and follow status
-  const getUserProfile = async () => {
-    try {
-      // Get fighter info
-      const response = await axios.post(`${API_URL}/fighter-info`, {
-        userId: profileUserId || userId,
+      const pic = f?.users?.profile_picture_url || "";
+      const base = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
+      const picUrl =
+        pic && typeof pic === "string"
+          ? `${base}${pic.startsWith("/") ? "" : "/"}${pic}`
+          : "";
+
+      setFighterInfo({
+        fname: f?.users?.fname || "",
+        lname: f?.users?.lname || "",
+
+        region: f?.users?.region || f?.region || "",
+        weight_class: f?.weight_class || "",
+        gym: f?.gym || "",
+        bio: f?.bio || "",
+        is_available: !!f?.is_available,
+
+        wins: f?.wins ?? 0,
+        losses: f?.losses ?? 0,
+        draws: f?.draws ?? 0,
+        fight_style: f?.fight_style || "",
+
+        weight: f?.weight ?? null,
+        height: f?.height ?? null,
+
+        profileUrl: picUrl,
       });
-      if (response.data) {
-        const baseUrl = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
-        const picUrl =
-          response.data.profile_picture_url &&
-          typeof response.data.profile_picture_url === "string"
-            ? `${baseUrl}${
-                response.data.profile_picture_url.startsWith("/") ? "" : "/"
-              }${response.data.profile_picture_url}`
-            : "";
 
-        setFighterInfo({
-          fname: response.data.fname || "",
-          lname: response.data.lname || "",
-          wins: response.data.wins || 0.0,
-          losses: response.data.losses || 0.0,
-          draws: response.data.draws || 0.0,
-          style: response.data.fight_style || "",
-          weight: response.data.weight || 0.0,
-          height: response.data.height || 0.0,
-          profileUrl: picUrl,
-        });
-      }
-
-      // Fetch follower count
+      // follower count (for THIS profile)
       try {
         const followerRes = await axios.post(`${API_URL}/follower-count`, {
           userId: profileUserId,
         });
         setFollowerCount(followerRes.data.count || 0);
-      } catch (err) {
+      } catch {
         setFollowerCount(0);
       }
-      // Fetch following count
+
+      // following count (for THIS profile)
       try {
         const followingRes = await axios.post(`${API_URL}/following-count`, {
           userId: profileUserId,
         });
         setFollowingCount(followingRes.data.count || 0);
-      } catch (err) {
+      } catch {
         setFollowingCount(0);
       }
 
-      // Check if current user is following the profile user
+      // follow status (current user -> profile user)
       if (!viewingOwnProfile) {
         try {
           const followRes = await axios.post(`${API_URL}/is-following`, {
-            followerId: userId,
+            followerId: authedUserId,
             followingId: profileUserId,
           });
           setIsFollowing(!!followRes.data.isFollowing);
-        } catch (err) {
-          console.log("Error checking follow status:", err);
+        } catch {
+          setIsFollowing(false);
         }
+      } else {
+        setIsFollowing(false);
       }
-    } catch (error) {
-      console.log("Error fetching user profile:", error);
-    }
-  };
+    } catch (err) {
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.message || err?.message;
 
-  const getUserPost = async () => {
+      console.log("GET /fighters/:userId failed:", status, msg);
+
+      if (status === 404) {
+        setProfileNotFound(true);
+        return;
+      }
+
+      Alert.alert("Error", "Failed to load fighter profile.");
+    }
+  }, [profileUserId, viewingOwnProfile, authedUserId]);
+
+  const getUserPost = useCallback(async () => {
+    if (!profileUserId) return;
+
     try {
       const response = await axios.get(
         `${API_URL}/posts/user/${profileUserId}`
       );
-
-      // Handle successful response
-      console.log("User posts fetched successfully:", response.data);
-      if (response.data && response.data.length > 0) {
-        console.log("Setting user posts:", response.data);
-
-        setUserPosts(response.data);
-      }
+      setUserPosts(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.log("Error fetching user posts:", error);
-      // Handle error appropriately, e.g., show an alert or a toast message
+      console.log(
+        "Error fetching user posts:",
+        error?.response?.data || error?.message
+      );
+      setUserPosts([]);
+    }
+  }, [profileUserId]);
+
+  // Fetch likes when opening modal
+  useEffect(() => {
+    const fetchLikes = async () => {
+      if (!selectedPost) return;
+
+      try {
+        const res = await axios.post(`${API_URL}/like-count`, {
+          postId: selectedPost.id,
+        });
+        setPostLikes(res.data.likes || 0);
+
+        const likedRes = await axios.post(`${API_URL}/liked-posts`, {
+          userId: authedUserId,
+        });
+        const likedPostIds = likedRes.data.likedPostIds || [];
+        setHasLiked(likedPostIds.includes(selectedPost.id));
+      } catch {
+        setPostLikes(0);
+        setHasLiked(false);
+      }
+    };
+
+    if (modalVisible && selectedPost) fetchLikes();
+  }, [modalVisible, selectedPost, authedUserId]);
+
+  const handleLike = async () => {
+    if (!selectedPost) return;
+
+    setLikeLoading(true);
+    setLikeError("");
+
+    try {
+      if (hasLiked) {
+        await axios.post(`${API_URL}/unlike`, {
+          userId: authedUserId,
+          postId: selectedPost.id,
+        });
+        setHasLiked(false);
+        setPostLikes((p) => Math.max(p - 1, 0));
+      } else {
+        await axios.post(`${API_URL}/like`, {
+          userId: authedUserId,
+          postId: selectedPost.id,
+        });
+        setHasLiked(true);
+        setPostLikes((p) => p + 1);
+      }
+    } catch {
+      setLikeError("Error updating like");
+    } finally {
+      setLikeLoading(false);
     }
   };
-  // Handle follow action
+
   const handleFollow = async () => {
     try {
       const response = await axios.post(`${API_URL}/follow`, {
         followingId: profileUserId,
-        followerId: userId,
+        followerId: authedUserId,
       });
-
-      if (
-        response.data.message === "Followed successfully" ||
-        response.data.message === "Already following"
-      ) {
-        console.log("Successfully followed user");
-        setIsFollowing(true);
-      } else {
-        console.log("Failed to follow user:", response.data.message);
-        // Handle failure case, e.g., show an alert or a toast message
-      }
+      if (response.data?.message) setIsFollowing(true);
     } catch (error) {
-      console.log("Error following user:", error);
-      // Handle error appropriately, e.g., show an alert or a toast message
+      console.log(
+        "Error following user:",
+        error?.response?.data || error?.message
+      );
     }
   };
 
-  // Handle unfollow action
   const handleUnfollow = async () => {
     try {
       const response = await axios.post(`${API_URL}/unfollow`, {
         followingId: profileUserId,
-        followerId: userId,
+        followerId: authedUserId,
       });
-
-      if (response.data.message === "Unfollowed successfully") {
-        console.log("Successfully unfollowed user");
-        setIsFollowing(false);
-      } else {
-        console.log("Failed to unfollow user:", response.data.message);
-        // Handle failure case, e.g., show an alert or a toast message
-      }
+      if (response.data?.message) setIsFollowing(false);
     } catch (error) {
-      console.log("Error unfollowing user:", error);
-      // Handle error appropriately, e.g., show an alert or a toast message
+      console.log(
+        "Error unfollowing user:",
+        error?.response?.data || error?.message
+      );
     }
   };
 
-  // Fetch profile info when profileUserId changes
   useEffect(() => {
     getUserProfile();
-  }, [profileUserId]);
-
-  useEffect(() => {
     getUserPost();
-  }, [profileUserId]);
+  }, [getUserProfile, getUserPost]);
 
-  // Pull-to-refresh handler
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await getUserProfile();
+    await Promise.all([getUserProfile(), getUserPost()]);
     setRefreshing(false);
-  }, [profileUserId]);
+  }, [getUserProfile, getUserPost]);
 
-  // Render profile UI
+  const availabilityLabel = fighterInfo.is_available
+    ? "AVAILABLE"
+    : "NOT AVAILABLE";
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -293,208 +292,273 @@ const Profile = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Profile image and info row */}
-        <View style={styles.fighterCard}>
-          {/* Profile picture or default icon */}
-          {isValidUrl(fighterInfo.profileUrl) ? (
-            <Image
-              source={{ uri: fighterInfo.profileUrl }}
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={styles.defaultIcon}>
-              <Ionicons name="body-outline" size={70} color="#ffd700" />
-            </View>
-          )}
+        {profileNotFound ? (
+          <View style={styles.notFoundBox}>
+            <Text style={styles.notFoundTitle}>Fighter profile not found</Text>
+            <Text style={styles.notFoundText}>
+              This user has not completed fighter onboarding yet (no row in
+              fighters table).
+            </Text>
 
-          <View style={styles.profileDetails}>
-            <Text style={styles.fighterName}>
-              {fighterInfo.fname} {fighterInfo.lname}
-            </Text>
-            <View style={styles.fightStatsRow}>
-              <View style={styles.fightStat}>
-                <Text style={styles.fightStatText}>{fighterInfo.wins}W</Text>
-              </View>
-              <View style={styles.fightStat}>
-                <Text style={styles.fightStatText}>{fighterInfo.losses}L</Text>
-              </View>
-              <View style={styles.fightStat}>
-                <Text style={styles.fightStatText}>{fighterInfo.draws}D</Text>
-              </View>
-            </View>
-            <Text style={styles.infoText}>Style: {fighterInfo.style}</Text>
-            <Text style={styles.infoText}>
-              Weight: {fighterInfo.weight} lbs
-            </Text>
-            <Text style={styles.infoText}>Height: {fighterInfo.height} cm</Text>
-            <View style={styles.statsRow}>
-              <View style={styles.statsCol}>
-                <Text style={styles.statsLabel}>Followers</Text>
-                <Text style={styles.statsValue}>{followerCount}</Text>
-              </View>
-              <View style={styles.statsCol}>
-                <Text style={styles.statsLabel}>Following</Text>
-                <Text style={styles.statsValue}>{followingCount}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-        {/* Follow/Unfollow or Edit/Logout buttons */}
-        <View style={styles.buttonContainer}>
-          {!viewingOwnProfile && (
-            <CustomButton
-              style={{ width: "90%" }}
-              onPress={() => {
-                if (isFollowing) {
-                  handleUnfollow();
-                } else {
-                  handleFollow();
-                }
-              }}
-            >
-              <Text style={{ fontWeight: "bold", color: "#fff" }}>
-                {isFollowing ? "Disconnect" : "Connect"}
+            {viewingOwnProfile ? (
+              <Text style={styles.notFoundText}>
+                Go complete onboarding to create your fighter profile.
               </Text>
-            </CustomButton>
-          )}
-          {viewingOwnProfile && (
-            <>
-              <CustomButton style={{ width: "90%" }}>
-                <Text style={{ fontWeight: "bold", color: "#fff" }}>
-                  Edit profile
-                </Text>
-              </CustomButton>
-              <CustomButton style={{ width: "90%" }} onPress={handleLogout}>
-                <Text style={{ fontWeight: "bold", color: "#fff" }}>
-                  Logout
-                </Text>
-              </CustomButton>
-            </>
-          )}
-        </View>
-
-        {/* User posts section as a grid */}
-        <View style={styles.postsSection}>
-          <Text style={styles.postsTitle}>Posts</Text>
-          {userPosts.length === 0 ? (
-            <Text style={styles.noPostsText}>No posts yet.</Text>
-          ) : (
-            <View style={styles.postsGrid}>
-              {userPosts.map((post) => {
-                console.log("Thumbnail URL:", getFullMediaUrl(post.media_url));
-
-                return (
-                  <TouchableOpacity
-                    key={post.id}
-                    style={styles.postItem}
-                    onPress={() => {
-                      setSelectedPost(post);
-                      setModalVisible(true);
-                    }}
-                  >
-                    {isImage(post.media_url) ? (
-                      <Image
-                        source={{ uri: getFullMediaUrl(post.media_url) }}
-                        style={{ width: "100%", height: "100%" }}
-                        onError={(e) =>
-                          console.log(
-                            "Image failed to load:",
-                            e.nativeEvent.error
-                          )
-                        }
-                      />
-                    ) : (
-                      <View style={styles.postVideoPreview}>
-                        <Ionicons name="play" size={40} color="#fff" />
-                        <Text style={{ color: "#fff", marginTop: 8 }}>
-                          Video
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Modal for post preview */}
-          <Modal
-            visible={modalVisible}
-            animationType="slide"
-            transparent={true}
-            onRequestClose={() => setModalVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                {console.log("Debug selectedPost:", selectedPost)}
-                {selectedPost &&
-                  selectedPost.media_url &&
-                  (isImage(selectedPost.media_url) ? (
-                    <Image
-                      source={{ uri: getFullMediaUrl(selectedPost.media_url) }}
-                      style={styles.modalImage}
-                    />
-                  ) : (
-                    <Video
-                      source={{ uri: getFullMediaUrl(selectedPost.media_url) }}
-                      style={styles.modalVideo}
-                      useNativeControls
-                      resizeMode="contain"
-                      isLooping
-                    />
-                  ))}
-                {/* Like button and count */}
-                <View style={styles.likeRow}>
-                  <TouchableOpacity
-                    onPress={handleLike}
-                    disabled={likeLoading}
-                    style={{ marginRight: 10 }}
-                  >
-                    <Ionicons
-                      name={hasLiked ? "heart" : "heart-outline"}
-                      size={28}
-                      color={hasLiked ? "#e0245e" : "#222"}
-                    />
-                  </TouchableOpacity>
-                  <Text style={styles.likeCount}>{postLikes}</Text>
-                  {likeError ? (
-                    <Text style={styles.likeError}>{likeError}</Text>
-                  ) : null}
+            ) : null}
+          </View>
+        ) : (
+          <>
+            <View style={styles.fighterCard}>
+              {isValidUrl(fighterInfo.profileUrl) ? (
+                <Image
+                  source={{ uri: fighterInfo.profileUrl }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <View style={styles.defaultIcon}>
+                  <Ionicons name="body-outline" size={70} color="#ffd700" />
                 </View>
-                <Text style={styles.modalCaption}>{selectedPost?.caption}</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </TouchableOpacity>
+              )}
+
+              <View style={styles.profileDetails}>
+                <Text style={styles.fighterName}>
+                  {fighterInfo.fname} {fighterInfo.lname}
+                </Text>
+
+                <View style={styles.badgesRow}>
+                  <View
+                    style={[
+                      styles.badge,
+                      fighterInfo.is_available
+                        ? styles.badgeOn
+                        : styles.badgeOff,
+                    ]}
+                  >
+                    <Text style={styles.badgeText}>{availabilityLabel}</Text>
+                  </View>
+
+                  {!!fighterInfo.region && (
+                    <View style={styles.badgeMuted}>
+                      <Text style={styles.badgeTextMuted}>
+                        {fighterInfo.region}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.fightStatsRow}>
+                  <View style={styles.fightStat}>
+                    <Text style={styles.fightStatText}>
+                      {fighterInfo.wins}W
+                    </Text>
+                  </View>
+                  <View style={styles.fightStat}>
+                    <Text style={styles.fightStatText}>
+                      {fighterInfo.losses}L
+                    </Text>
+                  </View>
+                  <View style={styles.fightStat}>
+                    <Text style={styles.fightStatText}>
+                      {fighterInfo.draws}D
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.infoText}>
+                  Weight Class: {fighterInfo.weight_class || "—"}
+                </Text>
+                <Text style={styles.infoText}>
+                  Style: {fighterInfo.fight_style || "—"}
+                </Text>
+                <Text style={styles.infoText}>
+                  Gym: {fighterInfo.gym || "—"}
+                </Text>
+
+                <Text style={styles.infoText}>
+                  Weight: {fighterInfo.weight ?? "—"} lbs
+                </Text>
+                <Text style={styles.infoText}>
+                  Height: {fighterInfo.height ?? "—"} cm
+                </Text>
+
+                {!!fighterInfo.bio && (
+                  <View style={styles.bioBox}>
+                    <Text style={styles.bioTitle}>Bio</Text>
+                    <Text style={styles.bioText}>{fighterInfo.bio}</Text>
+                  </View>
+                )}
+
+                <View style={styles.statsRow}>
+                  <View style={styles.statsCol}>
+                    <Text style={styles.statsLabel}>Followers</Text>
+                    <Text style={styles.statsValue}>{followerCount}</Text>
+                  </View>
+                  <View style={styles.statsCol}>
+                    <Text style={styles.statsLabel}>Following</Text>
+                    <Text style={styles.statsValue}>{followingCount}</Text>
+                  </View>
+                </View>
               </View>
             </View>
-          </Modal>
-        </View>
+
+            <View style={styles.buttonContainer}>
+              {!viewingOwnProfile ? (
+                <CustomButton
+                  style={{ width: "90%" }}
+                  onPress={() =>
+                    isFollowing ? handleUnfollow() : handleFollow()
+                  }
+                >
+                  <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                    {isFollowing ? "Disconnect" : "Connect"}
+                  </Text>
+                </CustomButton>
+              ) : (
+                <>
+                  <CustomButton style={{ width: "90%" }}>
+                    <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                      Edit profile
+                    </Text>
+                  </CustomButton>
+                  <CustomButton style={{ width: "90%" }} onPress={logout}>
+                    <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                      Logout
+                    </Text>
+                  </CustomButton>
+                </>
+              )}
+            </View>
+
+            <View style={styles.postsSection}>
+              <Text style={styles.postsTitle}>Posts</Text>
+
+              {userPosts.length === 0 ? (
+                <Text style={styles.noPostsText}>No posts yet.</Text>
+              ) : (
+                <View style={styles.postsGrid}>
+                  {userPosts.map((post) => (
+                    <TouchableOpacity
+                      key={post.id}
+                      style={styles.postItem}
+                      onPress={() => {
+                        setSelectedPost(post);
+                        setModalVisible(true);
+                      }}
+                    >
+                      {isImage(post.media_url) ? (
+                        <Image
+                          source={{ uri: getFullMediaUrl(post.media_url) }}
+                          style={{ width: "100%", height: "100%" }}
+                        />
+                      ) : (
+                        <View style={styles.postVideoPreview}>
+                          <Ionicons name="play" size={40} color="#fff" />
+                          <Text style={{ color: "#fff", marginTop: 8 }}>
+                            Video
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <Modal
+                visible={modalVisible}
+                animationType="slide"
+                transparent
+                onRequestClose={() => setModalVisible(false)}
+              >
+                <View style={styles.modalOverlay}>
+                  <View style={styles.modalContent}>
+                    {selectedPost?.media_url &&
+                      (isImage(selectedPost.media_url) ? (
+                        <Image
+                          source={{
+                            uri: getFullMediaUrl(selectedPost.media_url),
+                          }}
+                          style={styles.modalImage}
+                        />
+                      ) : (
+                        <Video
+                          source={{
+                            uri: getFullMediaUrl(selectedPost.media_url),
+                          }}
+                          style={styles.modalVideo}
+                          useNativeControls
+                          resizeMode="contain"
+                          isLooping
+                        />
+                      ))}
+
+                    <View style={styles.likeRow}>
+                      <TouchableOpacity
+                        onPress={handleLike}
+                        disabled={likeLoading}
+                        style={{ marginRight: 10 }}
+                      >
+                        <Ionicons
+                          name={hasLiked ? "heart" : "heart-outline"}
+                          size={28}
+                          color={hasLiked ? "#e0245e" : "#222"}
+                        />
+                      </TouchableOpacity>
+                      <Text style={styles.likeCount}>{postLikes}</Text>
+                      {!!likeError && (
+                        <Text style={styles.likeError}>{likeError}</Text>
+                      )}
+                    </View>
+
+                    <Text style={styles.modalCaption}>
+                      {selectedPost?.caption}
+                    </Text>
+
+                    <TouchableOpacity
+                      style={styles.closeButton}
+                      onPress={() => setModalVisible(false)}
+                    >
+                      <Text style={styles.closeButtonText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </Modal>
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#181818",
+  safeArea: { flex: 1, backgroundColor: "#181818" },
+  container: { flex: 1, backgroundColor: "#181818" },
+
+  notFoundBox: {
+    margin: 18,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: "#232323",
+    borderWidth: 2,
+    borderColor: "#e0245e",
   },
-  container: {
-    flex: 1,
-    backgroundColor: "#181818", // dark, energetic background
+  notFoundTitle: {
+    color: "#ffd700",
+    fontWeight: "900",
+    fontSize: 18,
+    marginBottom: 8,
   },
+  notFoundText: { color: "#bbb", fontWeight: "700", lineHeight: 18 },
+
   fighterCard: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     backgroundColor: "#232323",
     borderRadius: 18,
     margin: 18,
     padding: 18,
     borderWidth: 2,
-    borderColor: "#e0245e", // Fighthub red
+    borderColor: "#e0245e",
     shadowColor: "#e0245e",
     shadowOpacity: 0.15,
     shadowRadius: 10,
@@ -506,7 +570,7 @@ const styles = StyleSheet.create({
     borderRadius: 55,
     backgroundColor: "#444",
     borderWidth: 3,
-    borderColor: "#ffd700", // gold accent
+    borderColor: "#ffd700",
   },
   defaultIcon: {
     width: 110,
@@ -518,76 +582,86 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  profileDetails: {
-    flex: 1,
-    marginLeft: 22,
-    justifyContent: "center",
-  },
+  profileDetails: { flex: 1, marginLeft: 18 },
+
   fighterName: {
     color: "#ffd700",
-    fontWeight: "bold",
-    fontSize: 28,
-    letterSpacing: 1,
+    fontWeight: "900",
+    fontSize: 24,
+    letterSpacing: 0.5,
     marginBottom: 6,
   },
+
+  badgesRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 8,
+  },
+  badge: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999 },
+  badgeOn: { backgroundColor: "#ffd700" },
+  badgeOff: { backgroundColor: "#333" },
+  badgeText: { color: "#181818", fontWeight: "900", fontSize: 12 },
+
+  badgeMuted: {
+    backgroundColor: "#1c1c1c",
+    borderWidth: 1,
+    borderColor: "#333",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  badgeTextMuted: { color: "#bbb", fontWeight: "800", fontSize: 12 },
+
   fightStatsRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
-    marginTop: 4,
+    marginBottom: 10,
   },
   fightStat: {
     backgroundColor: "#e0245e",
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 2,
+    paddingVertical: 3,
     marginRight: 10,
   },
-  fightStatText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 18,
-    letterSpacing: 1,
-  },
+  fightStatText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+
   infoText: {
     color: "#fff",
-    fontSize: 15,
-    marginBottom: 2,
-    fontWeight: "500",
+    fontSize: 14,
+    marginBottom: 4,
+    fontWeight: "600",
   },
-  statsRow: {
-    flexDirection: "row",
-    marginBottom: 8,
-    marginTop: 8,
+
+  bioBox: {
+    marginTop: 10,
+    backgroundColor: "#1c1c1c",
+    borderWidth: 1,
+    borderColor: "#333",
+    borderRadius: 12,
+    padding: 10,
   },
-  statsCol: {
-    marginRight: 24,
-    alignItems: "center",
-  },
-  statsLabel: {
-    color: "#ffd700",
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  statsValue: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "bold",
-  },
+  bioTitle: { color: "#ffd700", fontWeight: "900", marginBottom: 6 },
+  bioText: { color: "#ddd", fontWeight: "600", lineHeight: 18 },
+
+  statsRow: { flexDirection: "row", marginTop: 12, gap: 24 },
+  statsCol: { alignItems: "center" },
+  statsLabel: { color: "#ffd700", fontWeight: "900", fontSize: 13 },
+  statsValue: { color: "#fff", fontSize: 14, fontWeight: "900" },
+
   buttonContainer: {
     alignItems: "center",
     justifyContent: "center",
     marginVertical: 12,
   },
-  postsSection: {
-    padding: 16,
-  },
+
+  postsSection: { padding: 16 },
   postsTitle: {
     fontSize: 22,
-    fontWeight: "bold",
+    fontWeight: "900",
     marginBottom: 12,
     color: "#ffd700",
-    letterSpacing: 1,
   },
   noPostsText: {
     color: "#888",
@@ -595,6 +669,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 16,
   },
+
   postsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -617,6 +692,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#222",
   },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -632,35 +708,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#e0245e",
   },
-  modalImage: {
-    width: 300,
-    height: 300,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  modalVideo: {
-    width: 300,
-    height: 300,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  likeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  likeCount: {
-    fontWeight: "bold",
-    fontSize: 16,
-    color: "#ffd700",
-  },
-  likeError: {
-    color: "red",
-    marginLeft: 8,
-  },
+  modalImage: { width: 300, height: 300, borderRadius: 10, marginBottom: 12 },
+  modalVideo: { width: 300, height: 300, borderRadius: 10, marginBottom: 12 },
+
+  likeRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  likeCount: { fontWeight: "900", fontSize: 16, color: "#ffd700" },
+  likeError: { color: "red", marginLeft: 8 },
+
   modalCaption: {
-    fontWeight: "bold",
-    fontSize: 18,
+    fontWeight: "900",
+    fontSize: 16,
     marginBottom: 8,
     textAlign: "center",
     color: "#ffd700",
@@ -672,11 +729,5 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
   },
-  closeButtonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-  },
+  closeButtonText: { color: "#fff", fontWeight: "900", fontSize: 16 },
 });
-
-export default Profile;

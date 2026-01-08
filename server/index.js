@@ -140,13 +140,11 @@ app.use("/uploads", express.static(uploadDir));
 // ===== SOCKET.IO SETUP =====
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: {
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
+  cors: { origin: allowedOrigins, methods: ["GET", "POST"], credentials: true },
 });
-setupSocket(io);
+
+// ✅ pass db
+setupSocket(io, db);
 
 // ===== HEALTH CHECK =====
 app.get("/", (req, res) => res.send("FightHub backend is running ✅"));
