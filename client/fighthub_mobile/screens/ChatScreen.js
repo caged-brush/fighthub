@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState, useContext } from "react";
+// ChatScreen.js
+import React, { useEffect, useMemo, useState, useContext } from "react";
 import {
   View,
   Text,
@@ -16,112 +17,81 @@ import { AuthContext } from "../context/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Feather from "@expo/vector-icons/Feather";
 
-const SOCKET_URL = "https://fighthub.onrender.com";
-
 export default function ChatScreen() {
   const route = useRoute();
   const { recipientId, recipientName } = route.params;
+  const { userId: authedUserId } = useContext(AuthContext);
 
-  const { userId } = useContext(AuthContext);
+  const userId = String(authedUserId);
+  const rid = String(recipientId);
 
-  const socketRef = useRef(null);
+  const socket = useMemo(() => {
+    return io("https://fighthub.onrender.com", {
+      transports: ["websocket"],
+      reconnection: true,
+    });
+  }, []);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
 
-  const chatKey = useMemo(() => {
-    if (!userId || !recipientId) return "";
-    return [String(userId), String(recipientId)].sort().join("-");
-  }, [userId, recipientId]);
-
   useEffect(() => {
-    if (!userId || !recipientId) return;
+    if (!userId || !rid) return;
 
-    // ✅ create socket per mount
-    const socket = io(SOCKET_URL, {
-      transports: ["websocket"],
-      forceNew: true,
-    });
+    socket.emit("join", userId);
+    socket.emit("load-messages", { userId, recipientId: rid });
 
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      // ✅ join ONLY when we have userId
-      socket.emit("join", String(userId));
-      socket.emit("load-messages", {
-        userId: String(userId),
-        recipientId: String(recipientId),
-      });
-    });
-
-    socket.on("message-history", (rows) => {
+    const onHistory = (rows) => {
       const formatted = (rows || []).map((msg) => ({
         id: msg.id,
         text: msg.message,
-        sender: String(msg.sender_id) === String(userId) ? "me" : recipientName,
-        timestamp: msg.timestamp,
-        _key: `${msg.id}`,
+        sender: String(msg.sender_id) === userId ? "me" : "them",
+        timestamp: msg.created_at,
       }));
       setMessages(formatted);
-    });
+    };
 
-    socket.on("private-message", (msg) => {
-      // msg: {id, sender_id, recipient_id, message, timestamp}
-      if (!msg) return;
+    const onPrivate = (p) => {
+      // only accept messages between these 2 users
+      const sid = String(p.senderId);
+      const pr = String(p.recipientId);
 
-      const s = String(msg.sender_id);
-      const r = String(msg.recipient_id);
+      const isThisChat =
+        (sid === userId && pr === rid) || (sid === rid && pr === userId);
 
-      const relevant =
-        (s === String(userId) && r === String(recipientId)) ||
-        (s === String(recipientId) && r === String(userId));
+      if (!isThisChat) return;
 
-      if (!relevant) return;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: p.id || Date.now(),
+          text: p.message,
+          sender: sid === userId ? "me" : "them",
+          timestamp: p.timestamp,
+        },
+      ]);
+    };
 
-      setMessages((prev) => {
-        // ✅ de-dupe by id (because sender receives echo)
-        if (prev.some((m) => String(m.id) === String(msg.id))) return prev;
-
-        return [
-          ...prev,
-          {
-            id: msg.id,
-            text: msg.message,
-            sender: s === String(userId) ? "me" : recipientName,
-            timestamp: msg.timestamp,
-            _key: `${msg.id}`,
-          },
-        ];
-      });
-    });
-
-    socket.on("connect_error", (e) => {
-      console.log("socket connect_error:", e?.message);
-    });
+    socket.on("message-history", onHistory);
+    socket.on("private-message", onPrivate);
 
     return () => {
-      socket.off("message-history");
-      socket.off("private-message");
+      socket.off("message-history", onHistory);
+      socket.off("private-message", onPrivate);
       socket.disconnect();
-      socketRef.current = null;
     };
-  }, [chatKey, userId, recipientId, recipientName]);
+  }, [socket, userId, rid]);
 
   const sendMessage = () => {
-    if (!userId || !recipientId) return;
-    if (!input.trim()) return;
-
-    const socket = socketRef.current;
-    if (!socket || !socket.connected) return;
+    const msg = input.trim();
+    if (!msg) return;
 
     socket.emit("private-message", {
-      recipientId: String(recipientId),
-      message: input.trim(),
-      senderId: String(userId),
+      recipientId: rid,
+      message: msg,
+      senderId: userId,
     });
 
-    // ✅ don’t optimistic add (you already get echoed message back with real id)
-    // if you insist on optimistic, you'd need temp ids + reconciliation.
     setInput("");
   };
 
@@ -144,7 +114,7 @@ export default function ChatScreen() {
 
           <FlatList
             data={messages}
-            keyExtractor={(item) => String(item._key ?? item.id)}
+            keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
               <View
                 style={{

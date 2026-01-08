@@ -1,112 +1,102 @@
 // socket.js
 export default function setupSocket(io, supabase) {
-  if (!supabase) throw new Error("setupSocket(io, supabase) missing supabase");
-
-  // userId -> Set(socketId)
+  // Map<userIdString, Set<socketId>>
   const users = new Map();
 
-  const addSocketForUser = (userId, socketId) => {
-    const key = String(userId);
-    if (!users.has(key)) users.set(key, new Set());
-    users.get(key).add(socketId);
-  };
-
-  const removeSocketEverywhere = (socketId) => {
-    for (const [userId, socketSet] of users.entries()) {
-      socketSet.delete(socketId);
-      if (socketSet.size === 0) users.delete(userId);
-    }
-  };
-
-  const emitToUser = (userId, event, payload) => {
-    const socketSet = users.get(String(userId));
-    if (!socketSet) return;
-    for (const sid of socketSet) io.to(sid).emit(event, payload);
-  };
+  const norm = (v) => String(v ?? "").trim();
 
   io.on("connection", (socket) => {
-    console.log("Socket connected:", socket.id);
+    console.log(`User ${socket.id} connected`);
 
-    socket.on("join", async (userId) => {
-      if (!userId) {
-        console.log("join ignored (missing userId) for socket:", socket.id);
-        return;
-      }
+    socket.on("join", (userId) => {
+      const uid = norm(userId);
+      if (!uid) return;
 
-      addSocketForUser(userId, socket.id);
-      console.log(`User ${userId} registered with socket ${socket.id}`);
+      if (!users.has(uid)) users.set(uid, new Set());
+      users.get(uid).add(socket.id);
 
-      // optional: users list (only if you actually use this)
-      try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("id, fname, lname");
-
-        if (error) throw error;
-
-        const userList = (data || []).map((u) => ({
-          id: u.id,
-          name: `${u.fname || ""} ${u.lname || ""}`.trim(),
-        }));
-
-        io.to(socket.id).emit(
-          "users",
-          userList.filter((u) => String(u.id) !== String(userId))
-        );
-      } catch (e) {
-        console.error("Error fetching users:", e?.message || e);
-      }
+      socket.data.userId = uid;
+      console.log(`User ${uid} registered with socket ${socket.id}`);
     });
 
     socket.on("load-messages", async ({ userId, recipientId }) => {
-      if (!userId || !recipientId) return;
+      const uid = norm(userId);
+      const rid = norm(recipientId);
+      if (!uid || !rid) return;
 
       try {
+        // messages between uid and rid
         const { data, error } = await supabase
           .from("messages")
-          .select("id, sender_id, recipient_id, message, timestamp")
+          .select("id, sender_id, recipient_id, message, created_at")
           .or(
-            `and(sender_id.eq.${userId},recipient_id.eq.${recipientId}),and(sender_id.eq.${recipientId},recipient_id.eq.${userId})`
+            `and(sender_id.eq.${uid},recipient_id.eq.${rid}),and(sender_id.eq.${rid},recipient_id.eq.${uid})`
           )
-          .order("timestamp", { ascending: true });
+          .order("created_at", { ascending: true });
 
         if (error) throw error;
 
         io.to(socket.id).emit("message-history", data || []);
-      } catch (e) {
-        console.error("Error loading history:", e?.message || e);
+      } catch (err) {
+        console.error("Error loading messaging history:", err?.message || err);
       }
     });
 
     socket.on("private-message", async ({ recipientId, message, senderId }) => {
-      if (!recipientId || !senderId || !message?.trim()) return;
+      const rid = norm(recipientId);
+      const sid = norm(senderId);
+      const msg = typeof message === "string" ? message.trim() : "";
 
+      if (!rid || !sid || !msg) return;
+
+      let saved;
       try {
         const { data, error } = await supabase
           .from("messages")
-          .insert([
-            {
-              sender_id: senderId,
-              recipient_id: recipientId,
-              message: message.trim(),
-            },
-          ])
-          .select("id, sender_id, recipient_id, message, timestamp")
+          .insert([{ sender_id: sid, recipient_id: rid, message: msg }])
+          .select("id, sender_id, recipient_id, message, created_at")
           .single();
 
         if (error) throw error;
+        saved = data;
+      } catch (err) {
+        console.error("Error saving message:", err?.message || err);
+        return;
+      }
 
-        // deliver to both sides
-        emitToUser(recipientId, "private-message", data);
-        emitToUser(senderId, "private-message", data);
-      } catch (e) {
-        console.error("Error saving message:", e?.message || e);
+      const payload = {
+        id: saved.id,
+        message: saved.message,
+        senderId: saved.sender_id,
+        recipientId: saved.recipient_id,
+        timestamp: saved.created_at,
+      };
+
+      // send to recipient sockets
+      const recipientSockets = users.get(rid);
+      if (recipientSockets) {
+        for (const socketId of recipientSockets) {
+          io.to(socketId).emit("private-message", payload);
+        }
+      }
+
+      // also echo to sender sockets (multi-device)
+      const senderSockets = users.get(sid);
+      if (senderSockets) {
+        for (const socketId of senderSockets) {
+          io.to(socketId).emit("private-message", payload);
+        }
       }
     });
 
     socket.on("disconnect", () => {
-      console.log("Socket disconnected:", socket.id);
-      removeSocketEverywhere(socket.id);
+      const uid = socket.data.userId;
+      if (uid && users.has(uid)) {
+        const set = users.get(uid);
+        set.delete(socket.id);
+        if (set.size === 0) users.delete(uid);
+      }
+      console.log(`User ${socket.id} disconnected`);
     });
   });
 }
