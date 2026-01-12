@@ -27,6 +27,7 @@ import requireAuth from "./middleware/requireAuth.js";
 import scoutsRoutes from "./routes/scout.js";
 import scoutWatchlistRoutes from "./routes/scoutWatchlistRoutes.js";
 import inboxRoutes from "./routes/inbox.js";
+import fightClipsRoutes from "./routes/fightClipsRoutes.js";
 env.config();
 
 const app = express();
@@ -135,7 +136,7 @@ app.use("/fighters", fightersRoute(supabase, requireAuth));
 app.use("/scouts", scoutsRoutes(supabase, requireAuth));
 app.use("/scouts", scoutWatchlistRoutes(supabase, requireAuth));
 app.use("/inbox", inboxRoutes(supabase, requireAuth));
-
+app.use("/fight-clips", fightClipsRoutes(supabase, requireAuth));
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));
 
