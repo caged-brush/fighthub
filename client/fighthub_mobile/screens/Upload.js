@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
+import * as FileSystem from "expo-file-system";
 import { API_URL } from "../Constants";
 
 const guessExt = (uri) => {
@@ -62,18 +63,22 @@ export default function UploadFightClipScreen() {
 
       const { signedUrl, storagePath } = sign.data;
 
-      // 2) PUT the file to signedUrl
-      const blob = await (await fetch(video.uri)).blob();
-
-      const putRes = await fetch(signedUrl, {
-        method: "PUT",
-        headers: { "Content-Type": mimeType },
-        body: blob,
+      // 2) PUT the file to signedUrl (ONLY ONCE)
+      const uploadRes = await FileSystem.uploadAsync(signedUrl, video.uri, {
+        httpMethod: "PUT",
+        headers: {
+          "Content-Type": mimeType,
+        },
       });
 
-      if (!putRes.ok) {
-        throw new Error(`Upload failed: ${putRes.status}`);
+      if (uploadRes.status < 200 || uploadRes.status >= 300) {
+        throw new Error(
+          `Upload failed: ${uploadRes.status} ${uploadRes.body || ""}`
+        );
       }
+
+      const info = await FileSystem.getInfoAsync(video.uri);
+      const fileSize = info?.size ?? null;
 
       // 3) save metadata row
       await axios.post(
@@ -86,7 +91,7 @@ export default function UploadFightClipScreen() {
           notes: notes || null,
           storage_path: storagePath,
           mime_type: mimeType,
-          file_size: video.fileSize ?? null,
+          file_size: fileSize,
         },
         { headers: { Authorization: `Bearer ${userToken}` } }
       );

@@ -79,8 +79,8 @@ export default function fightClipsRoutes(supabase, requireAuth) {
 
       return res.json({ clip: data });
     } catch (err) {
-      console.error("create clip error:", err?.message || err);
-      return res.status(500).json({ message: "Failed to save clip" });
+      console.error("create clip error:", err);
+       return res.status(500).json({ error: err });
     }
   });
 
