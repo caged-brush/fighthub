@@ -37,6 +37,9 @@ export default function fightClipsRoutes(supabase, requireAuth) {
 
   // 2) Save metadata AFTER upload succeeds
   router.post("/create", requireAuth, async (req, res) => {
+    console.log("🔥 /fight-clips/create hit", req.user?.id);
+    console.log("📦 body:", req.body);
+
     const userId = String(req.user.id);
 
     const {
@@ -80,7 +83,7 @@ export default function fightClipsRoutes(supabase, requireAuth) {
       return res.json({ clip: data });
     } catch (err) {
       console.error("create clip error:", err);
-       return res.status(500).json({ error: err });
+      return res.status(500).json({ error: err });
     }
   });
 

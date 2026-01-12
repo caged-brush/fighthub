@@ -4,7 +4,6 @@ import env from "dotenv";
 import cookieParser from "cookie-parser";
 import jwt from "jsonwebtoken";
 import path from "path";
-import bodyParser from "body-parser";
 import fs from "fs";
 import passport from "passport";
 import nodemailer from "nodemailer";
@@ -81,6 +80,11 @@ app.use(
 
 app.use(cookieParser());
 app.use(passport.initialize());
+
+app.use((req, res, next) => {
+  console.log("➡️", req.method, req.originalUrl);
+  next();
+});
 
 // ===== EMAIL SETUP =====
 const client = new ServerClient(process.env.POSTMARK_TOKEN);
