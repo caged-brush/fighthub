@@ -36,7 +36,7 @@ export default function fightClipsRoutes(supabase, requireAuth) {
   });
 
   // 2) Save metadata AFTER upload succeeds
-  router.post("/", requireAuth, async (req, res) => {
+  router.post("/create", requireAuth, async (req, res) => {
     const userId = String(req.user.id);
 
     const {

@@ -82,7 +82,7 @@ export default function UploadFightClipScreen() {
 
       // 3) save metadata row
       await axios.post(
-        `${API_URL}/fight-clips`,
+        `${API_URL}/fight-clips/create`,
         {
           fight_date: fightDate || null,
           opponent: opponent || null,
