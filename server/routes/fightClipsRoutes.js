@@ -4,6 +4,7 @@ const router = express.Router();
 
 export default function fightClipsRoutes(supabase, requireAuth) {
   // 1) Create signed upload URL
+  // routes/fightClipsRoutes.js
   router.post("/sign-upload", requireAuth, async (req, res) => {
     const userId = String(req.user.id);
     const { fileExt, mimeType } = req.body;
@@ -13,24 +14,26 @@ export default function fightClipsRoutes(supabase, requireAuth) {
     }
 
     const clipId = crypto.randomUUID();
-    const storagePath = `${userId}/${clipId}.${fileExt.replace(".", "")}`;
+    const safeExt = String(fileExt).replace(".", "").toLowerCase();
+    const storagePath = `${userId}/${clipId}.${safeExt}`;
 
     try {
-      // Signed upload URL (Supabase Storage)
       const { data, error } = await supabase.storage
         .from("fight_clips")
         .createSignedUploadUrl(storagePath);
 
       if (error) throw error;
 
-      // data: { signedUrl, path, token }
+      // IMPORTANT: return token
       return res.json({
         clipId,
         storagePath,
         signedUrl: data.signedUrl,
+        token: data.token,
+        path: data.path,
       });
     } catch (err) {
-      console.error("sign-upload error:", err?.message || err);
+      console.error("sign-upload error:", err);
       return res.status(500).json({ message: "Failed to sign upload" });
     }
   });

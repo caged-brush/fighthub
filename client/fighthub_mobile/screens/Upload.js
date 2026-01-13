@@ -54,33 +54,36 @@ export default function UploadFightClipScreen() {
       const ext = guessExt(video.uri);
       const mimeType = guessMime(ext);
 
-      // 1) get signed upload URL
+      // 1) sign upload
       const sign = await axios.post(
         `${API_URL}/fight-clips/sign-upload`,
         { fileExt: ext, mimeType },
         { headers: { Authorization: `Bearer ${userToken}` } }
       );
 
-      const { signedUrl, storagePath } = sign.data;
+      const { signedUrl, storagePath, token } = sign.data;
 
-      // 2) PUT the file to signedUrl (ONLY ONCE)
-      const uploadRes = await FileSystem.uploadAsync(signedUrl, video.uri, {
-        httpMethod: "PUT",
+      // 2) upload DIRECTLY to Supabase Storage (this will NOT hit your backend)
+      const blob = await (await fetch(video.uri)).blob();
+
+      const putRes = await fetch(signedUrl, {
+        method: "PUT",
         headers: {
           "Content-Type": mimeType,
+          Authorization: `Bearer ${token}`, // <-- THIS IS THE FIX
         },
+        body: blob,
       });
 
-      if (uploadRes.status < 200 || uploadRes.status >= 300) {
-        throw new Error(
-          `Upload failed: ${uploadRes.status} ${uploadRes.body || ""}`
-        );
+      if (!putRes.ok) {
+        const text = await putRes.text().catch(() => "");
+        throw new Error(`Supabase upload failed: ${putRes.status} ${text}`);
       }
 
+      // 3) save metadata in DB
       const info = await FileSystem.getInfoAsync(video.uri);
       const fileSize = info?.size ?? null;
 
-      // 3) save metadata row
       await axios.post(
         `${API_URL}/fight-clips/create`,
         {
@@ -97,15 +100,9 @@ export default function UploadFightClipScreen() {
       );
 
       Alert.alert("Success", "Fight clip uploaded.");
-      setVideo(null);
-      setFightDate("");
-      setOpponent("");
-      setPromotion("");
-      setResult("win");
-      setNotes("");
     } catch (e) {
-      console.log(e?.response?.data || e?.message || e);
-      Alert.alert("Error", "Upload failed. Check logs.");
+      console.log("UPLOAD ERROR:", e?.response?.data || e?.message || e);
+      Alert.alert("Error", e?.message || "Upload failed");
     } finally {
       setLoading(false);
     }
