@@ -12,7 +12,6 @@ import { ServerClient } from "postmark";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
-import supabase from "./config/supabase.js";
 import fightersRoute from "./routes/fighter.js";
 import mailerRoute from "./routes/mailer.js";
 import postsRoute from "./routes/posts.js";
@@ -27,6 +26,7 @@ import scoutsRoutes from "./routes/scout.js";
 import scoutWatchlistRoutes from "./routes/scoutWatchlistRoutes.js";
 import inboxRoutes from "./routes/inbox.js";
 import fightClipsRoutes from "./routes/fightClipsRoutes.js";
+import supabase, { supabaseAdmin } from "./config/supabase.js";
 env.config();
 
 const app = express();
@@ -154,7 +154,7 @@ app.use("/fighters", fightersRoute(supabase, requireAuth));
 app.use("/scouts", scoutsRoutes(supabase, requireAuth));
 app.use("/scouts", scoutWatchlistRoutes(supabase, requireAuth));
 app.use("/inbox", inboxRoutes(supabase, requireAuth));
-app.use("/fight-clips", fightClipsRoutes(supabase, requireAuth));
+app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));
 

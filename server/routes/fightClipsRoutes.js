@@ -40,9 +40,6 @@ export default function fightClipsRoutes(supabase, requireAuth) {
 
   // 2) Save metadata AFTER upload succeeds
   router.post("/create", requireAuth, async (req, res) => {
-    console.log("🔥 /fight-clips/create hit", req.user?.id);
-    console.log("📦 body:", req.body);
-
     const userId = String(req.user.id);
 
     const {
@@ -61,8 +58,15 @@ export default function fightClipsRoutes(supabase, requireAuth) {
       return res.status(400).json({ message: "storage_path required" });
     }
 
+    // ✅ MUST exist or you misconfigured env on Render
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        message: "Server misconfig: SUPABASE_SERVICE_ROLE_KEY missing",
+      });
+    }
+
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("fight_clips")
         .insert([
           {
@@ -85,8 +89,8 @@ export default function fightClipsRoutes(supabase, requireAuth) {
 
       return res.json({ clip: data });
     } catch (err) {
-      console.error("create clip error:", err);
-      return res.status(500).json({ error: err });
+      console.error("create clip error:", err?.message || err);
+      return res.status(500).json({ message: "Failed to save clip" });
     }
   });
 
