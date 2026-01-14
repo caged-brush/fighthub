@@ -2,7 +2,7 @@ import express from "express";
 import crypto from "crypto";
 const router = express.Router();
 
-export default function fightClipsRoutes(supabase, requireAuth) {
+export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
   // 1) Create signed upload URL
   // routes/fightClipsRoutes.js
   router.post("/sign-upload", requireAuth, async (req, res) => {
