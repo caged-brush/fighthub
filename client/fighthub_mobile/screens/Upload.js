@@ -70,14 +70,14 @@ export default function UploadFightClipScreen() {
         method: "PUT",
         headers: {
           "Content-Type": mimeType,
-          Authorization: `Bearer ${token}`, // <-- THIS IS THE FIX
+          Authorization: `Bearer ${token}`,
         },
         body: blob,
       });
 
       if (!putRes.ok) {
         const text = await putRes.text().catch(() => "");
-        throw new Error(`Supabase upload failed: ${putRes.status} ${text}`);
+        throw new Error(`PUT failed ${putRes.status}: ${text}`);
       }
 
       // 3) save metadata in DB
