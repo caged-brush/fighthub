@@ -4,7 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import * as FileSystem from "expo-file-system/legacy";
 import base64 from "base64-js";
-
+import * as MediaLibrary from "expo-media-library";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 import { supabase } from "../lib/supabase";
@@ -36,12 +36,25 @@ export default function UploadFightClipScreen() {
 
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
       quality: 1,
     });
 
-    if (!res.canceled) {
-      setVideo(res.assets[0]); // { uri, fileSize, ... }
+    if (res.canceled || !res.assets?.length) return;
+
+    const asset = res.assets[0];
+
+    // Try to fetch original asset URI (avoids trimming/export)
+    if (asset.assetId) {
+      const info = await MediaLibrary.getAssetInfoAsync(asset.assetId);
+      // info.localUri is usually the original file
+      const uri = info.localUri || info.uri;
+      setVideo({ ...asset, uri });
+      return;
     }
+
+    // fallback
+    setVideo(asset);
   };
 
   const upload = async () => {
@@ -82,6 +95,12 @@ export default function UploadFightClipScreen() {
       const base64Data = await FileSystem.readAsStringAsync(video.uri, {
         encoding: FileSystem.EncodingType.Base64,
       });
+
+      const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
+
+      if (fileInfo.size > 150 * 1024 * 1024) {
+        return Alert.alert("Too large", "Max 150MB per clip for now.");
+      }
 
       const bytes = base64.toByteArray(base64Data);
       const arrayBuffer = bytes.buffer;
