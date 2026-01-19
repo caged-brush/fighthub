@@ -30,6 +30,22 @@ import supabase, { supabaseAdmin } from "./config/supabase.js";
 env.config();
 
 const app = express();
+app.get("/debug/whoami", async (req, res) => {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+
+  if (!token) return res.status(401).json({ ok: false, error: "no token" });
+
+  const { data, error } = await supabase.auth.getUser(token);
+
+  return res.json({
+    ok: !!data?.user && !error,
+    error: error?.message || null,
+    userId: data?.user?.id || null,
+    email: data?.user?.email || null,
+    supabaseUrl: process.env.SUPABASE_URL,
+  });
+});
 
 // ===== CORS CONFIG (no more manual IP switching) =====
 const allowedOrigins = [
@@ -75,7 +91,7 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
-  })
+  }),
 );
 
 app.use(cookieParser());
@@ -117,7 +133,7 @@ function validateUserInput(req, res, next) {
     /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email);
   const validPassword = (pwd) =>
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-      pwd
+      pwd,
     );
 
   if (req.path === "/register") {
@@ -157,6 +173,11 @@ app.use("/inbox", inboxRoutes(supabase, requireAuth));
 app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));
+
+console.log("SUPABASE ENV:", {
+  url: process.env.SUPABASE_URL,
+  anonPrefix: (process.env.SUPABASE_ANON_KEY || "").slice(0, 10),
+});
 
 // ===== SOCKET.IO SETUP =====
 const httpServer = createServer(app);
