@@ -79,7 +79,7 @@ export default function UploadFightClipScreen() {
       const signRes = await axios.post(
         `${API_URL}/fight-clips/sign-upload`,
         { fileExt: ext, mimeType },
-        { headers: { Authorization: `Bearer ${userToken}` } }
+        { headers: { Authorization: `Bearer ${userToken}` } },
       );
 
       const { storagePath, token } = signRes.data;
@@ -138,7 +138,7 @@ export default function UploadFightClipScreen() {
           mime_type: mimeType,
           file_size: fileSize,
         },
-        { headers: { Authorization: `Bearer ${userToken}` } }
+        { headers: { Authorization: `Bearer ${userToken}` } },
       );
 
       console.log("✅ Metadata saved");
@@ -152,8 +152,20 @@ export default function UploadFightClipScreen() {
       setResult("win");
       setNotes("");
     } catch (e) {
-      console.log("UPLOAD ERROR:", e?.response?.data || e?.message || e);
-      Alert.alert("Error", e?.message || "Upload failed");
+      const status = e?.response?.status;
+      const data = e?.response?.data;
+      const url = e?.config?.url;
+      const auth = e?.config?.headers?.Authorization;
+
+      console.log("UPLOAD ERROR DETAILS:", {
+        status,
+        url,
+        data,
+        authPreview: auth ? auth.slice(0, 30) + "..." : null,
+        message: e?.message,
+      });
+
+      Alert.alert("Error", data?.message || e?.message || "Upload failed");
     } finally {
       setLoading(false);
     }

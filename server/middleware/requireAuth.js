@@ -1,31 +1,39 @@
-import jwt from "jsonwebtoken";
 import supabase from "../config/supabase.js";
 
 export default async function requireAuth(req, res, next) {
   try {
-    const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!token) {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    const token = authHeader.split(" ")[1];
+    // ✅ Validate token with Supabase
+    const { data: authData, error: authErr } =
+      await supabase.auth.getUser(token);
 
-    const decoded = jwt.verify(token, process.env.SESSION_SECRET);
-
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("id, role")
-      .eq("id", decoded.id)
-      .single();
-
-    if (error || !user) {
+    if (authErr || !authData?.user) {
       return res.status(401).json({ message: "Invalid token" });
     }
 
-    req.user = user; // ← THIS is what your routes depend on
+    const userId = authData.user.id;
+
+    // ✅ Pull your app-specific user record (role, etc.)
+    const { data: user, error: dbErr } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", userId)
+      .single();
+
+    if (dbErr || !user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    req.user = user; // routes depend on this
     next();
   } catch (err) {
+    console.log("AUTH ERROR:", err?.message || err);
     return res.status(401).json({ message: "Unauthorized" });
   }
 }
