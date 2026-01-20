@@ -75,21 +75,15 @@ export default function UploadFightClipScreen() {
       });
 
       // 1) Sign upload (Render)
+      // 1) Sign upload (Render)
       console.log("➡️ Signing upload...");
-      const { data: s } = await supabase.auth.getSession();
-      const accessToken = s?.session?.access_token;
 
-      console.log("CLIENT SESSION:", {
-        hasSession: !!s?.session,
-        tokenPreview: accessToken?.slice(0, 20) + "...",
-      });
-
-      const headers = { Authorization: `Bearer ${accessToken}` };
+      const headers = { Authorization: `Bearer ${userToken}` };
 
       const signRes = await axios.post(
         `${API_URL}/fight-clips/sign-upload`,
         { fileExt: ext, mimeType },
-        { headers: { Authorization: `Bearer ${userToken}` } },
+        { headers },
       );
 
       const { storagePath, token } = signRes.data;
@@ -148,7 +142,7 @@ export default function UploadFightClipScreen() {
           mime_type: mimeType,
           file_size: fileSize,
         },
-        { headers: { Authorization: `Bearer ${userToken}` } },
+        { headers },
       );
 
       console.log("✅ Metadata saved");
