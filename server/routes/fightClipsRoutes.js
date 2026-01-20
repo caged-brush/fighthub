@@ -94,12 +94,51 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     }
   });
 
+  router.get("/user/:userId", requireAuth, async (req, res) => {
+    const { userId } = req.params;
+
+    // must have service role if you want to sign urls here
+    if (!supabaseAdmin) {
+      return res
+        .status(500)
+        .json({ message: "Server misconfig: service role missing" });
+    }
+
+    const { data: clips, error } = await supabase
+      .from("fight_clips")
+      .select(
+        "id,fight_date,opponent,promotion,result,weight_class,notes,storage_path,mime_type,file_size,created_at",
+      )
+      .eq("user_id", userId)
+      .eq("visibility", "public")
+      .order("created_at", { ascending: false });
+
+    if (error) return res.status(500).json({ message: "Failed to load clips" });
+
+    const expiresIn = 60 * 10;
+    const clipsWithUrls = await Promise.all(
+      (clips || []).map(async (clip) => {
+        const { data, error } = await supabaseAdmin.storage
+          .from("fight_clips")
+          .createSignedUrl(clip.storage_path, expiresIn);
+        return { ...clip, signed_url: error ? null : data.signedUrl };
+      }),
+    );
+
+    return res.json({ clips: clipsWithUrls });
+  });
+
   // 3) List my clips
   router.get("/me", requireAuth, async (req, res) => {
     const userId = String(req.user.id);
 
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        message: "Server misconfig: SUPABASE_SERVICE_ROLE_KEY missing",
+      });
+    }
     try {
-      const { data, error } = await supabase
+      const { data: clips, error } = await supabase
         .from("fight_clips")
         .select("*")
         .eq("user_id", userId)
@@ -107,7 +146,26 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
 
       if (error) throw error;
 
-      return res.json({ clips: data || [] });
+      // sign URLs (10 minutes)
+      const expiresIn = 60 * 10;
+
+      const clipsWithUrls = await Promise.all(
+        (clips || []).map(async (clip) => {
+          if (!clip.storage_path || !supabaseAdmin)
+            return { ...clip, signed_url: null };
+
+          const { data, error } = await supabaseAdmin.storage
+            .from("fight_clips")
+            .createSignedUrl(clip.storage_path, expiresIn);
+
+          return {
+            ...clip,
+            signed_url: error ? null : data.signedUrl,
+          };
+        }),
+      );
+
+      return res.json({ clips: clipsWithUrls });
     } catch (err) {
       console.error("list clips error:", err?.message || err);
       return res.status(500).json({ message: "Failed to load clips" });
@@ -119,23 +177,35 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     const userId = String(req.user.id);
     const { clipId } = req.params;
 
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        message: "Server misconfig: SUPABASE_SERVICE_ROLE_KEY missing",
+      });
+    }
+
     try {
       const { data: clip, error: clipErr } = await supabase
         .from("fight_clips")
-        .select("id, user_id, storage_path")
+        .select("id, user_id, storage_path, visibility")
         .eq("id", clipId)
         .single();
 
-      if (clipErr) throw clipErr;
+      if (clipErr || !clip)
+        return res.status(404).json({ message: "Clip not found" });
 
-      // Only owner for MVP (later: allow connected scouts)
-      if (String(clip.user_id) !== userId) {
-        return res.status(403).json({ message: "Not allowed" });
+      const isOwner = String(clip.user_id) === userId;
+
+      // Owner can always watch
+      if (!isOwner) {
+        // Non-owner (scout, etc.) can only watch public clips
+        if (clip.visibility !== "public") {
+          return res.status(403).json({ message: "Not allowed" });
+        }
       }
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabaseAdmin.storage
         .from("fight_clips")
-        .createSignedUrl(clip.storage_path, 60 * 10); // 10 min
+        .createSignedUrl(clip.storage_path, 60 * 10);
 
       if (error) throw error;
 
