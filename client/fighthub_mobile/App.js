@@ -18,6 +18,7 @@ import ChatScreen from "./screens/ChatScreen";
 import UserProfile from "./screens/UserProfile"; // Import UserProfile
 import ScoutHome from "./screens/ScoutHome";
 import ScoutTabs from "./screens/ScoutTabs";
+import ClipViewer from "./screens/ClipViewer";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId, role } =
@@ -119,6 +120,11 @@ function AppNavigator() {
             />
           </>
         )}
+        <Stack.Screen
+          name="ClipViewer"
+          component={ClipViewer}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

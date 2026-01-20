@@ -16,7 +16,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
-import { useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import { API_URL } from "../Constants";
 
 const isValidUrl = (url) =>
@@ -41,6 +41,7 @@ const isImage = (url) =>
 export default function Profile() {
   const route = useRoute();
   const { logout, userId: authedUserId, userToken } = useContext(AuthContext);
+  const navigation = useNavigation();
 
   // Accept either param name from navigation
   const profileUserId =
@@ -447,10 +448,10 @@ export default function Profile() {
                     <TouchableOpacity
                       key={post.id}
                       style={styles.postItem}
-                      onPress={() => {
-                        setSelectedPost(post);
-                        setModalVisible(true);
-                      }}
+                      onPress={() =>
+                        navigation.navigate("ClipViewer", { clip: post })
+                      }
+                      activeOpacity={0.85}
                     >
                       {isImage(post.media_url) ? (
                         <Image
@@ -478,7 +479,7 @@ export default function Profile() {
               >
                 <View style={styles.modalOverlay}>
                   <View style={styles.modalContent}>
-                    {selectedPost?.media_url &&
+                    {selectedPost?.signed_url &&
                       (isImage(selectedPost.media_url) ? (
                         <Image
                           source={{
@@ -489,7 +490,7 @@ export default function Profile() {
                       ) : (
                         <Video
                           source={{
-                            uri: getFullMediaUrl(selectedPost.media_url),
+                            uri: getFullMediaUrl(selectedPost.signed_url),
                           }}
                           style={styles.modalVideo}
                           useNativeControls
