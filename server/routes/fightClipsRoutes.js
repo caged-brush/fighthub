@@ -104,6 +104,10 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
         .json({ message: "Server misconfig: service role missing" });
     }
 
+    console.log("PUBLIC CLIPS QUERY:", {
+      requestedUserId: userId,
+    });
+
     const { data: clips, error } = await supabase
       .from("fight_clips")
       .select(

@@ -40,7 +40,7 @@ const isImage = (url) =>
 
 export default function Profile() {
   const route = useRoute();
-  const { logout, userId: authedUserId } = useContext(AuthContext);
+  const { logout, userId: authedUserId, userToken } = useContext(AuthContext);
 
   // Accept either param name from navigation
   const profileUserId =
@@ -172,14 +172,18 @@ export default function Profile() {
     if (!profileUserId) return;
 
     try {
+      const headers = { Authorization: `Bearer ${userToken}` };
       const response = await axios.get(
-        `${API_URL}/posts/user/${profileUserId}`
+        `${API_URL}/fight-clips/user/${profileUserId}`,
+        { headers },
       );
+      console.log(response.data);
+
       setUserPosts(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.log(
         "Error fetching user posts:",
-        error?.response?.data || error?.message
+        error?.response?.data || error?.message,
       );
       setUserPosts([]);
     }
@@ -249,7 +253,7 @@ export default function Profile() {
     } catch (error) {
       console.log(
         "Error following user:",
-        error?.response?.data || error?.message
+        error?.response?.data || error?.message,
       );
     }
   };
@@ -264,7 +268,7 @@ export default function Profile() {
     } catch (error) {
       console.log(
         "Error unfollowing user:",
-        error?.response?.data || error?.message
+        error?.response?.data || error?.message,
       );
     }
   };
