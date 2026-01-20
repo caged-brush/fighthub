@@ -97,21 +97,16 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
   router.get("/user/:userId", requireAuth, async (req, res) => {
     const { userId } = req.params;
 
-    // must have service role if you want to sign urls here
     if (!supabaseAdmin) {
       return res
         .status(500)
         .json({ message: "Server misconfig: service role missing" });
     }
 
-    console.log("PUBLIC CLIPS QUERY:", {
-      requestedUserId: userId,
-    });
-
-    const { data: clips, error } = await supabase
+    const { data: clips, error } = await supabaseAdmin
       .from("fight_clips")
       .select(
-        "id,fight_date,opponent,promotion,result,weight_class,notes,storage_path,mime_type,file_size,created_at",
+        "id,fight_date,opponent,promotion,result,weight_class,notes,storage_path,mime_type,file_size,created_at,visibility",
       )
       .eq("user_id", userId)
       .eq("visibility", "public")
@@ -125,6 +120,7 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
         const { data, error } = await supabaseAdmin.storage
           .from("fight_clips")
           .createSignedUrl(clip.storage_path, expiresIn);
+
         return { ...clip, signed_url: error ? null : data.signedUrl };
       }),
     );
@@ -142,7 +138,7 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
       });
     }
     try {
-      const { data: clips, error } = await supabase
+      const { data: clips, error } = await supabaseAdmin
         .from("fight_clips")
         .select("*")
         .eq("user_id", userId)
@@ -188,7 +184,7 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     }
 
     try {
-      const { data: clip, error: clipErr } = await supabase
+      const { data: clip, error: clipErr } = await supabaseAdmin
         .from("fight_clips")
         .select("id, user_id, storage_path, visibility")
         .eq("id", clipId)

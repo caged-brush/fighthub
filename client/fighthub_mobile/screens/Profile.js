@@ -177,9 +177,12 @@ export default function Profile() {
         `${API_URL}/fight-clips/user/${profileUserId}`,
         { headers },
       );
-      console.log(response.data);
 
-      setUserPosts(Array.isArray(response.data) ? response.data : []);
+      console.log("USER CLIPS:", response.data?.clips);
+
+      setUserPosts(
+        Array.isArray(response.data?.clips) ? response.data.clips : [],
+      );
     } catch (error) {
       console.log(
         "Error fetching user posts:",
@@ -187,7 +190,7 @@ export default function Profile() {
       );
       setUserPosts([]);
     }
-  }, [profileUserId]);
+  }, [profileUserId, userToken]);
 
   // Fetch likes when opening modal
   useEffect(() => {
