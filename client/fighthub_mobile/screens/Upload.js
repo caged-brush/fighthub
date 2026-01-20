@@ -1,5 +1,14 @@
 import React, { useState, useContext } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  Modal,
+  Pressable,
+  Platform
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import axios from "axios";
 import * as FileSystem from "expo-file-system/legacy";
@@ -8,6 +17,7 @@ import * as MediaLibrary from "expo-media-library";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 import { supabase } from "../lib/supabase";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 const guessExt = (uri) => {
   const m = uri?.match(/\.([a-zA-Z0-9]+)$/);
@@ -20,12 +30,22 @@ export default function UploadFightClipScreen() {
   const { userToken } = useContext(AuthContext);
 
   const [video, setVideo] = useState(null);
-  const [fightDate, setFightDate] = useState("");
   const [opponent, setOpponent] = useState("");
   const [promotion, setPromotion] = useState("");
   const [result, setResult] = useState("win");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [fightDateObj, setFightDateObj] = useState(null); // Date | null
+  const [fightDate, setFightDate] = useState(""); // "YYYY-MM-DD"
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [tempDate, setTempDate] = useState(new Date());
+
+  const toYMD = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
 
   const pickVideo = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -53,9 +73,48 @@ export default function UploadFightClipScreen() {
       return;
     }
 
+    const onDobChange = (_, selectedDate) => {};
+
     // fallback
     setVideo(asset);
   };
+
+  const openDatePicker = () => {
+    const base = fightDateObj || new Date();
+    setTempDate(base);
+
+    if (Platform.OS === "android") {
+      // Android: open native dialog
+      setShowDateModal(true);
+    } else {
+      // iOS: open modal sheet
+      setShowDateModal(true);
+    }
+  };
+
+  const closeDatePicker = () => setShowDateModal(false);
+
+  const onChangeDate = (_, selectedDate) => {
+    if (Platform.OS === "android") {
+      // Android commits immediately and closes
+      if (selectedDate) {
+        setFightDateObj(selectedDate);
+        setFightDate(toYMD(selectedDate));
+      }
+      closeDatePicker();
+    } else {
+      // iOS updates temp; Done commits
+      if (selectedDate) setTempDate(selectedDate);
+    }
+  };
+
+  const onIosDone = () => {
+    setFightDateObj(tempDate);
+    setFightDate(toYMD(tempDate));
+    closeDatePicker();
+  };
+
+  const onIosCancel = () => closeDatePicker();
 
   const upload = async () => {
     if (!video?.uri) return Alert.alert("Missing", "Pick a video first.");
@@ -187,20 +246,105 @@ export default function UploadFightClipScreen() {
         </Text>
       </TouchableOpacity>
 
-      <TextInput
-        value={fightDate}
-        onChangeText={setFightDate}
-        placeholder="Fight date (YYYY-MM-DD)"
-        placeholderTextColor="#777"
+      <TouchableOpacity
+        onPress={openDatePicker}
+        activeOpacity={0.8}
         style={{
           marginTop: 12,
-          color: "#fff",
           borderWidth: 1,
           borderColor: "#e0245e",
-          padding: 10,
+          padding: 14,
           borderRadius: 10,
+          backgroundColor: "#232323",
         }}
-      />
+      >
+        <Text style={{ color: fightDate ? "#fff" : "#777" }}>
+          {fightDate ? fightDate : "Fight date"}
+        </Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={showDateModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeDatePicker}
+      >
+        {/* Backdrop */}
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+          onPress={Platform.OS === "ios" ? onIosCancel : closeDatePicker}
+        />
+
+        {/* Bottom sheet */}
+        <View
+          style={{
+            backgroundColor: "#232323",
+            borderTopLeftRadius: 18,
+            borderTopRightRadius: 18,
+            paddingTop: 12,
+            paddingBottom: 18,
+            paddingHorizontal: 12,
+          }}
+        >
+          <Text
+            style={{
+              color: "#ffd700",
+              fontWeight: "900",
+              fontSize: 16,
+              marginBottom: 8,
+            }}
+          >
+            Select fight date
+          </Text>
+
+          <DateTimePicker
+            value={
+              Platform.OS === "ios" ? tempDate : fightDateObj || new Date()
+            }
+            mode="date"
+            display={Platform.OS === "ios" ? "inline" : "default"}
+            onChange={onChangeDate}
+            maximumDate={new Date()}
+          />
+
+          {Platform.OS === "ios" && (
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                gap: 12,
+                marginTop: 10,
+              }}
+            >
+              <TouchableOpacity
+                onPress={onIosCancel}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 10,
+                  backgroundColor: "#333",
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={onIosDone}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 16,
+                  borderRadius: 10,
+                  backgroundColor: "#ffd700",
+                }}
+              >
+                <Text style={{ color: "#181818", fontWeight: "900" }}>
+                  Done
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </Modal>
 
       <TextInput
         value={opponent}
