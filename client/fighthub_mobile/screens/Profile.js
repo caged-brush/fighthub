@@ -179,7 +179,7 @@ export default function Profile() {
         { headers },
       );
 
-      console.log("USER CLIPS:", response.data?.clips);
+      // console.log("USER CLIPS:", response.data?.clips);
 
       setUserPosts(
         Array.isArray(response.data?.clips) ? response.data.clips : [],
