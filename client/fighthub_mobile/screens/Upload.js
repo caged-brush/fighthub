@@ -1,3 +1,5 @@
+// upload.js (UploadFightClipScreen.js)
+
 import React, { useState, useContext } from "react";
 import {
   View,
@@ -7,103 +9,116 @@ import {
   Alert,
   Modal,
   Pressable,
-  Platform
+  Platform,
+  ActivityIndicator,
 } from "react-native";
+
 import * as ImagePicker from "expo-image-picker";
-import axios from "axios";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import base64 from "base64-js";
 import * as MediaLibrary from "expo-media-library";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import axios from "axios";
+
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
-import { supabase } from "../lib/supabase";
-import DateTimePicker from "@react-native-community/datetimepicker";
 
-const guessExt = (uri) => {
-  const m = uri?.match(/\.([a-zA-Z0-9]+)$/);
-  return m ? m[1].toLowerCase() : "mp4";
+/** ---------- helpers ---------- **/
+
+const guessExt = (uri, fallbackName) => {
+  const fromUri = uri?.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase();
+  if (fromUri) return fromUri;
+
+  const fromName = fallbackName?.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase();
+  if (fromName) return fromName;
+
+  return "mp4";
 };
 
-const guessMime = (ext) => (ext === "mov" ? "video/quicktime" : "video/mp4");
+const guessMime = (ext) => {
+  const e = String(ext || "").toLowerCase();
+  if (e === "mov") return "video/quicktime";
+  if (e === "mkv") return "video/x-matroska";
+  if (e === "webm") return "video/webm";
+  if (e === "avi") return "video/x-msvideo";
+  return "video/mp4";
+};
+
+const toYMD = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const isIcloudOffloadError = (err) => {
+  const msg = String(err?.message || "");
+  return msg.includes("PHPhotosErrorDomain") && msg.includes("3164");
+};
+
+async function ensureLocalFileUri({ uri, assetId, fileName }) {
+  if (!uri) throw new Error("No URI returned from picker.");
+
+  // iOS: try to resolve iCloud/offloaded assets to a local file
+  if (Platform.OS === "ios" && assetId) {
+    const info = await MediaLibrary.getAssetInfoAsync(assetId);
+    const localUri = info?.localUri || info?.uri;
+
+    if (!localUri) {
+      throw new Error(
+        "This video is not available locally (likely iCloud/offloaded). Download it in Photos first, or use the Files picker.",
+      );
+    }
+    uri = localUri;
+  }
+
+  // Android: convert content:// -> file:// by copying to cache
+  if (Platform.OS === "android" && uri.startsWith("content://")) {
+    const ext = guessExt(uri, fileName);
+    const target = `${FileSystem.cacheDirectory}clip-${Date.now()}.${ext}`;
+    await FileSystem.copyAsync({ from: uri, to: target });
+    uri = target;
+  }
+
+  // Sanity check
+  const info = await FileSystem.getInfoAsync(uri, { size: true });
+  if (!info.exists) throw new Error("Selected file is not accessible on disk.");
+  return { uri, size: info.size ?? null };
+}
+
+/** ---------- component ---------- **/
 
 export default function UploadFightClipScreen() {
   const { userToken } = useContext(AuthContext);
 
-  const [video, setVideo] = useState(null);
+  const [video, setVideo] = useState(null); // { uri, size, fileName, assetId? }
   const [opponent, setOpponent] = useState("");
   const [promotion, setPromotion] = useState("");
   const [result, setResult] = useState("win");
   const [notes, setNotes] = useState("");
+
   const [loading, setLoading] = useState(false);
-  const [fightDateObj, setFightDateObj] = useState(null); // Date | null
-  const [fightDate, setFightDate] = useState(""); // "YYYY-MM-DD"
+
+  const [fightDateObj, setFightDateObj] = useState(null);
+  const [fightDate, setFightDate] = useState("");
   const [showDateModal, setShowDateModal] = useState(false);
   const [tempDate, setTempDate] = useState(new Date());
 
-  const toYMD = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  };
-
-  const pickVideo = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow media library access.");
-      return;
-    }
-
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: false,
-      quality: 1,
-    });
-
-    if (res.canceled || !res.assets?.length) return;
-
-    const asset = res.assets[0];
-
-    // Try to fetch original asset URI (avoids trimming/export)
-    if (asset.assetId) {
-      const info = await MediaLibrary.getAssetInfoAsync(asset.assetId);
-      // info.localUri is usually the original file
-      const uri = info.localUri || info.uri;
-      setVideo({ ...asset, uri });
-      return;
-    }
-
-    const onDobChange = (_, selectedDate) => {};
-
-    // fallback
-    setVideo(asset);
-  };
-
   const openDatePicker = () => {
-    const base = fightDateObj || new Date();
-    setTempDate(base);
-
-    if (Platform.OS === "android") {
-      // Android: open native dialog
-      setShowDateModal(true);
-    } else {
-      // iOS: open modal sheet
-      setShowDateModal(true);
-    }
+    setTempDate(fightDateObj || new Date());
+    setShowDateModal(true);
   };
 
   const closeDatePicker = () => setShowDateModal(false);
 
   const onChangeDate = (_, selectedDate) => {
     if (Platform.OS === "android") {
-      // Android commits immediately and closes
       if (selectedDate) {
         setFightDateObj(selectedDate);
         setFightDate(toYMD(selectedDate));
       }
       closeDatePicker();
     } else {
-      // iOS updates temp; Done commits
       if (selectedDate) setTempDate(selectedDate);
     }
   };
@@ -116,79 +131,143 @@ export default function UploadFightClipScreen() {
 
   const onIosCancel = () => closeDatePicker();
 
+  /** --- pickers --- **/
+
+  const pickFromPhotos = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission needed", "Allow media library access.");
+      return;
+    }
+
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: false,
+        quality: 1,
+        copyToCacheDirectory: true,
+
+        // iOS: try to avoid heavy export/re-encode
+        videoExportPreset:
+          ImagePicker.VideoExportPreset?.Passthrough ?? "passthrough",
+      });
+
+      if (res.canceled || !res.assets?.length) return;
+
+      const a = res.assets[0];
+      const normalized = await ensureLocalFileUri({
+        uri: a.uri,
+        assetId: a.assetId,
+        fileName: a.fileName,
+      });
+
+      setVideo({
+        uri: normalized.uri,
+        size: normalized.size,
+        fileName: a.fileName || null,
+        assetId: a.assetId || null,
+      });
+    } catch (err) {
+      console.log("Photos picker error:", err);
+
+      if (isIcloudOffloadError(err)) {
+        Alert.alert(
+          "Video is in iCloud",
+          "That video isn’t downloaded to your phone. Download it in Photos, or use ‘Pick with Files’.",
+        );
+        return;
+      }
+
+      Alert.alert("Picker error", String(err?.message || err));
+    }
+  };
+
+  const pickWithFiles = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: "video/*",
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (res.canceled || !res.assets?.length) return;
+
+      const a = res.assets[0]; // { uri, name, size, mimeType }
+      const normalized = await ensureLocalFileUri({
+        uri: a.uri,
+        assetId: null,
+        fileName: a.name,
+      });
+
+      setVideo({
+        uri: normalized.uri,
+        size: normalized.size ?? a.size ?? null,
+        fileName: a.name || null,
+        assetId: null,
+      });
+    } catch (err) {
+      console.log("Files picker error:", err);
+      Alert.alert("Picker error", String(err?.message || err));
+    }
+  };
+
+  /** --- upload --- **/
+
   const upload = async () => {
-    if (!video?.uri) return Alert.alert("Missing", "Pick a video first.");
     if (!userToken) return Alert.alert("Auth", "Missing token.");
+    if (!video?.uri) return Alert.alert("Missing", "Pick a video first.");
 
     setLoading(true);
 
     try {
-      const ext = guessExt(video.uri);
+      // Ensure local file URI + get size
+      const info = await FileSystem.getInfoAsync(video.uri, { size: true });
+      if (!info.exists) throw new Error("File not found at uri.");
+      const size = info.size ?? null;
+
+      if (size && size > 150 * 1024 * 1024) {
+        Alert.alert("Too large", "Max 150MB per clip for now.");
+        return;
+      }
+
+      const ext = guessExt(video.uri, video.fileName);
       const mimeType = guessMime(ext);
-
-      console.log("🎬 Picked:", {
-        uri: video.uri,
-        ext,
-        mimeType,
-        fileSize: video.fileSize,
-      });
-
-      // 1) Sign upload (Render)
-      // 1) Sign upload (Render)
-      console.log("➡️ Signing upload...");
 
       const headers = { Authorization: `Bearer ${userToken}` };
 
+      // 1) Sign (your backend)
       const signRes = await axios.post(
         `${API_URL}/fight-clips/sign-upload`,
         { fileExt: ext, mimeType },
         { headers },
       );
 
-      const { storagePath, token } = signRes.data;
-
-      if (!storagePath || !token) {
-        throw new Error("Sign response missing storagePath or token");
-      }
+      const { storagePath, signedUrl } = signRes.data || {};
+      if (!storagePath || !signedUrl)
+        throw new Error("Sign response missing data.");
 
       console.log("✅ Signed:", { storagePath });
 
-      // 2) Read file -> base64 -> ArrayBuffer
-      console.log("➡️ Reading file as base64...");
-      const base64Data = await FileSystem.readAsStringAsync(video.uri, {
-        encoding: FileSystem.EncodingType.Base64,
+      // 2) Upload file (stream) to signedUrl
+      // IMPORTANT: include Content-Type, and on Android include Content-Length when possible
+      const uploadHeaders = {
+        "Content-Type": mimeType,
+      };
+      if (size) uploadHeaders["Content-Length"] = String(size);
+
+      console.log("➡️ Uploading to signedUrl...");
+      const up = await FileSystem.uploadAsync(signedUrl, video.uri, {
+        httpMethod: "PUT",
+        headers: uploadHeaders,
       });
 
-      const fileInfo = await FileSystem.getInfoAsync(video.uri, { size: true });
+      console.log("✅ Upload response:", up.status, up.body);
 
-      if (fileInfo.size > 150 * 1024 * 1024) {
-        return Alert.alert("Too large", "Max 150MB per clip for now.");
+      if (up.status < 200 || up.status >= 300) {
+        throw new Error(`Upload failed (status ${up.status})`);
       }
 
-      const bytes = base64.toByteArray(base64Data);
-      const arrayBuffer = bytes.buffer;
-
-      console.log("✅ File ready:", { byteLength: bytes.length });
-
-      // 3) Upload bytes DIRECTLY to Supabase Storage (no Render)
-      console.log("➡️ Uploading directly to Supabase...");
-      const { error: upErr } = await supabase.storage
-        .from("fight_clips")
-        .uploadToSignedUrl(storagePath, token, arrayBuffer, {
-          contentType: mimeType,
-        });
-
-      if (upErr) {
-        console.log("❌ Supabase upload error:", upErr);
-        throw new Error(`Signed upload failed: ${upErr.message}`);
-      }
-
-      console.log("✅ Supabase upload done");
-
-      // 4) Save metadata in DB (Render)
-      console.log("➡️ Saving metadata...");
-      const fileSize = video?.fileSize ?? bytes.length ?? null;
-
+      // 3) Save metadata
       await axios.post(
         `${API_URL}/fight-clips/create`,
         {
@@ -199,15 +278,12 @@ export default function UploadFightClipScreen() {
           notes: notes || null,
           storage_path: storagePath,
           mime_type: mimeType,
-          file_size: fileSize,
+          file_size: size,
         },
         { headers },
       );
 
-      console.log("✅ Metadata saved");
       Alert.alert("Success", "Fight clip uploaded.");
-
-      // reset
       setVideo(null);
       setFightDate("");
       setOpponent("");
@@ -215,24 +291,22 @@ export default function UploadFightClipScreen() {
       setResult("win");
       setNotes("");
     } catch (e) {
-      const status = e?.response?.status;
-      const data = e?.response?.data;
-      const url = e?.config?.url;
-      const auth = e?.config?.headers?.Authorization;
-
-      console.log("UPLOAD ERROR DETAILS:", {
-        status,
-        url,
-        data,
-        authPreview: auth ? auth.slice(0, 30) + "..." : null,
+      console.log("UPLOAD ERROR:", {
         message: e?.message,
+        status: e?.response?.status,
+        data: e?.response?.data,
+        url: e?.config?.url,
       });
-
-      Alert.alert("Error", data?.message || e?.message || "Upload failed");
+      Alert.alert(
+        "Error",
+        e?.response?.data?.message || e?.message || "Upload failed",
+      );
     } finally {
       setLoading(false);
     }
   };
+
+  /** ---------- UI ---------- **/
 
   return (
     <View style={{ flex: 1, padding: 16, backgroundColor: "#181818" }}>
@@ -240,11 +314,25 @@ export default function UploadFightClipScreen() {
         Upload Fight Clip
       </Text>
 
-      <TouchableOpacity onPress={pickVideo} style={{ marginTop: 16 }}>
-        <Text style={{ color: "#fff" }}>
-          {video ? "Video selected ✅" : "Pick a video"}
-        </Text>
-      </TouchableOpacity>
+      <View style={{ marginTop: 16, gap: 10 }}>
+        <TouchableOpacity onPress={pickFromPhotos}>
+          <Text style={{ color: "#fff" }}>
+            {video ? "Video selected ✅" : "Pick from Photos"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={pickWithFiles}>
+          <Text style={{ color: "#fff" }}>
+            Pick with Files (recommended if iCloud)
+          </Text>
+        </TouchableOpacity>
+
+        {!!video?.size && (
+          <Text style={{ color: "#999" }}>
+            Size: {(video.size / (1024 * 1024)).toFixed(1)} MB
+          </Text>
+        )}
+      </View>
 
       <TouchableOpacity
         onPress={openDatePicker}
@@ -269,13 +357,11 @@ export default function UploadFightClipScreen() {
         animationType="slide"
         onRequestClose={closeDatePicker}
       >
-        {/* Backdrop */}
         <Pressable
           style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
           onPress={Platform.OS === "ios" ? onIosCancel : closeDatePicker}
         />
 
-        {/* Bottom sheet */}
         <View
           style={{
             backgroundColor: "#232323",
@@ -381,6 +467,7 @@ export default function UploadFightClipScreen() {
         onChangeText={setResult}
         placeholder="result: win/loss/draw/nc"
         placeholderTextColor="#777"
+        autoCapitalize="none"
         style={{
           marginTop: 12,
           color: "#fff",
@@ -403,6 +490,7 @@ export default function UploadFightClipScreen() {
           borderColor: "#e0245e",
           padding: 10,
           borderRadius: 10,
+          minHeight: 80,
         }}
         multiline
       />
@@ -416,8 +504,12 @@ export default function UploadFightClipScreen() {
           padding: 12,
           borderRadius: 12,
           alignItems: "center",
+          flexDirection: "row",
+          justifyContent: "center",
+          gap: 10,
         }}
       >
+        {loading && <ActivityIndicator />}
         <Text style={{ fontWeight: "900", color: "#181818" }}>
           {loading ? "Uploading..." : "Upload"}
         </Text>
