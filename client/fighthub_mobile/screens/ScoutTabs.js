@@ -1,8 +1,10 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import ScoutHome from "./ScoutHome";
-import ScoutWatchlist from "./ScoutWatchlist";
 import Ionicons from "@expo/vector-icons/Ionicons";
+
+import FeedScreen from "./FeedScreen"; // ✅ new feed
+import ScoutSearch from "./ScoutSearch"; // ✅ your current filter/search screen (rename later)
+import ScoutWatchlist from "./ScoutWatchlist";
 import ScoutProfile from "./ScoutProfile";
 
 const Tab = createBottomTabNavigator();
@@ -15,18 +17,16 @@ export default function ScoutTabs() {
         tabBarStyle: { backgroundColor: "#181818", borderTopColor: "#333" },
         tabBarActiveTintColor: "#ffd700",
         tabBarInactiveTintColor: "#888",
-
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let iconName = "ellipse";
 
-          if (route.name === "ScoutHomeTab") {
+          if (route.name === "Home") {
             iconName = focused ? "home" : "home-outline";
-          }
-
-          if (route.name === "ScoutWatchlistTab") {
+          } else if (route.name === "Search") {
+            iconName = focused ? "search" : "search-outline";
+          } else if (route.name === "Watchlist") {
             iconName = focused ? "star" : "star-outline";
-          }
-          if (route.name === "ScoutProfile") {
+          } else if (route.name === "Profile") {
             iconName = focused ? "person" : "person-outline";
           }
 
@@ -34,22 +34,14 @@ export default function ScoutTabs() {
         },
       })}
     >
-      <Tab.Screen
-        name="ScoutHomeTab"
-        component={ScoutHome}
-        options={{ title: "Home" }}
-      />
-      <Tab.Screen
-        name="ScoutWatchlistTab"
-        component={ScoutWatchlist}
-        options={{ title: "Watchlist" }}
-      />
+      {/* ✅ HOME = FEED */}
+      <Tab.Screen name="Home" component={FeedScreen} />
 
-      <Tab.Screen
-        name="ScoutProfile"
-        component={ScoutProfile}
-        options={{ title: "Profile" }}
-      />
+      {/* ✅ SEARCH = your current ScoutHome screen */}
+      <Tab.Screen name="Search" component={ScoutSearch} />
+
+      <Tab.Screen name="Watchlist" component={ScoutWatchlist} />
+      <Tab.Screen name="Profile" component={ScoutProfile} />
     </Tab.Navigator>
   );
 }

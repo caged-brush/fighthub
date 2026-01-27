@@ -54,7 +54,7 @@ function calcScore(f) {
   return wins * 3 - losses * 1 + draws * 0.5 + completion * 2;
 }
 
-export default function ScoutHome() {
+export default function ScoutSearch() {
   const { userToken } = useContext(AuthContext);
   const navigation = useNavigation();
 

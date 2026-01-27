@@ -1,36 +1,50 @@
 // socket.js
+import jwt from "jsonwebtoken";
+
 export default function setupSocket(io, supabase) {
   // Map<userIdString, Set<socketId>>
   const users = new Map();
-
   const norm = (v) => String(v ?? "").trim();
 
-  io.on("connection", (socket) => {
-    console.log(`User ${socket.id} connected`);
+  // ✅ Require JWT auth on socket connection
+  io.use((socket, next) => {
+    try {
+      const token = socket.handshake?.auth?.token;
+      if (!token) return next(new Error("unauthorized"));
 
-    socket.on("join", (userId) => {
-      const uid = norm(userId);
-      if (!uid) return;
+      // NOTE: must match your Express JWT signing secret
+      const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-      if (!users.has(uid)) users.set(uid, new Set());
-      users.get(uid).add(socket.id);
+      // Adjust key to your payload shape
+      const uid = norm(payload?.id || payload?.userId || payload?.sub);
+      if (!uid) return next(new Error("unauthorized"));
 
       socket.data.userId = uid;
-      console.log(`User ${uid} registered with socket ${socket.id}`);
-    });
+      next();
+    } catch (e) {
+      return next(new Error("unauthorized"));
+    }
+  });
 
-    socket.on("load-messages", async ({ userId, recipientId }) => {
-      const uid = norm(userId);
+  io.on("connection", (socket) => {
+    const uid = socket.data.userId;
+    console.log(`Socket connected: ${socket.id} user=${uid}`);
+
+    // register
+    if (!users.has(uid)) users.set(uid, new Set());
+    users.get(uid).add(socket.id);
+
+    socket.on("load-messages", async ({ recipientId }) => {
       const rid = norm(recipientId);
-      if (!uid || !rid) return;
+      if (!rid) return;
 
       try {
-        // messages between uid and rid
+        // messages between authed uid and rid
         const { data, error } = await supabase
           .from("messages")
           .select("id, sender_id, recipient_id, message, timestamp")
           .or(
-            `and(sender_id.eq.${uid},recipient_id.eq.${rid}),and(sender_id.eq.${rid},recipient_id.eq.${uid})`
+            `and(sender_id.eq.${uid},recipient_id.eq.${rid}),and(sender_id.eq.${rid},recipient_id.eq.${uid})`,
           )
           .order("timestamp", { ascending: true });
 
@@ -38,16 +52,17 @@ export default function setupSocket(io, supabase) {
 
         io.to(socket.id).emit("message-history", data || []);
       } catch (err) {
-        console.error("Error loading messaging history:", err?.message || err);
+        console.error("Error loading message history:", err?.message || err);
       }
     });
 
-    socket.on("private-message", async ({ recipientId, message, senderId }) => {
+    socket.on("private-message", async ({ recipientId, message }) => {
       const rid = norm(recipientId);
-      const sid = norm(senderId);
       const msg = typeof message === "string" ? message.trim() : "";
+      if (!rid || !msg) return;
 
-      if (!rid || !sid || !msg) return;
+      // ✅ senderId is ALWAYS the authed socket user
+      const sid = uid;
 
       let saved;
       try {
@@ -80,7 +95,7 @@ export default function setupSocket(io, supabase) {
         }
       }
 
-      // also echo to sender sockets (multi-device)
+      // echo back to sender sockets (multi-device)
       const senderSockets = users.get(sid);
       if (senderSockets) {
         for (const socketId of senderSockets) {
@@ -90,13 +105,12 @@ export default function setupSocket(io, supabase) {
     });
 
     socket.on("disconnect", () => {
-      const uid = socket.data.userId;
-      if (uid && users.has(uid)) {
+      if (users.has(uid)) {
         const set = users.get(uid);
         set.delete(socket.id);
         if (set.size === 0) users.delete(uid);
       }
-      console.log(`User ${socket.id} disconnected`);
+      console.log(`Socket disconnected: ${socket.id} user=${uid}`);
     });
   });
 }

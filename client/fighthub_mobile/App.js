@@ -16,7 +16,7 @@ import Welcome from "./screens/Welcome";
 import { useFonts } from "expo-font";
 import ChatScreen from "./screens/ChatScreen";
 import UserProfile from "./screens/UserProfile"; // Import UserProfile
-import ScoutHome from "./screens/ScoutHome";
+import ScoutHome from "./screens/ScoutSearch";
 import ScoutTabs from "./screens/ScoutTabs";
 import ClipViewer from "./screens/ClipViewer";
 

@@ -16,11 +16,8 @@ import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 
 function YouTubeBlock({ youtubeId, youtubeUrl }) {
-  const [failed, setFailed] = useState(false);
-
   const embedUrl = useMemo(() => {
     if (!youtubeId) return null;
-    // nocookie sometimes behaves better; playsinline helps iOS
     return `https://www.youtube-nocookie.com/embed/${youtubeId}?playsinline=1&modestbranding=1&rel=0`;
   }, [youtubeId]);
 
@@ -29,21 +26,22 @@ function YouTubeBlock({ youtubeId, youtubeUrl }) {
       youtubeUrl?.trim() ||
       (youtubeId ? `https://www.youtube.com/watch?v=${youtubeId}` : null);
 
-    // Try open YouTube app first (optional, best UX)
+    if (!webUrl) return;
+
+    // optional: try YouTube app first
     const appUrl = youtubeId ? `youtube://${youtubeId}` : null;
 
     try {
       if (appUrl && (await Linking.canOpenURL(appUrl))) {
         return Linking.openURL(appUrl);
       }
-      if (webUrl) return Linking.openURL(webUrl);
+      return Linking.openURL(webUrl);
     } catch (e) {
       console.log("Open YouTube failed:", e?.message || e);
     }
   };
 
-  // If embed fails OR no embedUrl, show fallback UI
-  if (!embedUrl || failed) {
+  if (!embedUrl) {
     return (
       <View
         style={{
@@ -55,7 +53,7 @@ function YouTubeBlock({ youtubeId, youtubeUrl }) {
         }}
       >
         <Text style={{ color: "#bbb", textAlign: "center", marginBottom: 12 }}>
-          This video can’t be played inside the app (YouTube embed restricted).
+          YouTube clip unavailable.
         </Text>
 
         <TouchableOpacity
@@ -76,37 +74,76 @@ function YouTubeBlock({ youtubeId, youtubeUrl }) {
   }
 
   return (
-    <View style={{ width: "100%", height: 320, backgroundColor: "#000" }}>
-      <WebView
-        source={{ uri: embedUrl }}
-        originWhitelist={["*"]}
-        javaScriptEnabled
-        domStorageEnabled
-        allowsFullscreenVideo
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={true}
-        setSupportMultipleWindows={false}
-        onError={() => setFailed(true)}
-        onHttpError={() => setFailed(true)}
-        style={{ flex: 1, backgroundColor: "#000" }}
-      />
-    </View>
+    <>
+      <View style={{ width: "100%", height: 320, backgroundColor: "#000" }}>
+        <WebView
+          source={{ uri: embedUrl }}
+          originWhitelist={["*"]}
+          javaScriptEnabled
+          domStorageEnabled
+          allowsFullscreenVideo
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={true}
+          setSupportMultipleWindows={false}
+          style={{ flex: 1, backgroundColor: "#000" }}
+        />
+      </View>
+
+      {/* Always show your own button so users aren’t stuck */}
+      <TouchableOpacity
+        onPress={openInYouTube}
+        style={{
+          marginTop: 10,
+          marginHorizontal: 16,
+          backgroundColor: "#ffd700",
+          padding: 12,
+          borderRadius: 12,
+          alignItems: "center",
+        }}
+      >
+        <Text style={{ fontWeight: "900", color: "#181818" }}>
+          Open in YouTube
+        </Text>
+      </TouchableOpacity>
+    </>
   );
 }
 
-
-const isYoutube = clip?.source_type === "youtube";
-const youtubeId = clip?.youtube_id;
-
-const embedUrl = useMemo(() => {
-  if (!isYoutube || !youtubeId) return null;
-  return `https://www.youtube-nocookie.com/embed/${youtubeId}?playsinline=1&modestbranding=1&rel=0`;
-}, [isYoutube, youtubeId]);
-
-
 export default function ClipViewer({ route, navigation }) {
-  const { clip } = route.params;
+  // ✅ DON’T destructure from route.params directly
+  const clip = route?.params?.clip ?? null;
+
   const { userToken } = useContext(AuthContext);
+
+  // ✅ If clip missing, don’t crash
+  if (!clip) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#181818" }}>
+        <View
+          style={{
+            padding: 14,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={26} color="#ffd700" />
+          </TouchableOpacity>
+
+          <Text style={{ color: "#ffd700", fontWeight: "900", fontSize: 18 }}>
+            Fight Clip
+          </Text>
+        </View>
+
+        <View style={{ flex: 1, justifyContent: "center", padding: 16 }}>
+          <Text style={{ color: "#bbb", textAlign: "center" }}>
+            Clip data missing. Go back and open the clip again.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const isYoutube = (clip?.source_type || "upload") === "youtube";
   const youtubeId = clip?.youtube_id || null;
@@ -115,9 +152,10 @@ export default function ClipViewer({ route, navigation }) {
   const [loading, setLoading] = useState(!isYoutube && !clip?.signed_url);
 
   useEffect(() => {
-    if (isYoutube) return; // YouTube clips don't need signed URLs
-    if (url) return; // already have it
+    if (isYoutube) return;
+    if (url) return;
     if (!clip?.id) return;
+    if (!userToken) return;
 
     const fetchUrl = async () => {
       try {
@@ -182,40 +220,7 @@ export default function ClipViewer({ route, navigation }) {
       <View style={{ flex: 1, justifyContent: "center" }}>
         {/* PLAYER */}
         {isYoutube ? (
-          <>
-            <View
-              style={{ width: "100%", height: 320, backgroundColor: "#000" }}
-            >
-              <WebView
-                source={{ uri: embedUrl }}
-                allowsFullscreenVideo
-                javaScriptEnabled
-                mediaPlaybackRequiresUserAction={false}
-                style={{ flex: 1, backgroundColor: "#000" }}
-              />
-            </View>
-
-            <TouchableOpacity
-              onPress={() =>
-                Linking.openURL(
-                  clip.youtube_url?.trim() ||
-                    `https://www.youtube.com/watch?v=${clip.youtube_id}`,
-                )
-              }
-              style={{
-                marginTop: 10,
-                marginHorizontal: 16,
-                backgroundColor: "#ffd700",
-                padding: 12,
-                borderRadius: 12,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ fontWeight: "900", color: "#181818" }}>
-                Open in YouTube
-              </Text>
-            </TouchableOpacity>
-          </>
+          <YouTubeBlock youtubeId={youtubeId} youtubeUrl={clip?.youtube_url} />
         ) : loading ? (
           <ActivityIndicator size="large" color="#ffd700" />
         ) : url ? (

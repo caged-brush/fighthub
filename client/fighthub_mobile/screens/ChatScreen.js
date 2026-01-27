@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { useRoute } from "@react-navigation/native";
 import { format } from "date-fns";
@@ -19,27 +20,32 @@ import Feather from "@expo/vector-icons/Feather";
 
 export default function ChatScreen() {
   const route = useRoute();
-  const { recipientId, recipientName } = route.params;
-  const { userId: authedUserId } = useContext(AuthContext);
+  const { recipientId, recipientName } = route.params || {};
 
-  const userId = String(authedUserId);
-  const rid = String(recipientId);
+  const { userId: authedUserId, userToken } = useContext(AuthContext);
+
+  const userId = String(authedUserId || "");
+  const rid = String(recipientId || "");
 
   const socket = useMemo(() => {
+    // ✅ auth token sent in handshake
     return io("https://fighthub.onrender.com", {
       transports: ["websocket"],
       reconnection: true,
+      auth: { token: userToken },
     });
-  }, []);
+  }, [userToken]);
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
 
   useEffect(() => {
-    if (!userId || !rid) return;
+    if (!userId || !rid || !userToken) return;
 
-    socket.emit("join", userId);
-    socket.emit("load-messages", { userId, recipientId: rid });
+    const onConnectError = (err) => {
+      console.log("SOCKET connect_error:", err?.message || err);
+      Alert.alert("Chat error", "Could not connect to chat. Please try again.");
+    };
 
     const onHistory = (rows) => {
       const formatted = (rows || []).map((msg) => ({
@@ -52,7 +58,6 @@ export default function ChatScreen() {
     };
 
     const onPrivate = (p) => {
-      // only accept messages between these 2 users
       const sid = String(p.senderId);
       const pr = String(p.recipientId);
 
@@ -72,24 +77,29 @@ export default function ChatScreen() {
       ]);
     };
 
+    socket.on("connect_error", onConnectError);
     socket.on("message-history", onHistory);
     socket.on("private-message", onPrivate);
 
+    // ✅ server knows who you are from token, so only send recipientId
+    socket.emit("load-messages", { recipientId: rid });
+
     return () => {
+      socket.off("connect_error", onConnectError);
       socket.off("message-history", onHistory);
       socket.off("private-message", onPrivate);
       socket.disconnect();
     };
-  }, [socket, userId, rid]);
+  }, [socket, userId, rid, userToken]);
 
   const sendMessage = () => {
     const msg = input.trim();
     if (!msg) return;
 
+    // ✅ do NOT send senderId
     socket.emit("private-message", {
       recipientId: rid,
       message: msg,
-      senderId: userId,
     });
 
     setInput("");
@@ -104,12 +114,14 @@ export default function ChatScreen() {
         <View style={styles.container}>
           <View style={styles.headerRow}>
             <Ionicons
-              name="body-outline"
-              size={32}
+              name="chatbubbles-outline"
+              size={28}
               color="#ffd700"
               style={{ marginRight: 10 }}
             />
-            <Text style={styles.headerText}>Chat with {recipientName}</Text>
+            <Text style={styles.headerText}>
+              Chat with {recipientName || "User"}
+            </Text>
           </View>
 
           <FlatList
@@ -175,10 +187,10 @@ const styles = StyleSheet.create({
     borderColor: "#e0245e",
   },
   headerText: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "bold",
     color: "#ffd700",
-    letterSpacing: 1,
+    letterSpacing: 0.3,
   },
   senderBubble: {
     backgroundColor: "#e0245e",
