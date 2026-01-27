@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { Video } from "expo-av";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -14,28 +15,109 @@ import { WebView } from "react-native-webview";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 
+function YouTubeBlock({ youtubeId, youtubeUrl }) {
+  const [failed, setFailed] = useState(false);
+
+  const embedUrl = useMemo(() => {
+    if (!youtubeId) return null;
+    // nocookie sometimes behaves better; playsinline helps iOS
+    return `https://www.youtube-nocookie.com/embed/${youtubeId}?playsinline=1&modestbranding=1&rel=0`;
+  }, [youtubeId]);
+
+  const openInYouTube = async () => {
+    const webUrl =
+      youtubeUrl?.trim() ||
+      (youtubeId ? `https://www.youtube.com/watch?v=${youtubeId}` : null);
+
+    // Try open YouTube app first (optional, best UX)
+    const appUrl = youtubeId ? `youtube://${youtubeId}` : null;
+
+    try {
+      if (appUrl && (await Linking.canOpenURL(appUrl))) {
+        return Linking.openURL(appUrl);
+      }
+      if (webUrl) return Linking.openURL(webUrl);
+    } catch (e) {
+      console.log("Open YouTube failed:", e?.message || e);
+    }
+  };
+
+  // If embed fails OR no embedUrl, show fallback UI
+  if (!embedUrl || failed) {
+    return (
+      <View
+        style={{
+          height: 320,
+          backgroundColor: "#000",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 16,
+        }}
+      >
+        <Text style={{ color: "#bbb", textAlign: "center", marginBottom: 12 }}>
+          This video can’t be played inside the app (YouTube embed restricted).
+        </Text>
+
+        <TouchableOpacity
+          onPress={openInYouTube}
+          style={{
+            backgroundColor: "#ffd700",
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+            borderRadius: 10,
+          }}
+        >
+          <Text style={{ color: "#181818", fontWeight: "900" }}>
+            Open in YouTube
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ width: "100%", height: 320, backgroundColor: "#000" }}>
+      <WebView
+        source={{ uri: embedUrl }}
+        originWhitelist={["*"]}
+        javaScriptEnabled
+        domStorageEnabled
+        allowsFullscreenVideo
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={true}
+        setSupportMultipleWindows={false}
+        onError={() => setFailed(true)}
+        onHttpError={() => setFailed(true)}
+        style={{ flex: 1, backgroundColor: "#000" }}
+      />
+    </View>
+  );
+}
+
+
+const isYoutube = clip?.source_type === "youtube";
+const youtubeId = clip?.youtube_id;
+
+const embedUrl = useMemo(() => {
+  if (!isYoutube || !youtubeId) return null;
+  return `https://www.youtube-nocookie.com/embed/${youtubeId}?playsinline=1&modestbranding=1&rel=0`;
+}, [isYoutube, youtubeId]);
+
+
 export default function ClipViewer({ route, navigation }) {
   const { clip } = route.params;
   const { userToken } = useContext(AuthContext);
 
-  const isYoutube = clip?.source_type === "youtube";
+  const isYoutube = (clip?.source_type || "upload") === "youtube";
   const youtubeId = clip?.youtube_id || null;
-
-  const embedUrl = useMemo(() => {
-    if (!isYoutube || !youtubeId) return null;
-    // playsinline helps iOS; rel=0 avoids unrelated suggestions
-    return `https://www.youtube.com/embed/${youtubeId}?playsinline=1&modestbranding=1&rel=0`;
-  }, [isYoutube, youtubeId]);
 
   const [url, setUrl] = useState(clip?.signed_url || null);
   const [loading, setLoading] = useState(!isYoutube && !clip?.signed_url);
 
   useEffect(() => {
-    // YouTube clips don't need signed URLs
-    if (isYoutube) return;
-
-    // If already have a signed url, use it
-    if (url) return;
+    if (isYoutube) return; // YouTube clips don't need signed URLs
+    if (url) return; // already have it
+    if (!clip?.id) return;
 
     const fetchUrl = async () => {
       try {
@@ -100,7 +182,7 @@ export default function ClipViewer({ route, navigation }) {
       <View style={{ flex: 1, justifyContent: "center" }}>
         {/* PLAYER */}
         {isYoutube ? (
-          embedUrl ? (
+          <>
             <View
               style={{ width: "100%", height: 320, backgroundColor: "#000" }}
             >
@@ -112,11 +194,28 @@ export default function ClipViewer({ route, navigation }) {
                 style={{ flex: 1, backgroundColor: "#000" }}
               />
             </View>
-          ) : (
-            <Text style={{ color: "#bbb", textAlign: "center" }}>
-              YouTube clip unavailable.
-            </Text>
-          )
+
+            <TouchableOpacity
+              onPress={() =>
+                Linking.openURL(
+                  clip.youtube_url?.trim() ||
+                    `https://www.youtube.com/watch?v=${clip.youtube_id}`,
+                )
+              }
+              style={{
+                marginTop: 10,
+                marginHorizontal: 16,
+                backgroundColor: "#ffd700",
+                padding: 12,
+                borderRadius: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ fontWeight: "900", color: "#181818" }}>
+                Open in YouTube
+              </Text>
+            </TouchableOpacity>
+          </>
         ) : loading ? (
           <ActivityIndicator size="large" color="#ffd700" />
         ) : url ? (
@@ -150,8 +249,7 @@ export default function ClipViewer({ route, navigation }) {
             </Text>
           )}
 
-          {/* Optional: show original YouTube URL */}
-          {isYoutube && !!clip.youtube_url && (
+          {isYoutube && (
             <Text style={{ color: "#777", marginTop: 10, fontSize: 12 }}>
               Source: YouTube
             </Text>
