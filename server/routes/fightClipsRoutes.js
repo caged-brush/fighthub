@@ -2,6 +2,29 @@ import express from "express";
 import crypto from "crypto";
 const router = express.Router();
 
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const s = String(url).trim();
+
+  // youtu.be/VIDEO_ID
+  let m = s.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+
+  // youtube.com/watch?v=VIDEO_ID
+  m = s.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+
+  // youtube.com/shorts/VIDEO_ID
+  m = s.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+
+  // youtube.com/embed/VIDEO_ID
+  m = s.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+
+  return null;
+}
+
 export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
   // 1) Create signed upload URL
   // routes/fightClipsRoutes.js
@@ -43,22 +66,26 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     const userId = String(req.user.id);
 
     const {
-      fight_date,
-      opponent,
-      promotion,
-      result,
-      weight_class,
-      notes,
+      fight_date = null,
+      opponent = null,
+      promotion = null,
+      result = "win",
+      weight_class = null,
+      notes = null,
       storage_path,
       mime_type,
       file_size,
+      visibility = "public",
     } = req.body;
 
     if (!storage_path) {
       return res.status(400).json({ message: "storage_path required" });
     }
 
-    // ✅ MUST exist or you misconfigured env on Render
+    if (!mime_type) {
+      return res.status(400).json({ message: "mime_type required" });
+    }
+
     if (!supabaseAdmin) {
       return res.status(500).json({
         message: "Server misconfig: SUPABASE_SERVICE_ROLE_KEY missing",
@@ -71,6 +98,7 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
         .insert([
           {
             user_id: userId,
+            source_type: "upload", // ✅ important
             fight_date,
             opponent,
             promotion,
@@ -80,6 +108,9 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
             storage_path,
             mime_type,
             file_size,
+            visibility,
+            youtube_url: null,
+            youtube_id: null,
           },
         ])
         .select("*")
@@ -106,22 +137,59 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     const { data: clips, error } = await supabaseAdmin
       .from("fight_clips")
       .select(
-        "id,fight_date,opponent,promotion,result,weight_class,notes,storage_path,mime_type,file_size,created_at,visibility",
+        [
+          "id",
+          "fight_date",
+          "opponent",
+          "promotion",
+          "result",
+          "weight_class",
+          "notes",
+          "storage_path",
+          "mime_type",
+          "file_size",
+          "created_at",
+          "visibility",
+          // ✅ NEW
+          "source_type",
+          "youtube_id",
+          "youtube_url",
+        ].join(","),
       )
       .eq("user_id", userId)
       .eq("visibility", "public")
       .order("created_at", { ascending: false });
 
-    if (error) return res.status(500).json({ message: "Failed to load clips" });
+    if (error) {
+      console.error("Failed to load clips:", error);
+      return res.status(500).json({ message: "Failed to load clips" });
+    }
 
     const expiresIn = 60 * 10;
+
     const clipsWithUrls = await Promise.all(
       (clips || []).map(async (clip) => {
-        const { data, error } = await supabaseAdmin.storage
+        // ✅ Treat null source_type as upload (backward compatible)
+        const sourceType = clip.source_type || "upload";
+
+        // YouTube clips: no storage signing
+        if (sourceType === "youtube") {
+          return { ...clip, signed_url: null };
+        }
+
+        // Upload clips: sign only if storage_path exists
+        if (!clip.storage_path) {
+          return { ...clip, signed_url: null };
+        }
+
+        const { data, error: signErr } = await supabaseAdmin.storage
           .from("fight_clips")
           .createSignedUrl(clip.storage_path, expiresIn);
 
-        return { ...clip, signed_url: error ? null : data.signedUrl };
+        return {
+          ...clip,
+          signed_url: signErr ? null : data?.signedUrl || null,
+        };
       }),
     );
 
@@ -186,21 +254,31 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     try {
       const { data: clip, error: clipErr } = await supabaseAdmin
         .from("fight_clips")
-        .select("id, user_id, storage_path, visibility")
+        .select("id, user_id, storage_path, visibility, source_type")
         .eq("id", clipId)
         .single();
 
-      if (clipErr || !clip)
+      if (clipErr || !clip) {
         return res.status(404).json({ message: "Clip not found" });
+      }
+
+      const sourceType = clip.source_type || "upload";
+
+      // ✅ YouTube clips do not have play URLs
+      if (sourceType === "youtube") {
+        return res.status(400).json({ message: "This clip is a YouTube link" });
+      }
+
+      if (!clip.storage_path) {
+        return res
+          .status(400)
+          .json({ message: "Missing storage_path for upload clip" });
+      }
 
       const isOwner = String(clip.user_id) === userId;
 
-      // Owner can always watch
-      if (!isOwner) {
-        // Non-owner (scout, etc.) can only watch public clips
-        if (clip.visibility !== "public") {
-          return res.status(403).json({ message: "Not allowed" });
-        }
+      if (!isOwner && clip.visibility !== "public") {
+        return res.status(403).json({ message: "Not allowed" });
       }
 
       const { data, error } = await supabaseAdmin.storage
@@ -213,6 +291,69 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     } catch (err) {
       console.error("play url error:", err?.message || err);
       return res.status(500).json({ message: "Failed to create play url" });
+    }
+  });
+
+  // 5) Get clips from youtube
+  router.post("/create-youtube", requireAuth, async (req, res) => {
+    const userId = String(req.user.id);
+
+    const {
+      fight_date = null,
+      opponent = null,
+      promotion = null,
+      result = "win",
+      weight_class = null,
+      notes = null,
+      youtube_url,
+      visibility = "public",
+    } = req.body;
+
+    if (!youtube_url) {
+      return res.status(400).json({ message: "youtube_url required" });
+    }
+
+    const youtube_id = extractYouTubeId(youtube_url);
+    if (!youtube_id) {
+      return res.status(400).json({ message: "Invalid YouTube URL" });
+    }
+
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        message: "Server misconfig: SUPABASE_SERVICE_ROLE_KEY missing",
+      });
+    }
+
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("fight_clips")
+        .insert([
+          {
+            user_id: userId,
+            source_type: "youtube",
+            youtube_url,
+            youtube_id,
+            fight_date,
+            opponent,
+            promotion,
+            result,
+            weight_class,
+            notes,
+            visibility,
+            storage_path: null,
+            mime_type: "text/youtube",
+            file_size: null,
+          },
+        ])
+        .select("*")
+        .single();
+
+      if (error) throw error;
+
+      return res.json({ clip: data });
+    } catch (err) {
+      console.error("create-youtube error:", err?.message || err);
+      return res.status(500).json({ message: "Failed to create YouTube clip" });
     }
   });
 

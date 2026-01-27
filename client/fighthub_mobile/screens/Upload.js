@@ -11,14 +11,12 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy"; // ✅ legacy API for SDK 54
 import * as MediaLibrary from "expo-media-library";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import axios from "axios";
-
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 
@@ -53,6 +51,20 @@ const toYMD = (date) => {
 const isIcloudOffloadError = (err) => {
   const msg = String(err?.message || "");
   return msg.includes("PHPhotosErrorDomain") && msg.includes("3164");
+};
+
+const extractYouTubeId = (url) => {
+  if (!url) return null;
+  const s = String(url).trim();
+  let m = s.match(/youtu\.be\/([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+  m = s.match(/[?&]v=([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+  m = s.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+  m = s.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/);
+  if (m?.[1]) return m[1];
+  return null;
 };
 
 // iOS: try localUri for Photos assets
@@ -112,6 +124,8 @@ export default function UploadFightClipScreen() {
   const [promotion, setPromotion] = useState("");
   const [result, setResult] = useState("win");
   const [notes, setNotes] = useState("");
+  const [clipMode, setClipMode] = useState("upload"); // "upload" | "youtube"
+  const [youtubeUrl, setYoutubeUrl] = useState("");
 
   const [loading, setLoading] = useState(false);
 
@@ -229,6 +243,56 @@ export default function UploadFightClipScreen() {
 
   const upload = async () => {
     if (!userToken) return Alert.alert("Auth", "Missing token.");
+
+    // YOUTUBE MODE
+    if (clipMode === "youtube") {
+      const id = extractYouTubeId(youtubeUrl);
+      if (!id) return Alert.alert("Invalid", "Paste a valid YouTube URL.");
+
+      setLoading(true);
+      try {
+        const headers = { Authorization: `Bearer ${userToken}` };
+
+        await axios.post(
+          `${API_URL}/fight-clips/create-youtube`,
+          {
+            youtube_url: youtubeUrl.trim(),
+            fight_date: fightDate || null,
+            opponent: opponent || null,
+            promotion: promotion || null,
+            result,
+            notes: notes || null,
+          },
+          { headers },
+        );
+
+        Alert.alert("Success", "YouTube fight clip added.");
+        setYoutubeUrl("");
+        setFightDate("");
+        setOpponent("");
+        setPromotion("");
+        setResult("win");
+        setNotes("");
+        return;
+      } catch (e) {
+        console.log(
+          "YOUTUBE CREATE ERROR:",
+          e?.response?.status,
+          e?.response?.data,
+          e?.message,
+        );
+        Alert.alert(
+          "Error",
+          e?.response?.data?.message ||
+            e?.message ||
+            "Failed to add YouTube clip",
+        );
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    //Upload mode
     if (!video?.uri) return Alert.alert("Missing", "Pick a video first.");
 
     setLoading(true);
@@ -331,18 +395,45 @@ export default function UploadFightClipScreen() {
         Upload Fight Clip
       </Text>
 
-      <View style={{ marginTop: 16, gap: 10 }}>
-        <TouchableOpacity onPress={pickFromPhotos} disabled={loading}>
-          <Text style={{ color: "#fff" }}>
-            {video ? "Video selected ✅ (Photos)" : "Pick from Photos"}
+      <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+        <TouchableOpacity onPress={() => setClipMode("upload")}>
+          <Text style={{ color: clipMode === "upload" ? "#ffd700" : "#fff" }}>
+            Upload Video
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={pickWithFiles} disabled={loading}>
-          <Text style={{ color: "#fff" }}>
-            Pick with Files (best for iCloud videos)
+        <TouchableOpacity onPress={() => setClipMode("youtube")}>
+          <Text style={{ color: clipMode === "youtube" ? "#ffd700" : "#fff" }}>
+            YouTube Link
           </Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={{ marginTop: 16, gap: 10 }}>
+        {clipMode === "upload" ? (
+          <TouchableOpacity onPress={pickFromPhotos} style={{ marginTop: 12 }}>
+            <Text style={{ color: "#fff" }}>
+              {video ? "Video selected ✅" : "Pick a video"}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TextInput
+            value={youtubeUrl}
+            onChangeText={setYoutubeUrl}
+            placeholder="Paste YouTube URL"
+            placeholderTextColor="#777"
+            style={{
+              marginTop: 12,
+              color: "#fff",
+              borderWidth: 1,
+              borderColor: "#e0245e",
+              padding: 10,
+              borderRadius: 10,
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        )}
 
         {sizeLabel && <Text style={{ color: "#999" }}>Size: {sizeLabel}</Text>}
       </View>
