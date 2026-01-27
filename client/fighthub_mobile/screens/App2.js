@@ -1,72 +1,69 @@
-import { useContext } from "react";
-import { Pressable, Text, View } from "react-native";
-import { AuthContext } from "../context/AuthContext";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { StatusBar } from "expo-status-bar";
-import Profile from "./Profile";
-import Settings from "./Settings"; // Import Settings page
 import Ionicons from "@expo/vector-icons/Ionicons";
-import Home from "./Home";
+
+import Profile from "./Profile";
+import Settings from "./Settings";
 import Upload from "./Upload";
-import VideoScreen from "./Video";
-import Message from "./Message";
-import UserListScreen from "./Message";
-const myTabs = createBottomTabNavigator();
+
+// ✅ Replace Home with your real feed screen
+import FeedScreen from "./FeedScreen";
+
+// ✅ Fix this import if you actually have a separate file
+import UserListScreen from "./UserListScreen";
+
+const Tabs = createBottomTabNavigator();
 
 export default function Dashboard() {
   return (
-    <myTabs.Navigator
+    <Tabs.Navigator
       screenOptions={({ route }) => ({
         tabBarStyle: { backgroundColor: "#1f1f1f" },
         tabBarActiveTintColor: "#fff",
         tabBarInactiveTintColor: "#888",
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
+          let iconName = "ellipse";
 
-          if (route.name === "Profile") {
+          if (route.name === "Home") {
+            iconName = focused ? "home" : "home-outline";
+          } else if (route.name === "Upload") {
+            iconName = focused ? "add-circle" : "add-circle-outline";
+          } else if (route.name === "Inbox") {
+            iconName = focused ? "chatbubble" : "chatbubble-outline";
+          } else if (route.name === "Profile") {
             iconName = focused ? "person" : "person-outline";
           } else if (route.name === "Settings") {
             iconName = focused ? "settings" : "settings-outline";
-          } else if (route.name === "Home") {
-            iconName = focused ? "home" : "home-outline";
-          } else if (route.name === "Upload") {
-            iconName = focused ? "add" : "add-outline";
-          } else if (route.name === "Video") {
-            iconName = focused ? "add" : "add-outline";
-          } else if (route.name === "Inbox") {
-            iconName = focused ? "chatbubble" : "chatbubble-outline";
           }
 
-          // Return the Ionicons component with the determined name and color
           return <Ionicons name={iconName} size={size} color={color} />;
         },
       })}
     >
-      <myTabs.Screen
+      <Tabs.Screen
         name="Home"
-        component={Home}
+        component={FeedScreen}
         options={{ headerShown: false }}
       />
-      <myTabs.Screen
+      <Tabs.Screen
         name="Upload"
         component={Upload}
         options={{ headerShown: false }}
       />
-      <myTabs.Screen
+      <Tabs.Screen
         name="Inbox"
         component={UserListScreen}
         options={{ headerShown: false }}
       />
-      <myTabs.Screen
+      <Tabs.Screen
         name="Profile"
         component={Profile}
         options={{ headerShown: false }}
       />
-      <myTabs.Screen
+      <Tabs.Screen
         name="Settings"
         component={Settings}
         options={{ headerShown: false }}
       />
-    </myTabs.Navigator>
+    </Tabs.Navigator>
   );
 }

@@ -357,5 +357,69 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     }
   });
 
+  router.get("/feed", requireAuth, async (req, res) => {
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        message: "Server misconfig: SUPABASE_SERVICE_ROLE_KEY missing",
+      });
+    }
+
+    const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
+    const cursor = req.query.cursor || null; // created_at ISO
+
+    try {
+      let query = supabaseAdmin
+        .from("fight_clips")
+        .select(
+          `
+        id,
+        user_id,
+        fight_date,
+        opponent,
+        promotion,
+        result,
+        weight_class,
+        notes,
+        storage_path,
+        mime_type,
+        file_size,
+        created_at,
+        visibility,
+        source_type,
+        youtube_url,
+        youtube_id,
+        users (
+          id,
+          fname,
+          lname,
+          profile_picture_url,
+          role
+        )
+      `,
+        )
+        .eq("visibility", "public")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (cursor) {
+        query = query.lt("created_at", cursor);
+      }
+
+      const { data: clips, error } = await query;
+      if (error) throw error;
+
+      const nextCursor =
+        clips && clips.length ? clips[clips.length - 1].created_at : null;
+
+      return res.json({
+        clips: clips || [],
+        nextCursor,
+      });
+    } catch (err) {
+      console.error("fight_clips feed error:", err?.message || err);
+      return res.status(500).json({ message: "Failed to load feed" });
+    }
+  });
+
   return router;
 }
