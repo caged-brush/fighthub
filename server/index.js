@@ -73,8 +73,19 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ===== JWT UTILITY =====
-const createToken = (id) => {
-  return jwt.sign({ id }, process.env.SESSION_SECRET, { expiresIn: "3d" });
+const createToken = (userId) => {
+  const secret = (process.env.JWT_SECRET || "").trim();
+
+  if (!secret) {
+    // This will show in Render logs immediately
+    console.error(
+      "JWT_SECRET is missing at runtime. Keys:",
+      Object.keys(process.env),
+    );
+    throw new Error("Missing JWT_SECRET");
+  }
+
+  return jwt.sign({ id: userId }, secret, { expiresIn: "7d" });
 };
 
 // ===== MIDDLEWARE =====
