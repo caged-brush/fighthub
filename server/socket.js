@@ -8,21 +8,40 @@ export default function setupSocket(io, supabase) {
 
   // ✅ Require JWT auth on socket connection
   io.use((socket, next) => {
-    try {
-      const token = socket.handshake?.auth?.token;
-      if (!token) return next(new Error("unauthorized"));
+    const raw = socket.handshake?.auth?.token;
 
-      // NOTE: must match your Express JWT signing secret
+    // Log only safe metadata
+    console.log("[socket auth] hasToken=", !!raw, "len=", raw?.length);
+    console.log("[socket auth] hasSecret=", !!process.env.JWT_SECRET);
+
+    if (!raw) return next(new Error("unauthorized:missing_token"));
+
+    const token = raw.startsWith("Bearer ") ? raw.slice(7) : raw;
+
+    if (!process.env.JWT_SECRET) {
+      return next(new Error("unauthorized:missing_server_secret"));
+    }
+
+    try {
+      const decoded = jwt.decode(token);
+      console.log(
+        "[socket auth] decoded keys:",
+        decoded ? Object.keys(decoded) : null,
+      );
+      console.log("[socket auth] decoded exp:", decoded?.exp);
+
       const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Adjust key to your payload shape
-      const uid = norm(payload?.id || payload?.userId || payload?.sub);
-      if (!uid) return next(new Error("unauthorized"));
+      const uid = String(
+        payload?.id || payload?.userId || payload?.sub || "",
+      ).trim();
+      if (!uid) return next(new Error("unauthorized:missing_uid_claim"));
 
       socket.data.userId = uid;
-      next();
+      return next();
     } catch (e) {
-      return next(new Error("unauthorized"));
+      console.log("[socket auth] verify error:", e?.name, e?.message);
+      return next(new Error(`unauthorized:${e?.name || "verify_failed"}`));
     }
   });
 

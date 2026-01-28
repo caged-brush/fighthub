@@ -27,6 +27,8 @@ export default function ChatScreen() {
   const userId = String(authedUserId || "");
   const rid = String(recipientId || "");
 
+  console.log("userToken exists?", !!userToken, "len=", userToken?.length);
+
   const socket = useMemo(() => {
     // ✅ auth token sent in handshake
     return io("https://fighthub.onrender.com", {
