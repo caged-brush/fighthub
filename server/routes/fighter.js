@@ -126,6 +126,21 @@ export default function fightersRoutes(supabase, requireAuth) {
         .json({ message: "Only fighters can edit profiles" });
     }
 
+    const {
+      weight_class,
+      date_of_birth,
+      region,
+      wins,
+      losses,
+      draws,
+      fight_style,
+      height,
+      weight,
+      gym,
+      bio,
+      is_available,
+    } = req.body;
+
     const ALLOWED_REGIONS = new Set([
       "BC",
       "AB",
@@ -143,31 +158,19 @@ export default function fightersRoutes(supabase, requireAuth) {
     ]);
 
     const regionClean =
-      typeof region === "string" ? region.trim().toUpperCase() : null;
+      typeof region === "string" ? region.trim().toUpperCase() : "";
 
-    if (regionClean && !ALLOWED_REGIONS.has(regionClean)) {
+    // ✅ region required (because onboarding)
+    if (!regionClean) {
+      return res.status(400).json({ message: "Region is required." });
+    }
+
+    if (!ALLOWED_REGIONS.has(regionClean)) {
       return res.status(400).json({
         message:
           "Invalid region. Must be a Canadian province/territory code (e.g., BC, ON).",
       });
     }
-
-    const {
-      weight_class,
-      date_of_birth,
-      region,
-      wins,
-      losses,
-      draws,
-      fight_style,
-      height,
-      weight,
-
-      // ✅ NEW
-      gym,
-      bio,
-      is_available,
-    } = req.body;
 
     const toNum = (v) => (v === undefined || v === null ? null : Number(v));
     const w = toNum(wins);
@@ -178,7 +181,6 @@ export default function fightersRoutes(supabase, requireAuth) {
       return res.status(400).json({ message: "Invalid record values" });
     }
 
-    // ✅ basic validation (don’t overthink this)
     const gymClean = typeof gym === "string" ? gym.trim() : null;
     const bioClean = typeof bio === "string" ? bio.trim() : null;
     const avail =
@@ -200,12 +202,9 @@ export default function fightersRoutes(supabase, requireAuth) {
             fight_style,
             height,
             weight,
-
-            // ✅ NEW
             gym: gymClean,
             bio: bioClean,
             is_available: avail ?? true,
-
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id" },
@@ -215,12 +214,12 @@ export default function fightersRoutes(supabase, requireAuth) {
 
       if (fighterErr) throw fighterErr;
 
-      // 2) Update users row (onboarding + optional DOB + optional region)
+      // 2) Update users row (onboarding + DOB + region)
       const userUpdate = {
         fighter_onboarded: true,
+        region: regionClean, // ✅ always set (required)
       };
       if (date_of_birth) userUpdate.date_of_birth = date_of_birth;
-      if (regionClean) userUpdate.region = regionClean;
 
       const { error: userErr } = await supabase
         .from("users")
@@ -228,9 +227,6 @@ export default function fightersRoutes(supabase, requireAuth) {
         .eq("id", userId);
 
       if (userErr) throw userErr;
-      if (!regionClean) {
-        return res.status(400).json({ message: "Region is required." });
-      }
 
       return res.status(200).json({
         message: "Fighter profile saved",

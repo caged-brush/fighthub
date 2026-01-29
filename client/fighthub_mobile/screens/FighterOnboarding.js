@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -90,6 +91,7 @@ export default function FighterOnboarding() {
   const [wins, setWins] = useState("0");
   const [losses, setLosses] = useState("0");
   const [draws, setDraws] = useState("0");
+  const [showRegionPicker, setShowRegionPicker] = useState(false);
 
   const [heightCm, setHeightCm] = useState("");
   const [weightLbs, setWeightLbs] = useState("");
@@ -255,19 +257,18 @@ export default function FighterOnboarding() {
         </View>
 
         <Text style={styles.label}>Province/Territory *</Text>
-        <View style={styles.pickerWrap}>
-          <Picker
-            selectedValue={region}
-            onValueChange={(v) => setRegion(v)}
-            dropdownIconColor="#ffd700"
-            style={styles.picker}
-          >
-            <Picker.Item label="Select province/territory..." value="" />
-            {CANADA_REGIONS.map((r) => (
-              <Picker.Item key={r.code} label={r.label} value={r.code} />
-            ))}
-          </Picker>
-        </View>
+
+        <TouchableOpacity
+          style={styles.input}
+          activeOpacity={0.85}
+          onPress={() => setShowRegionPicker(true)}
+        >
+          <Text style={{ color: region ? "#fff" : "#777", fontSize: 16 }}>
+            {region
+              ? CANADA_REGIONS.find((r) => r.code === region)?.label
+              : "Select province/territory..."}
+          </Text>
+        </TouchableOpacity>
 
         {/* ✅ NEW: Gym */}
         <Text style={styles.label}>Gym *</Text>
@@ -410,6 +411,33 @@ export default function FighterOnboarding() {
         </CustomButton>
 
         <Text style={styles.hint}>* Required fields</Text>
+
+        <Modal
+          visible={showRegionPicker}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setShowRegionPicker(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalSheet}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setShowRegionPicker(false)}>
+                  <Text style={styles.modalDone}>Done</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Picker
+                selectedValue={region}
+                onValueChange={(v) => setRegion(v)}
+              >
+                <Picker.Item label="Select province/territory..." value="" />
+                {CANADA_REGIONS.map((r) => (
+                  <Picker.Item key={r.code} label={r.label} value={r.code} />
+                ))}
+              </Picker>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -502,10 +530,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e0245e",
     overflow: "hidden",
+    height: 56, // 👈 give it room
+    justifyContent: "center",
   },
   picker: {
     color: "#fff",
-    height: 46,
+    height: 56, // 👈 match
   },
 
   primaryBtn: { marginTop: 18, backgroundColor: "#e0245e" },
@@ -516,4 +546,27 @@ const styles = StyleSheet.create({
   secondaryText: { color: "#fff", fontWeight: "900", fontSize: 16 },
 
   hint: { marginTop: 12, color: "#777", textAlign: "center" },
+
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  modalSheet: {
+    backgroundColor: "#1c1c1c",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+    alignItems: "flex-end",
+  },
+  modalDone: {
+    color: "#ffd700",
+    fontWeight: "900",
+    fontSize: 16,
+  },
 });
