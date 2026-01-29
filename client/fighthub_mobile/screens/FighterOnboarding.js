@@ -17,6 +17,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { API_URL } from "../Constants";
+import { Picker } from "@react-native-picker/picker";
 
 const WEIGHT_CLASSES = [
   "Flyweight",
@@ -37,6 +38,22 @@ const FIGHT_STYLES = [
   "Muay Thai",
   "Kickboxing",
   "Judo",
+];
+
+const CANADA_REGIONS = [
+  { code: "BC", label: "British Columbia" },
+  { code: "AB", label: "Alberta" },
+  { code: "SK", label: "Saskatchewan" },
+  { code: "MB", label: "Manitoba" },
+  { code: "ON", label: "Ontario" },
+  { code: "QC", label: "Quebec" },
+  { code: "NB", label: "New Brunswick" },
+  { code: "NS", label: "Nova Scotia" },
+  { code: "PE", label: "Prince Edward Island" },
+  { code: "NL", label: "Newfoundland and Labrador" },
+  { code: "YT", label: "Yukon" },
+  { code: "NT", label: "Northwest Territories" },
+  { code: "NU", label: "Nunavut" },
 ];
 
 const toYMD = (date) => {
@@ -88,7 +105,22 @@ export default function FighterOnboarding() {
     if (!dateOfBirth || dateOfBirth.length !== 10) return false;
     if (!weightClass) return false;
     if (!fightStyle) return false;
-    if (region.trim().length < 2) return false;
+    const allowed = new Set([
+      "BC",
+      "AB",
+      "SK",
+      "MB",
+      "ON",
+      "QC",
+      "NB",
+      "NS",
+      "PE",
+      "NL",
+      "YT",
+      "NT",
+      "NU",
+    ]);
+    if (!allowed.has(region)) return false;
 
     // ✅ required
     if (gym.trim().length < 2) return false;
@@ -111,7 +143,7 @@ export default function FighterOnboarding() {
     if (!canSubmit) {
       Alert.alert(
         "Missing info",
-        "DOB, Weight Class, Region, Fight Style, Gym, and Bio are required.\nBio must be at least 10 characters."
+        "DOB, Weight Class, Region, Fight Style, Gym, and Bio are required.\nBio must be at least 10 characters.",
       );
       return;
     }
@@ -147,11 +179,11 @@ export default function FighterOnboarding() {
     } catch (err) {
       console.error(
         "FIGHTER ONBOARDING ERROR:",
-        err?.response?.data || err?.message
+        err?.response?.data || err?.message,
       );
       Alert.alert(
         "Error",
-        err?.response?.data?.message || "Failed to save fighter profile"
+        err?.response?.data?.message || "Failed to save fighter profile",
       );
     } finally {
       setSubmitting(false);
@@ -222,16 +254,20 @@ export default function FighterOnboarding() {
           })}
         </View>
 
-        <Text style={styles.label}>Region *</Text>
-        <TextInput
-          style={styles.input}
-          value={region}
-          onChangeText={setRegion}
-          placeholder="e.g. Vancouver, BC"
-          placeholderTextColor="#777"
-          autoCapitalize="words"
-          returnKeyType="done"
-        />
+        <Text style={styles.label}>Province/Territory *</Text>
+        <View style={styles.pickerWrap}>
+          <Picker
+            selectedValue={region}
+            onValueChange={(v) => setRegion(v)}
+            dropdownIconColor="#ffd700"
+            style={styles.picker}
+          >
+            <Picker.Item label="Select province/territory..." value="" />
+            {CANADA_REGIONS.map((r) => (
+              <Picker.Item key={r.code} label={r.label} value={r.code} />
+            ))}
+          </Picker>
+        </View>
 
         {/* ✅ NEW: Gym */}
         <Text style={styles.label}>Gym *</Text>
@@ -458,6 +494,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#333",
     backgroundColor: "#232323",
+  },
+
+  pickerWrap: {
+    backgroundColor: "#1c1c1c",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e0245e",
+    overflow: "hidden",
+  },
+  picker: {
+    color: "#fff",
+    height: 46,
   },
 
   primaryBtn: { marginTop: 18, backgroundColor: "#e0245e" },

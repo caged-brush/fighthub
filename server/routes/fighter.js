@@ -58,7 +58,7 @@ export default function fightersRoutes(supabase, requireAuth) {
     profile_picture_url,
     region
   )
-`
+`,
         )
 
         .order("wins", { ascending: false })
@@ -103,7 +103,7 @@ export default function fightersRoutes(supabase, requireAuth) {
             profile_picture_url,
             region
           )
-        `
+        `,
         )
         .eq("user_id", userId)
         .single();
@@ -124,6 +124,32 @@ export default function fightersRoutes(supabase, requireAuth) {
       return res
         .status(403)
         .json({ message: "Only fighters can edit profiles" });
+    }
+
+    const ALLOWED_REGIONS = new Set([
+      "BC",
+      "AB",
+      "SK",
+      "MB",
+      "ON",
+      "QC",
+      "NB",
+      "NS",
+      "PE",
+      "NL",
+      "YT",
+      "NT",
+      "NU",
+    ]);
+
+    const regionClean =
+      typeof region === "string" ? region.trim().toUpperCase() : null;
+
+    if (regionClean && !ALLOWED_REGIONS.has(regionClean)) {
+      return res.status(400).json({
+        message:
+          "Invalid region. Must be a Canadian province/territory code (e.g., BC, ON).",
+      });
     }
 
     const {
@@ -182,7 +208,7 @@ export default function fightersRoutes(supabase, requireAuth) {
 
             updated_at: new Date().toISOString(),
           },
-          { onConflict: "user_id" }
+          { onConflict: "user_id" },
         )
         .select()
         .single();
@@ -194,7 +220,7 @@ export default function fightersRoutes(supabase, requireAuth) {
         fighter_onboarded: true,
       };
       if (date_of_birth) userUpdate.date_of_birth = date_of_birth;
-      if (region) userUpdate.region = region;
+      if (regionClean) userUpdate.region = regionClean;
 
       const { error: userErr } = await supabase
         .from("users")
@@ -202,6 +228,9 @@ export default function fightersRoutes(supabase, requireAuth) {
         .eq("id", userId);
 
       if (userErr) throw userErr;
+      if (!regionClean) {
+        return res.status(400).json({ message: "Region is required." });
+      }
 
       return res.status(200).json({
         message: "Fighter profile saved",
