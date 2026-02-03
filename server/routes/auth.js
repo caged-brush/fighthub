@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { sendOtpEmail } from "../service/emailService.js";
 import crypto from "crypto";
-import { supabaseAdmin } from "../config/supabase";
+import { supabaseAdmin } from "../config/supabase.js";
 
 const router = express.Router();
 
