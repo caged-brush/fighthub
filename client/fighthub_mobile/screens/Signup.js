@@ -142,7 +142,7 @@ export default function Signup() {
   };
 
   const handleUserSignup = async () => {
-    if (submitting) return; // hard lock
+    if (submitting) return;
     setSubmitting(true);
 
     try {
@@ -158,8 +158,6 @@ export default function Signup() {
         return;
       }
 
-      console.log("SIGNUP PRESS", Date.now()); // prove only once
-
       const res = await axios.post(`${API_URL}/register`, {
         fname,
         lname,
@@ -169,23 +167,26 @@ export default function Signup() {
         role: selectedRole,
       });
 
-      const { token, userId, role } = res.data || {};
-      if (!token || !userId || !role) {
+      const { userId, role } = res.data || {};
+
+      if (!userId || !role) {
         console.log("BAD REGISTER RESPONSE:", res.data);
-        Alert.alert("Error", "Registration failed (bad server response)");
+        Alert.alert("Error", "Registration failed");
         return;
       }
 
-      // DON’T call setUserRole separately if signup already stores it
-      await signup(token, userId, role);
-
-      Alert.alert("Success", "Registration Successful");
+      // 🚨 IMPORTANT: NO signup(), NO token here
+      navigation.navigate("VerifyEmail", {
+        email,
+        userId,
+        role,
+      });
     } catch (error) {
       console.error("Signup error:", error.response?.data || error.message);
       Alert.alert(
         "Error",
         error.response?.data?.message ||
-          "Something went wrong. Please try again"
+          "Something went wrong. Please try again",
       );
     } finally {
       setSubmitting(false);
@@ -226,8 +227,8 @@ export default function Signup() {
                 {selectedRole === "scout"
                   ? "Scout Signup"
                   : selectedRole === "fighter"
-                  ? "Fighter Signup"
-                  : "Fighthub Signup"}
+                    ? "Fighter Signup"
+                    : "Fighthub Signup"}
               </Text>
 
               {!!selectedRole && (
@@ -254,8 +255,8 @@ export default function Signup() {
                         field === "password"
                           ? !showPassword
                           : field === "confirmPassword"
-                          ? !showConfirmPassword
-                          : false
+                            ? !showConfirmPassword
+                            : false
                       }
                       onChangeText={(value) => handleChange(field, value)}
                       value={formData[field]}
@@ -280,8 +281,8 @@ export default function Signup() {
                                 ? "eye-off"
                                 : "eye"
                               : showConfirmPassword
-                              ? "eye-off"
-                              : "eye"
+                                ? "eye-off"
+                                : "eye"
                           }
                           size={24}
                           color="#ffd700"
@@ -290,7 +291,7 @@ export default function Signup() {
                     )}
                   </View>
                 </View>
-              )
+              ),
             )}
 
             <View style={styles.buttonGroup}>

@@ -124,6 +124,10 @@ export default function authRoutes(supabase, createToken, validateUserInput) {
       }
 
       // 6) email otp send
+      // normalize email once
+      const emailClean = String(email).trim().toLowerCase();
+
+      // 6) email otp send
       const otp = String(crypto.randomInt(100000, 1000000));
       const otpHash = await bcrypt.hash(otp, 10);
       const expiryMinutes = 10;
@@ -131,6 +135,7 @@ export default function authRoutes(supabase, createToken, validateUserInput) {
         Date.now() + expiryMinutes * 60 * 1000,
       ).toISOString();
 
+      // store verification state
       const { error: verErr } = await supabaseAdmin
         .from("users")
         .update({
@@ -147,16 +152,33 @@ export default function authRoutes(supabase, createToken, validateUserInput) {
           .json({ message: "Failed to start email verification" });
       }
 
-      await sendOtpEmail({
-        to: email,
-        name: fname,
-        otp,
-        expiryMinutes,
-      });
+      // send OTP email (rollback if this fails)
+      try {
+        await sendOtpEmail({
+          to: emailClean,
+          name: fname,
+          otp,
+          expiryMinutes,
+        });
+      } catch (e) {
+        console.error("sendOtpEmail failed:", e);
+
+        // rollback to avoid dead unverified accounts
+        await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
+        await supabaseAdmin.from("fighters").delete().eq("user_id", userId);
+        await supabaseAdmin.from("scouts").delete().eq("user_id", userId);
+        await supabaseAdmin.from("users").delete().eq("id", userId);
+
+        return res
+          .status(500)
+          .json({ message: "Failed to send verification email" });
+      }
+
       return res.status(200).json({
         message: "Verification code sent",
         userId,
         role,
+        email: emailClean,
       });
     } catch (err) {
       console.error("register error:", err);
@@ -167,20 +189,27 @@ export default function authRoutes(supabase, createToken, validateUserInput) {
   //Email verification route//
 
   router.post("/verify-email", async (req, res) => {
+    const { email, code } = req.body;
+
     try {
       if (!email || !code) {
-        return res.status(400).json({ messgae: "Email and code are required" });
+        return res.status(400).json({ message: "Email and code are required" });
       }
+
+      const emailClean = String(email).trim().toLowerCase();
+      const codeClean = String(code).trim();
+
       const { data: user, error } = await supabase
         .from("users")
         .select(
           "id, email_verify_token, email_verify_expiry, email_verified, role",
         )
-        .eq("email", email)
+        .eq("email", emailClean)
         .maybeSingle();
 
       if (error) throw error;
       if (!user) return res.status(400).json({ message: "Invalid code" });
+
       if (user.email_verified) {
         const token = createToken(user.id);
         return res.status(200).json({
@@ -199,7 +228,7 @@ export default function authRoutes(supabase, createToken, validateUserInput) {
         return res.status(400).json({ message: "Code expired" });
       }
 
-      const ok = await bcrypt.compare(String(code), user.email_verify_token);
+      const ok = await bcrypt.compare(codeClean, user.email_verify_token);
       if (!ok) return res.status(400).json({ message: "Invalid code" });
 
       const { error: updErr } = await supabase
@@ -220,8 +249,69 @@ export default function authRoutes(supabase, createToken, validateUserInput) {
         userId: user.id,
         role: user.role,
       });
-    } catch (error) {
+    } catch (err) {
       console.error("verify-email error:", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  router.post("/resend-verification", async (req, res) => {
+    const { email } = req.body;
+
+    try {
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const emailClean = String(email).trim().toLowerCase();
+
+      const { data: user, error } = await supabase
+        .from("users")
+        .select("id, fname, email_verified")
+        .eq("email", emailClean)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      // SECURITY: do not reveal whether the email exists
+      if (!user) {
+        return res
+          .status(200)
+          .json({ message: "If that email exists, a new code was sent." });
+      }
+
+      if (user.email_verified) {
+        return res.status(200).json({ message: "Email is already verified." });
+      }
+
+      const otp = String(crypto.randomInt(100000, 1000000));
+      const otpHash = await bcrypt.hash(otp, 10);
+      const expiryMinutes = 10;
+      const expiresAt = new Date(
+        Date.now() + expiryMinutes * 60 * 1000,
+      ).toISOString();
+
+      // Use admin client if these fields are protected by RLS
+      const { error: updErr } = await supabaseAdmin
+        .from("users")
+        .update({
+          email_verify_token: otpHash,
+          email_verify_expiry: expiresAt,
+        })
+        .eq("id", user.id);
+
+      if (updErr) throw updErr;
+
+      await sendOtpEmail({
+        to: emailClean,
+        name: user.fname,
+        otp,
+        expiryMinutes,
+      });
+
+      return res.status(200).json({ message: "New verification code sent." });
+    } catch (err) {
+      console.error("resend-verification error:", err);
       return res.status(500).json({ message: "Server error" });
     }
   });
