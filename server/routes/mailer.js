@@ -1,5 +1,5 @@
 import express from "express";
-
+import {Resend} from 'resend'
 const router = express.Router();
 
 export default function mailerRoute(client) {

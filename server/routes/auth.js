@@ -1,15 +1,13 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import { sendOtpEmail } from "../service/emailService";
+import crypto from "crypto";
+import { supabaseAdmin } from "../config/supabase";
 
 const router = express.Router();
 
-export default function authRoutes(
-  supabase,
-  createToken,
-  validateUserInput,
-  transport
-) {
+export default function authRoutes(supabase, createToken, validateUserInput) {
   /**
    * POST /register
    * Creates user + assigns role + initializes role table
@@ -125,12 +123,106 @@ export default function authRoutes(
         }
       }
 
-      // 6) Token
-      const token = createToken(userId);
-      res.status(200).json({ token, userId, role });
+      // 6) email otp send
+      const otp = String(crypto.randomInt(100000, 1000000));
+      const otpHash = await bcrypt.hash(otp, 10);
+      const expiryMinutes = 10;
+      const expiresAt = new Date(
+        Date.now() + expiryMinutes * 60 * 1000,
+      ).toISOString();
+
+      const { error: verErr } = await supabaseAdmin
+        .from("users")
+        .update({
+          email_verified: false,
+          email_verify_token: otpHash,
+          email_verify_expiry: expiresAt,
+        })
+        .eq("id", userId);
+
+      if (verErr) {
+        console.error("verification store error:", verErr);
+        return res
+          .status(500)
+          .json({ message: "Failed to start email verification" });
+      }
+
+      await sendOtpEmail({
+        to: email,
+        name: fname,
+        otp,
+        expiryMinutes,
+      });
+      return res.status(200).json({
+        message: "Verification code sent",
+        userId,
+        role,
+      });
     } catch (err) {
       console.error("register error:", err);
       res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  //Email verification route//
+
+  router.post("/verify-email", async (req, res) => {
+    try {
+      if (!email || !code) {
+        return res.status(400).json({ messgae: "Email and code are required" });
+      }
+      const { data: user, error } = await supabase
+        .from("users")
+        .select(
+          "id, email_verify_token, email_verify_expiry, email_verified, role",
+        )
+        .eq("email", email)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!user) return res.status(400).json({ message: "Invalid code" });
+      if (user.email_verified) {
+        const token = createToken(user.id);
+        return res.status(200).json({
+          message: "Already verified",
+          token,
+          userId: user.id,
+          role: user.role,
+        });
+      }
+
+      if (!user.email_verify_token || !user.email_verify_expiry) {
+        return res.status(400).json({ message: "No verification pending" });
+      }
+
+      if (new Date(user.email_verify_expiry) < new Date()) {
+        return res.status(400).json({ message: "Code expired" });
+      }
+
+      const ok = await bcrypt.compare(String(code), user.email_verify_token);
+      if (!ok) return res.status(400).json({ message: "Invalid code" });
+
+      const { error: updErr } = await supabase
+        .from("users")
+        .update({
+          email_verified: true,
+          email_verify_token: null,
+          email_verify_expiry: null,
+        })
+        .eq("id", user.id);
+
+      if (updErr) throw updErr;
+
+      const token = createToken(user.id);
+      return res.status(200).json({
+        message: "Email verified",
+        token,
+        userId: user.id,
+        role: user.role,
+      });
+    } catch (error) {
+      console.error("verify-email error:", err);
+      return res.status(500).json({ message: "Server error" });
     }
   });
 
@@ -144,7 +236,9 @@ export default function authRoutes(
     try {
       const { data: user, error } = await supabase
         .from("users")
-        .select("id, password, scout_onboarded, fighter_onboarded, role")
+        .select(
+          "id, password, scout_onboarded, fighter_onboarded, role, email_verified",
+        )
         .eq("email", email)
         .maybeSingle();
 
@@ -156,10 +250,13 @@ export default function authRoutes(
       if (!valid)
         return res.status(401).json({ message: "Invalid credentials" });
 
-      // Prefer users.role if you store it there already (you do on register)
+      // ✅ ENFORCE EMAIL VERIFICATION
+      if (!user.email_verified) {
+        return res.status(403).json({ message: "Please verify your email" });
+      }
+
       let role = user.role;
 
-      // Fallback to user_roles if role missing
       if (!role) {
         const { data: rolesData, error: rolesError } = await supabase
           .from("user_roles")
@@ -170,9 +267,8 @@ export default function authRoutes(
         role = rolesData?.[0]?.role;
       }
 
-      if (!role) {
+      if (!role)
         return res.status(500).json({ message: "Role not found for user" });
-      }
 
       const isOnBoarded =
         role === "scout" ? !!user.scout_onboarded : !!user.fighter_onboarded;
@@ -185,7 +281,6 @@ export default function authRoutes(
         role,
         isOnBoarded,
       });
-      
     } catch (err) {
       console.error("Login error:", err);
       return res.status(500).json({ message: "Server error" });
@@ -219,7 +314,7 @@ export default function authRoutes(
         .update({
           reset_token: hashedToken,
           reset_token_expiry: new Date(
-            Date.now() + 60 * 60 * 1000
+            Date.now() + 60 * 60 * 1000,
           ).toISOString(),
         })
         .eq("id", user.id);

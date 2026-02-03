@@ -114,16 +114,7 @@ app.use((req, res, next) => {
 });
 
 // ===== EMAIL SETUP =====
-const client = new ServerClient(process.env.POSTMARK_TOKEN);
-const transport = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+
 
 // ===== FILE UPLOAD SETUP =====
 const uploadDir = path.join(__dirname, "uploads");
@@ -175,7 +166,7 @@ app.use(postsRoute(supabase, upload, uploadDir));
 app.use(followersRoute(supabase));
 app.use(likesRoute(supabase));
 app.use(usersRoute(supabase));
-app.use(authRoutes(supabase, createToken, validateUserInput, transport));
+app.use(authRoutes(supabase, createToken, validateUserInput));
 app.use(profileRoutes(supabase, upload, requireAuth));
 app.use("/fighters", fightersRoute(supabase, requireAuth));
 app.use("/scouts", scoutsRoutes(supabase, requireAuth));
