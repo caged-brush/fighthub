@@ -1,7 +1,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { sendOtpEmail } from "../service/emailService";
+import { sendOtpEmail } from "../service/emailService.js";
 import crypto from "crypto";
 import { supabaseAdmin } from "../config/supabase";
 
