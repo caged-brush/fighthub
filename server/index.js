@@ -6,14 +6,13 @@ import jwt from "jsonwebtoken";
 import path from "path";
 import fs from "fs";
 import passport from "passport";
-import nodemailer from "nodemailer";
 import multer from "multer";
-import { ServerClient } from "postmark";
+
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import fightersRoute from "./routes/fighter.js";
-import mailerRoute from "./routes/mailer.js";
+
 import postsRoute from "./routes/posts.js";
 import followersRoute from "./routes/followers.js";
 import likesRoute from "./routes/likes.js";
@@ -161,7 +160,7 @@ function validateUserInput(req, res, next) {
 }
 
 // ===== ROUTES =====
-app.use(mailerRoute(client));
+
 app.use(postsRoute(supabase, upload, uploadDir));
 app.use(followersRoute(supabase));
 app.use(likesRoute(supabase));
