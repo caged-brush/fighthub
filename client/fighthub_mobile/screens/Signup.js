@@ -11,10 +11,11 @@ import {
   Keyboard,
   StyleSheet,
   SafeAreaView,
+  ActivityIndicator,
 } from "react-native";
 import CustomButton from "../component/CustomButton";
 import axios from "axios";
-import { useContext, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -26,82 +27,9 @@ import { API_URL } from "../Constants";
 
 const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#181818" },
-  container: {
-    flexGrow: 1,
-    padding: 24,
-    backgroundColor: "#181818",
-    justifyContent: "center",
-  },
-  logoContainer: { alignItems: "center", marginBottom: 32 },
-  fighterIcon: {
-    backgroundColor: "#232323",
-    borderRadius: 50,
-    padding: 18,
-    borderWidth: 2,
-    borderColor: "#e0245e",
-    marginBottom: 8,
-  },
-  title: {
-    color: "#ffd700",
-    fontWeight: "bold",
-    fontSize: 28,
-    letterSpacing: 1,
-  },
-  fieldContainer: { marginTop: 18 },
-  label: {
-    color: "#ffd700",
-    fontWeight: "bold",
-    fontSize: 16,
-    marginBottom: 6,
-  },
-  inputContainer: { position: "relative" },
-  input: {
-    backgroundColor: "#232323",
-    borderRadius: 10,
-    height: 48,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    color: "#fff",
-    borderWidth: 2,
-    borderColor: "#e0245e",
-    marginBottom: 6,
-  },
-  eyeIcon: {
-    position: "absolute",
-    right: 10,
-    top: "50%",
-    transform: [{ translateY: -12 }],
-  },
-  buttonGroup: { marginTop: 24 },
-  button: { marginBottom: 12 },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 18,
-    letterSpacing: 1,
-  },
-
-  // ✅ tiny role pill so user sees what they’re signing up as
-  rolePill: {
-    alignSelf: "center",
-    marginTop: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#ffd700",
-    backgroundColor: "#232323",
-  },
-  rolePillText: { color: "#ffd700", fontWeight: "700" },
-});
-
-export default function Signup() {
+const Signup = () => {
   const navigation = useNavigation();
   const route = useRoute();
-
-  // ✅ IMPORTANT: role comes from Welcome
   const selectedRole = route.params?.role; // 'fighter' | 'scout'
 
   const { signup, setUserRole } = useContext(AuthContext);
@@ -118,13 +46,17 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const fieldLabels = {
-    fname: "First Name",
-    lname: "Last Name",
-    email: "E-mail",
-    password: "Password",
-    confirmPassword: "Confirm Password",
-  };
+  const roleLabel = useMemo(() => {
+    if (selectedRole === "fighter") return "FIGHTER";
+    if (selectedRole === "scout") return "SCOUT";
+    return null;
+  }, [selectedRole]);
+
+  const titleText = useMemo(() => {
+    if (selectedRole === "fighter") return "Create your fighter account";
+    if (selectedRole === "scout") return "Create your scout account";
+    return "Create your account";
+  }, [selectedRole]);
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: CLIENT_ID_IOS,
@@ -135,28 +67,49 @@ export default function Signup() {
   });
 
   const handleChange = (name, value) => {
-    if (name === "email") {
-      value = value.trim().toLowerCase();
+    if (name === "email") value = value.trim().toLowerCase();
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const validate = () => {
+    const { fname, lname, email, password, confirmPassword } = formData;
+
+    if (!selectedRole || !["fighter", "scout"].includes(selectedRole)) {
+      Alert.alert("Choose a role", "Go back and pick Fighter or Scout.");
+      return false;
     }
-    setFormData({ ...formData, [name]: value });
+
+    if (!fname.trim() || !lname.trim()) {
+      Alert.alert("Missing name", "Enter your first and last name.");
+      return false;
+    }
+
+    if (!email.includes("@")) {
+      Alert.alert("Invalid email", "Enter a valid email address.");
+      return false;
+    }
+
+    if (password.length < 8) {
+      Alert.alert("Weak password", "Use at least 8 characters.");
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Passwords mismatch", "Passwords do not match.");
+      return false;
+    }
+
+    return true;
   };
 
   const handleUserSignup = async () => {
     if (submitting) return;
+    if (!validate()) return;
+
     setSubmitting(true);
 
     try {
       const { fname, lname, email, password, confirmPassword } = formData;
-
-      if (!selectedRole || !["fighter", "scout"].includes(selectedRole)) {
-        Alert.alert("Missing role", "Go back and choose Fighter or Scout.");
-        return;
-      }
-
-      if (password !== confirmPassword) {
-        Alert.alert("Error", "Passwords do not match");
-        return;
-      }
 
       const res = await axios.post(`${API_URL}/register`, {
         fname,
@@ -168,14 +121,12 @@ export default function Signup() {
       });
 
       const { userId, role } = res.data || {};
-
       if (!userId || !role) {
         console.log("BAD REGISTER RESPONSE:", res.data);
         Alert.alert("Error", "Registration failed");
         return;
       }
 
-      // 🚨 IMPORTANT: NO signup(), NO token here
       navigation.replace("VerifyEmail", { email, userId, role });
     } catch (error) {
       console.error("Signup error:", error.response?.data || error.message);
@@ -192,11 +143,13 @@ export default function Signup() {
   const handleLogin = () => navigation.navigate("Login");
 
   const signIn = async () => {
-    // ⚠️ You still need to map Google sign-in into your backend auth eventually.
+    if (submitting) return;
+
     const result = await promptAsync();
     if (result?.type === "success") {
       const { idToken, accessToken } = result.authentication;
       const credential = GoogleAuthProvider.credential(idToken, accessToken);
+
       signInWithCredential(auth, credential)
         .then((userCredential) => {
           console.log("User signed in:", userCredential.user);
@@ -213,105 +166,327 @@ export default function Signup() {
         style={{ flex: 1 }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView contentContainerStyle={styles.container}>
-            <View style={styles.logoContainer}>
-              <View style={styles.fighterIcon}>
-                <Ionicons name="body-outline" size={48} color="#ffd700" />
-              </View>
+          <ScrollView
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.brand}>Kavyx</Text>
 
-              <Text style={styles.title}>
-                {selectedRole === "scout"
-                  ? "Scout Signup"
-                  : selectedRole === "fighter"
-                    ? "Fighter Signup"
-                    : "Fighthub Signup"}
-              </Text>
-
-              {!!selectedRole && (
+              {roleLabel && (
                 <View style={styles.rolePill}>
-                  <Text style={styles.rolePillText}>
-                    Signing up as: {selectedRole.toUpperCase()}
-                  </Text>
+                  <Text style={styles.rolePillText}>{roleLabel}</Text>
                 </View>
               )}
+
+              <Text style={styles.title}>{titleText}</Text>
+              <Text style={styles.subtitle}>
+                Use a real email — you’ll need it to verify your account.
+              </Text>
             </View>
 
-            {["fname", "lname", "email", "password", "confirmPassword"].map(
-              (field, index) => (
-                <View style={styles.fieldContainer} key={index}>
-                  <Text style={styles.label}>
-                    {fieldLabels[field] ||
-                      field.charAt(0).toUpperCase() + field.slice(1)}
-                  </Text>
+            {/* Form Card */}
+            <View style={styles.card}>
+              <Field
+                label="First name"
+                value={formData.fname}
+                onChangeText={(v) => handleChange("fname", v)}
+                placeholder="Suleiman"
+                autoCapitalize="words"
+              />
+              <Field
+                label="Last name"
+                value={formData.lname}
+                onChangeText={(v) => handleChange("lname", v)}
+                placeholder="Jibril-Ahmed"
+                autoCapitalize="words"
+              />
+              <Field
+                label="Email"
+                value={formData.email}
+                onChangeText={(v) => handleChange("email", v)}
+                placeholder="you@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
 
-                  <View style={styles.inputContainer}>
-                    <TextInput
-                      style={styles.input}
-                      secureTextEntry={
-                        field === "password"
-                          ? !showPassword
-                          : field === "confirmPassword"
-                            ? !showConfirmPassword
-                            : false
-                      }
-                      onChangeText={(value) => handleChange(field, value)}
-                      value={formData[field]}
-                      placeholder={`Enter your ${fieldLabels[field] || field}`}
-                      placeholderTextColor="#aaa"
-                      autoCapitalize={field === "email" ? "none" : "words"}
-                    />
+              <PasswordField
+                label="Password"
+                value={formData.password}
+                onChangeText={(v) => handleChange("password", v)}
+                placeholder="At least 8 characters"
+                show={showPassword}
+                setShow={setShowPassword}
+              />
 
-                    {field.toLowerCase().includes("password") && (
-                      <TouchableOpacity
-                        onPress={() =>
-                          field === "password"
-                            ? setShowPassword(!showPassword)
-                            : setShowConfirmPassword(!showConfirmPassword)
-                        }
-                        style={styles.eyeIcon}
-                      >
-                        <Ionicons
-                          name={
-                            field === "password"
-                              ? showPassword
-                                ? "eye-off"
-                                : "eye"
-                              : showConfirmPassword
-                                ? "eye-off"
-                                : "eye"
-                          }
-                          size={24}
-                          color="#ffd700"
-                        />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-              ),
-            )}
+              <PasswordField
+                label="Confirm password"
+                value={formData.confirmPassword}
+                onChangeText={(v) => handleChange("confirmPassword", v)}
+                placeholder="Repeat password"
+                show={showConfirmPassword}
+                setShow={setShowConfirmPassword}
+              />
+            </View>
 
-            <View style={styles.buttonGroup}>
+            {/* Actions */}
+            <View style={styles.actions}>
               <CustomButton
-                style={styles.button}
-                onPress={handleUserSignup}
+                variant="primary"
                 disabled={submitting}
+                onPress={handleUserSignup}
+                style={styles.fullWidth}
               >
-                <Text style={styles.buttonText}>
-                  {submitting ? "Signing up..." : "Sign up"}
+                {submitting ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator color="#fff" />
+                    <Text style={styles.loadingText}>Creating account…</Text>
+                  </View>
+                ) : (
+                  "Create account"
+                )}
+              </CustomButton>
+
+              <CustomButton
+                variant="outline"
+                disabled={submitting}
+                onPress={signIn}
+                style={styles.fullWidth}
+              >
+                <View style={styles.googleRow}>
+                  <Ionicons name="logo-google" size={18} color="#ffd700" />
+                  <Text style={styles.googleText}>Continue with Google</Text>
+                </View>
+              </CustomButton>
+
+              <TouchableOpacity
+                onPress={handleLogin}
+                activeOpacity={0.8}
+                style={styles.loginWrap}
+              >
+                <Text style={styles.loginText}>
+                  Already have an account?{" "}
+                  <Text style={styles.loginLink}>Log in</Text>
                 </Text>
-              </CustomButton>
-
-              <CustomButton style={styles.button} onPress={handleLogin}>
-                <Text style={styles.buttonText}>Log in</Text>
-              </CustomButton>
-
-              <CustomButton style={styles.button} onPress={signIn}>
-                <Text style={styles.buttonText}>Sign up with Google</Text>
-              </CustomButton>
+              </TouchableOpacity>
             </View>
+
+            {/* Footer note */}
+            <Text style={styles.footer}>
+              By continuing, you agree to respectful conduct on Kavyx.
+            </Text>
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+};
+
+function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  autoCapitalize,
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="rgba(255,255,255,0.35)"
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+      />
+    </View>
+  );
 }
+
+function PasswordField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  show,
+  setShow,
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={styles.inputWrap}>
+        <TextInput
+          style={[styles.input, { paddingRight: 44 }]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="rgba(255,255,255,0.35)"
+          secureTextEntry={!show}
+          autoCapitalize="none"
+        />
+        <TouchableOpacity
+          onPress={() => setShow(!show)}
+          activeOpacity={0.7}
+          style={styles.eyeBtn}
+        >
+          <Ionicons name={show ? "eye-off" : "eye"} size={22} color="#ffd700" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#0b0b0b" },
+
+  container: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "android" ? 14 : 0,
+    paddingBottom: 28,
+    justifyContent: "center",
+    gap: 14,
+  },
+
+  header: {
+    alignItems: "flex-start",
+    marginBottom: 6,
+  },
+  brand: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 1.6,
+    marginBottom: 10,
+  },
+  rolePill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.45)",
+    backgroundColor: "rgba(255,215,0,0.08)",
+    marginBottom: 12,
+  },
+  rolePillText: {
+    color: "#ffd700",
+    fontWeight: "900",
+    letterSpacing: 1.2,
+    fontSize: 12,
+  },
+  title: {
+    color: "#ffd700",
+    fontSize: 30,
+    fontWeight: "950",
+    lineHeight: 34,
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    lineHeight: 20,
+    maxWidth: 340,
+  },
+
+  card: {
+    backgroundColor: "#121212",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  field: { marginBottom: 12 },
+  label: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 8,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+
+  inputWrap: { position: "relative" },
+  input: {
+    backgroundColor: "#0f0f0f",
+    borderRadius: 14,
+    height: 52,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: "#fff",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  eyeBtn: {
+    position: "absolute",
+    right: 12,
+    top: 0,
+    height: 52,
+    width: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  actions: {
+    gap: 10,
+    marginTop: 6,
+  },
+  fullWidth: {
+    width: "100%",
+    borderRadius: 14,
+  },
+
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  loadingText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 16,
+    letterSpacing: 0.6,
+  },
+
+  googleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  googleText: {
+    color: "#ffd700",
+    fontWeight: "900",
+    fontSize: 16,
+    letterSpacing: 0.6,
+  },
+
+  loginWrap: {
+    alignItems: "center",
+    paddingTop: 6,
+  },
+  loginText: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 14,
+  },
+  loginLink: {
+    color: "rgba(255,255,255,0.92)",
+    fontWeight: "900",
+    textDecorationLine: "underline",
+  },
+
+  footer: {
+    textAlign: "center",
+    marginTop: 10,
+    color: "rgba(255,255,255,0.35)",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+});
+
+export default Signup;
