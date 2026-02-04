@@ -122,8 +122,6 @@ export default function VerifyEmail() {
       await signup(token, userId, role);
 
       // Go to onboarding after verified
-      if (role === "fighter") navigation.replace("FighterOnboarding");
-      else navigation.replace("ScoutOnboarding");
     } catch (error) {
       console.error("Verify error:", error.response?.data || error.message);
       Alert.alert(
