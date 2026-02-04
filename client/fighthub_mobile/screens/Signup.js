@@ -176,11 +176,7 @@ export default function Signup() {
       }
 
       // 🚨 IMPORTANT: NO signup(), NO token here
-      navigation.navigate("VerifyEmail", {
-        email,
-        userId,
-        role,
-      });
+      navigation.replace("VerifyEmail", { email, userId, role });
     } catch (error) {
       console.error("Signup error:", error.response?.data || error.message);
       Alert.alert(

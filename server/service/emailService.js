@@ -32,9 +32,9 @@ export async function sendOtpEmail({ to, name, otp, expiryMinutes = 10 }) {
   const template = loadTemplate("auth-otp.html");
 
   const html = render(template, {
-    USER_NAME: name ?? "there",
-    OTP_CODE: otp,
-    EXPIRY_MINUTES: expiryMinutes,
+    user_name: name ?? "there",
+    otp_code: otp,
+    expiry_minutes: expiryMinutes,
   });
 
   const { data, error } = await resend.emails.send({

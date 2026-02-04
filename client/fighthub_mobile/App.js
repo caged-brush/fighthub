@@ -19,6 +19,7 @@ import UserProfile from "./screens/UserProfile"; // Import UserProfile
 import ScoutHome from "./screens/ScoutSearch";
 import ScoutTabs from "./screens/ScoutTabs";
 import ClipViewer from "./screens/ClipViewer";
+import VerifyEmail from "./screens/VerifyScreen";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId, role } =
@@ -60,6 +61,11 @@ function AppNavigator() {
             />
             <Stack.Screen name="Signup" component={Signup} />
             <Stack.Screen name="Login" component={Login} />
+            <Stack.Screen
+              name="VerifyEmail"
+              component={VerifyEmail}
+              options={{ headerShown: false }}
+            />
           </>
         ) : !isOnBoarded ? (
           role === "scout" ? (
