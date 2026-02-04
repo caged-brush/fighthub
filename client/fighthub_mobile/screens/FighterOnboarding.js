@@ -132,9 +132,21 @@ export default function FighterOnboarding() {
     return true;
   }, [dateOfBirth, weightClass, fightStyle, region, gym, bio, submitting]);
 
-  const onDobChange = (_, selectedDate) => {
-    if (!selectedDate) return;
-    setTempDob(selectedDate);
+  const onDobChange = (event, selectedDate) => {
+    // Android fires "set" or "dismissed"
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+
+      if (event?.type === "set" && selectedDate) {
+        setDobDate(selectedDate);
+        setTempDob(selectedDate);
+        setDateOfBirth(toYMD(selectedDate));
+      }
+      return;
+    }
+
+    // iOS inline mode: just update temp, user hits Done
+    if (selectedDate) setTempDob(selectedDate);
   };
 
   const handleFinish = async () => {
@@ -206,7 +218,10 @@ export default function FighterOnboarding() {
         <Text style={styles.label}>Date of birth *</Text>
         <TouchableOpacity
           style={styles.dateField}
-          onPress={() => setShowDatePicker(true)}
+          onPress={() => {
+            setTempDob(dobDate);
+            setShowDatePicker(true);
+          }}
           activeOpacity={0.85}
         >
           <Text style={styles.dateText}>
@@ -217,22 +232,25 @@ export default function FighterOnboarding() {
         {showDatePicker && (
           <View style={{ marginTop: 10 }}>
             <DateTimePicker
-              value={tempDob}
+              value={Platform.OS === "ios" ? tempDob : dobDate}
               mode="date"
               display={Platform.OS === "ios" ? "inline" : "default"}
               maximumDate={new Date()}
               onChange={onDobChange}
             />
-            <TouchableOpacity
-              style={styles.doneBtn}
-              onPress={() => {
-                setDobDate(tempDob);
-                setDateOfBirth(toYMD(tempDob));
-                setShowDatePicker(false);
-              }}
-            >
-              <Text style={styles.doneBtnText}>Done</Text>
-            </TouchableOpacity>
+
+            {Platform.OS === "ios" && (
+              <TouchableOpacity
+                style={styles.doneBtn}
+                onPress={() => {
+                  setDobDate(tempDob);
+                  setDateOfBirth(toYMD(tempDob));
+                  setShowDatePicker(false);
+                }}
+              >
+                <Text style={styles.doneBtnText}>Done</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

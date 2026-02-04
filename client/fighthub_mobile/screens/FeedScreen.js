@@ -21,72 +21,55 @@ function ClipCard({ clip, onPress }) {
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
-      style={{
-        backgroundColor: "#232323",
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: "#333",
-      }}
+      style={styles.card}
     >
       {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View style={styles.cardHeader}>
         {user.profile_picture_url ? (
           <Image
             source={{ uri: user.profile_picture_url }}
-            style={{ width: 36, height: 36, borderRadius: 18 }}
+            style={styles.avatar}
           />
         ) : (
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: "#111",
-            }}
-          />
+          <View style={styles.avatarFallback} />
         )}
 
         <View style={{ flex: 1 }}>
-          <Text style={{ color: "#fff", fontWeight: "900" }}>
+          <Text style={styles.name}>
             {user.fname || "Unknown"} {user.lname || ""}
           </Text>
-          <Text style={{ color: "#777", fontSize: 12 }}>
+          <Text style={styles.date}>
             {clip.created_at
               ? new Date(clip.created_at).toLocaleDateString()
               : ""}
           </Text>
         </View>
 
-        <View
-          style={{
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-            borderRadius: 999,
-            backgroundColor: "#181818",
-            borderWidth: 1,
-            borderColor: "#333",
-          }}
-        >
-          <Text style={{ color: "#bbb", fontSize: 12, fontWeight: "800" }}>
-            {isYoutube ? "YouTube" : "Upload"}
+        <View style={styles.sourcePill}>
+          <Text style={styles.sourceText}>
+            {isYoutube ? "YOUTUBE" : "UPLOAD"}
           </Text>
         </View>
       </View>
 
-      {/* Fight info */}
-      <Text style={{ color: "#fff", fontWeight: "900", marginTop: 10 }}>
-        {clip.promotion || "—"} {clip.opponent ? `vs ${clip.opponent}` : ""}
+      {/* Fight title */}
+      <Text style={styles.fightTitle}>
+        {clip.promotion || "—"}
+        {clip.opponent ? ` vs ${clip.opponent}` : ""}
       </Text>
 
-      <Text style={{ color: "#bbb", marginTop: 6 }}>
-        {clip.fight_date || "—"} • {clip.weight_class || "—"} •{" "}
-        {clip.result || "—"}
-      </Text>
+      {/* Meta row */}
+      <View style={styles.metaRow}>
+        <Text style={styles.metaText}>{clip.fight_date || "—"}</Text>
+        <Text style={styles.dot}>•</Text>
+        <Text style={styles.metaText}>{clip.weight_class || "—"}</Text>
+        <Text style={styles.dot}>•</Text>
+        <Text style={styles.metaResult}>{clip.result || "—"}</Text>
+      </View>
 
+      {/* Notes */}
       {!!clip.notes && (
-        <Text style={{ color: "#ddd", marginTop: 10 }} numberOfLines={2}>
+        <Text style={styles.notes} numberOfLines={2}>
           {clip.notes}
         </Text>
       )}
@@ -155,11 +138,11 @@ export default function FeedScreen({ navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#181818" }}>
-      <View style={{ padding: 16 }}>
-        <Text style={{ color: "#ffd700", fontSize: 22, fontWeight: "900" }}>
-          Fight Feed
+      <View style={styles.feedHeader}>
+        <Text style={styles.feedTitle}>Fight Feed</Text>
+        <Text style={styles.feedSubtitle}>
+          Public clips from fighters on Kavyx
         </Text>
-        <Text style={{ color: "#777", marginTop: 6 }}>Public fight clips</Text>
       </View>
 
       {loading ? (
@@ -203,3 +186,112 @@ export default function FeedScreen({ navigation }) {
     </SafeAreaView>
   );
 }
+
+const styles = {
+  /* Screen */
+  feedHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 10,
+  },
+  feedTitle: {
+    color: "#ffd700",
+    fontSize: 22,
+    fontWeight: "900",
+  },
+  feedSubtitle: {
+    color: "rgba(255,255,255,0.55)",
+    marginTop: 6,
+    fontSize: 13,
+  },
+
+  /* Card */
+  card: {
+    backgroundColor: "#121212",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#222",
+  },
+  avatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#222",
+  },
+
+  name: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 14,
+  },
+  date: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+
+  sourcePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+  },
+  sourceText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.6,
+  },
+
+  fightTitle: {
+    marginTop: 12,
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 15,
+  },
+
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    gap: 6,
+  },
+  metaText: {
+    color: "rgba(255,255,255,0.65)",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  metaResult: {
+    color: "#ffd700",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  dot: {
+    color: "rgba(255,255,255,0.35)",
+    fontWeight: "900",
+  },
+
+  notes: {
+    marginTop: 10,
+    color: "rgba(255,255,255,0.75)",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+};

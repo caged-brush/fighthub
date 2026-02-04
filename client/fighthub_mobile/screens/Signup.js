@@ -193,14 +193,14 @@ const Signup = () => {
                 label="First name"
                 value={formData.fname}
                 onChangeText={(v) => handleChange("fname", v)}
-                placeholder="Suleiman"
+                placeholder="John"
                 autoCapitalize="words"
               />
               <Field
                 label="Last name"
                 value={formData.lname}
                 onChangeText={(v) => handleChange("lname", v)}
-                placeholder="Jibril-Ahmed"
+                placeholder="Doe"
                 autoCapitalize="words"
               />
               <Field

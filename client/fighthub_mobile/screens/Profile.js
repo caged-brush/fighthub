@@ -18,6 +18,9 @@ import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { API_URL } from "../Constants";
+import Pill from "../component/Pill";
+import Chip from "../component/Chip";
+import Stat from "../component/Stat";
 
 const isValidUrl = (url) =>
   typeof url === "string" &&
@@ -296,241 +299,201 @@ export default function Profile() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
+        contentContainerStyle={{ paddingBottom: 28 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
       >
         {profileNotFound ? (
-          <View style={styles.notFoundBox}>
-            <Text style={styles.notFoundTitle}>Fighter profile not found</Text>
+          <View style={styles.notFoundCard}>
+            <Text style={styles.notFoundTitle}>Profile not found</Text>
             <Text style={styles.notFoundText}>
-              This user has not completed fighter onboarding yet (no row in
-              fighters table).
+              This user hasn’t completed fighter onboarding yet.
             </Text>
 
             {viewingOwnProfile ? (
-              <Text style={styles.notFoundText}>
-                Go complete onboarding to create your fighter profile.
-              </Text>
+              <CustomButton
+                variant="primary"
+                style={{ marginTop: 14 }}
+                onPress={() => navigation.navigate("FighterOnboarding")}
+              >
+                Complete onboarding
+              </CustomButton>
             ) : null}
           </View>
         ) : (
           <>
-            <View style={styles.fighterCard}>
-              {isValidUrl(fighterInfo.profileUrl) ? (
-                <Image
-                  source={{ uri: fighterInfo.profileUrl }}
-                  style={styles.profileImage}
-                />
-              ) : (
-                <View style={styles.defaultIcon}>
-                  <Ionicons name="body-outline" size={70} color="#ffd700" />
-                </View>
-              )}
-
-              <View style={styles.profileDetails}>
-                <Text style={styles.fighterName}>
-                  {fighterInfo.fname} {fighterInfo.lname}
-                </Text>
-
-                <View style={styles.badgesRow}>
-                  <View
-                    style={[
-                      styles.badge,
-                      fighterInfo.is_available
-                        ? styles.badgeOn
-                        : styles.badgeOff,
-                    ]}
-                  >
-                    <Text style={styles.badgeText}>{availabilityLabel}</Text>
-                  </View>
-
-                  {!!fighterInfo.region && (
-                    <View style={styles.badgeMuted}>
-                      <Text style={styles.badgeTextMuted}>
-                        {fighterInfo.region}
-                      </Text>
+            {/* Header */}
+            <View style={styles.headerCard}>
+              <View style={styles.headerRow}>
+                <View style={styles.avatarWrap}>
+                  {isValidUrl(fighterInfo.profileUrl) ? (
+                    <Image
+                      source={{ uri: fighterInfo.profileUrl }}
+                      style={styles.avatar}
+                    />
+                  ) : (
+                    <View style={styles.avatarFallback}>
+                      <Ionicons name="person" size={34} color="#ffd700" />
                     </View>
                   )}
                 </View>
 
-                <View style={styles.fightStatsRow}>
-                  <View style={styles.fightStat}>
-                    <Text style={styles.fightStatText}>
-                      {fighterInfo.wins}W
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>
+                    {fighterInfo.fname} {fighterInfo.lname}
+                  </Text>
+
+                  <View style={styles.metaRow}>
+                    <Pill
+                      text={
+                        fighterInfo.is_available ? "AVAILABLE" : "NOT AVAILABLE"
+                      }
+                      tone={fighterInfo.is_available ? "good" : "muted"}
+                    />
+                    {!!fighterInfo.region && (
+                      <Pill text={fighterInfo.region} tone="muted" />
+                    )}
+                  </View>
+
+                  <View style={styles.smallMetaRow}>
+                    <Text style={styles.smallMeta}>
+                      {fighterInfo.weight_class || "—"}
                     </Text>
-                  </View>
-                  <View style={styles.fightStat}>
-                    <Text style={styles.fightStatText}>
-                      {fighterInfo.losses}L
+                    <Text style={styles.dot}>•</Text>
+                    <Text style={styles.smallMeta}>
+                      {fighterInfo.fight_style || "—"}
                     </Text>
-                  </View>
-                  <View style={styles.fightStat}>
-                    <Text style={styles.fightStatText}>
-                      {fighterInfo.draws}D
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.infoText}>
-                  Weight Class: {fighterInfo.weight_class || "—"}
-                </Text>
-                <Text style={styles.infoText}>
-                  Style: {fighterInfo.fight_style || "—"}
-                </Text>
-                <Text style={styles.infoText}>
-                  Gym: {fighterInfo.gym || "—"}
-                </Text>
-
-                <Text style={styles.infoText}>
-                  Weight: {fighterInfo.weight ?? "—"} lbs
-                </Text>
-                <Text style={styles.infoText}>
-                  Height: {fighterInfo.height ?? "—"} cm
-                </Text>
-
-                {!!fighterInfo.bio && (
-                  <View style={styles.bioBox}>
-                    <Text style={styles.bioTitle}>Bio</Text>
-                    <Text style={styles.bioText}>{fighterInfo.bio}</Text>
-                  </View>
-                )}
-
-                <View style={styles.statsRow}>
-                  <View style={styles.statsCol}>
-                    <Text style={styles.statsLabel}>Followers</Text>
-                    <Text style={styles.statsValue}>{followerCount}</Text>
-                  </View>
-                  <View style={styles.statsCol}>
-                    <Text style={styles.statsLabel}>Following</Text>
-                    <Text style={styles.statsValue}>{followingCount}</Text>
                   </View>
                 </View>
               </View>
-            </View>
 
-            <View style={styles.buttonContainer}>
-              {!viewingOwnProfile ? (
-                <CustomButton
-                  style={{ width: "90%" }}
-                  onPress={() =>
-                    isFollowing ? handleUnfollow() : handleFollow()
-                  }
-                >
-                  <Text style={{ fontWeight: "bold", color: "#fff" }}>
+              {/* Record + Stats */}
+              <View style={styles.statsRow}>
+                <Stat
+                  label="Record"
+                  value={`${fighterInfo.wins}W-${fighterInfo.losses}L-${fighterInfo.draws}D`}
+                />
+                <Stat label="Followers" value={String(followerCount)} />
+                <Stat label="Following" value={String(followingCount)} />
+              </View>
+
+              {/* Actions */}
+              <View style={styles.actionRow}>
+                {!viewingOwnProfile ? (
+                  <CustomButton
+                    variant={isFollowing ? "ghost" : "primary"}
+                    style={{ flex: 1 }}
+                    onPress={() =>
+                      isFollowing ? handleUnfollow() : handleFollow()
+                    }
+                  >
                     {isFollowing ? "Disconnect" : "Connect"}
-                  </Text>
-                </CustomButton>
-              ) : (
-                <>
-                  <CustomButton style={{ width: "90%" }}>
-                    <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                  </CustomButton>
+                ) : (
+                  <>
+                    <CustomButton
+                      variant="primary"
+                      style={{ flex: 1 }}
+                      onPress={() => navigation.navigate("EditProfile")}
+                    >
                       Edit profile
-                    </Text>
-                  </CustomButton>
-                  <CustomButton style={{ width: "90%" }} onPress={logout}>
-                    <Text style={{ fontWeight: "bold", color: "#fff" }}>
+                    </CustomButton>
+                    <CustomButton
+                      variant="ghost"
+                      style={{ flex: 1 }}
+                      onPress={logout}
+                    >
                       Logout
-                    </Text>
-                  </CustomButton>
-                </>
-              )}
+                    </CustomButton>
+                  </>
+                )}
+              </View>
             </View>
 
-            <View style={styles.postsSection}>
+            {/* Bio */}
+            {!!fighterInfo.bio && (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Bio</Text>
+                <Text style={styles.bioText}>{fighterInfo.bio}</Text>
+              </View>
+            )}
+
+            {/* Details chips */}
+            <View style={styles.sectionCard}>
+              <Text style={styles.sectionTitle}>Details</Text>
+
+              <View style={styles.chipsRow}>
+                <Chip label="Gym" value={fighterInfo.gym || "—"} />
+                <Chip
+                  label="Weight"
+                  value={
+                    fighterInfo.weight != null
+                      ? `${fighterInfo.weight} lbs`
+                      : "—"
+                  }
+                />
+                <Chip
+                  label="Height"
+                  value={
+                    fighterInfo.height != null
+                      ? `${fighterInfo.height} cm`
+                      : "—"
+                  }
+                />
+              </View>
+            </View>
+
+            {/* Posts */}
+            <View style={styles.postsHeader}>
               <Text style={styles.postsTitle}>Posts</Text>
-
-              {userPosts.length === 0 ? (
-                <Text style={styles.noPostsText}>No posts yet.</Text>
-              ) : (
-                <View style={styles.postsGrid}>
-                  {userPosts.map((post) => (
-                    <TouchableOpacity
-                      key={post.id}
-                      style={styles.postItem}
-                      onPress={() =>
-                        navigation.navigate("ClipViewer", { clip: post })
-                      }
-                      activeOpacity={0.85}
-                    >
-                      {isImage(post.media_url) ? (
-                        <Image
-                          source={{ uri: getFullMediaUrl(post.media_url) }}
-                          style={{ width: "100%", height: "100%" }}
-                        />
-                      ) : (
-                        <View style={styles.postVideoPreview}>
-                          <Ionicons name="play" size={40} color="#fff" />
-                          <Text style={{ color: "#fff", marginTop: 8 }}>
-                            Video
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              <Modal
-                visible={modalVisible}
-                animationType="slide"
-                transparent
-                onRequestClose={() => setModalVisible(false)}
-              >
-                <View style={styles.modalOverlay}>
-                  <View style={styles.modalContent}>
-                    {selectedPost?.signed_url &&
-                      (isImage(selectedPost.media_url) ? (
-                        <Image
-                          source={{
-                            uri: getFullMediaUrl(selectedPost.media_url),
-                          }}
-                          style={styles.modalImage}
-                        />
-                      ) : (
-                        <Video
-                          source={{
-                            uri: getFullMediaUrl(selectedPost.signed_url),
-                          }}
-                          style={styles.modalVideo}
-                          useNativeControls
-                          resizeMode="contain"
-                          isLooping
-                        />
-                      ))}
-
-                    <View style={styles.likeRow}>
-                      <TouchableOpacity
-                        onPress={handleLike}
-                        disabled={likeLoading}
-                        style={{ marginRight: 10 }}
-                      >
-                        <Ionicons
-                          name={hasLiked ? "heart" : "heart-outline"}
-                          size={28}
-                          color={hasLiked ? "#e0245e" : "#222"}
-                        />
-                      </TouchableOpacity>
-                      <Text style={styles.likeCount}>{postLikes}</Text>
-                      {!!likeError && (
-                        <Text style={styles.likeError}>{likeError}</Text>
-                      )}
-                    </View>
-
-                    <Text style={styles.modalCaption}>
-                      {selectedPost?.caption}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={styles.closeButton}
-                      onPress={() => setModalVisible(false)}
-                    >
-                      <Text style={styles.closeButtonText}>Close</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </Modal>
+              <Text style={styles.postsCount}>{userPosts.length}</Text>
             </View>
+
+            {userPosts.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>No posts yet</Text>
+                <Text style={styles.emptyText}>
+                  Post a clip so scouts can see your style.
+                </Text>
+
+                {viewingOwnProfile ? (
+                  <CustomButton
+                    variant="primary"
+                    style={{ marginTop: 14 }}
+                    onPress={() => navigation.navigate("CreatePost")}
+                  >
+                    Upload a clip
+                  </CustomButton>
+                ) : null}
+              </View>
+            ) : (
+              <View style={styles.grid}>
+                {userPosts.map((post) => (
+                  <TouchableOpacity
+                    key={post.id}
+                    style={styles.gridItem}
+                    onPress={() =>
+                      navigation.navigate("ClipViewer", { clip: post })
+                    }
+                    activeOpacity={0.85}
+                  >
+                    {isImage(post.media_url) ? (
+                      <Image
+                        source={{ uri: getFullMediaUrl(post.media_url) }}
+                        style={styles.gridMedia}
+                      />
+                    ) : (
+                      <View style={styles.videoThumb}>
+                        <Ionicons name="play" size={28} color="#fff" />
+                        <Text style={styles.videoLabel}>Video</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -539,203 +502,205 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#181818" },
-  container: { flex: 1, backgroundColor: "#181818" },
+  safeArea: { flex: 1, backgroundColor: "#0b0b0b" },
+  container: { flex: 1, backgroundColor: "#0b0b0b" },
 
-  notFoundBox: {
+  /* Cards */
+  headerCard: {
     margin: 18,
     padding: 16,
-    borderRadius: 14,
-    backgroundColor: "#232323",
-    borderWidth: 2,
-    borderColor: "#e0245e",
-  },
-  notFoundTitle: {
-    color: "#ffd700",
-    fontWeight: "900",
-    fontSize: 18,
-    marginBottom: 8,
-  },
-  notFoundText: { color: "#bbb", fontWeight: "700", lineHeight: 18 },
-
-  fighterCard: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    backgroundColor: "#232323",
     borderRadius: 18,
-    margin: 18,
-    padding: 18,
-    borderWidth: 2,
-    borderColor: "#e0245e",
-    shadowColor: "#e0245e",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  profileImage: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#444",
-    borderWidth: 3,
-    borderColor: "#ffd700",
+  sectionCard: {
+    marginHorizontal: 18,
+    marginTop: 12,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  defaultIcon: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#444",
-    borderWidth: 3,
-    borderColor: "#ffd700",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profileDetails: { flex: 1, marginLeft: 18 },
 
-  fighterName: {
+  /* Header */
+  headerRow: { flexDirection: "row", gap: 14, alignItems: "center" },
+  avatarWrap: { width: 72, height: 72 },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#1f1f1f",
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.6)",
+  },
+  avatarFallback: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#1f1f1f",
+    borderWidth: 2,
+    borderColor: "rgba(255,215,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  name: {
     color: "#ffd700",
-    fontWeight: "900",
-    fontSize: 24,
-    letterSpacing: 0.5,
+    fontSize: 22,
+    fontWeight: "950",
     marginBottom: 6,
   },
 
-  badgesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 8,
+  metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
+  smallMetaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  smallMeta: {
+    color: "rgba(255,255,255,0.78)",
+    fontWeight: "800",
+    fontSize: 13,
   },
-  badge: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999 },
-  badgeOn: { backgroundColor: "#ffd700" },
-  badgeOff: { backgroundColor: "#333" },
-  badgeText: { color: "#181818", fontWeight: "900", fontSize: 12 },
+  dot: { color: "rgba(255,255,255,0.35)", fontWeight: "900" },
 
-  badgeMuted: {
-    backgroundColor: "#1c1c1c",
-    borderWidth: 1,
-    borderColor: "#333",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-  },
-  badgeTextMuted: { color: "#bbb", fontWeight: "800", fontSize: 12 },
-
-  fightStatsRow: {
+  /* Stats */
+  statsRow: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
     flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  stat: { flex: 1, alignItems: "center" },
+  statLabel: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  statValue: { color: "#fff", fontSize: 14, fontWeight: "950", marginTop: 4 },
+
+  /* Actions */
+  actionRow: { flexDirection: "row", gap: 10, marginTop: 14 },
+
+  /* Sections */
+  sectionTitle: {
+    color: "rgba(255,255,255,0.9)",
+    fontSize: 14,
+    fontWeight: "950",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
     marginBottom: 10,
   },
-  fightStat: {
-    backgroundColor: "#e0245e",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    marginRight: 10,
-  },
-  fightStatText: { color: "#fff", fontWeight: "900", fontSize: 16 },
-
-  infoText: {
-    color: "#fff",
-    fontSize: 14,
-    marginBottom: 4,
+  bioText: {
+    color: "rgba(255,255,255,0.78)",
+    lineHeight: 20,
     fontWeight: "600",
   },
 
-  bioBox: {
-    marginTop: 10,
-    backgroundColor: "#1c1c1c",
+  /* Chips */
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  chip: {
+    flexGrow: 1,
+    flexBasis: "48%",
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
-    borderColor: "#333",
-    borderRadius: 12,
-    padding: 10,
+    borderColor: "rgba(255,255,255,0.10)",
+    borderRadius: 14,
+    padding: 12,
   },
-  bioTitle: { color: "#ffd700", fontWeight: "900", marginBottom: 6 },
-  bioText: { color: "#ddd", fontWeight: "600", lineHeight: 18 },
-
-  statsRow: { flexDirection: "row", marginTop: 12, gap: 24 },
-  statsCol: { alignItems: "center" },
-  statsLabel: { color: "#ffd700", fontWeight: "900", fontSize: 13 },
-  statsValue: { color: "#fff", fontSize: 14, fontWeight: "900" },
-
-  buttonContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 12,
-  },
-
-  postsSection: { padding: 16 },
-  postsTitle: {
-    fontSize: 22,
+  chipLabel: {
+    color: "rgba(255,255,255,0.5)",
     fontWeight: "900",
-    marginBottom: 12,
-    color: "#ffd700",
+    fontSize: 12,
   },
-  noPostsText: {
-    color: "#888",
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 16,
+  chipValue: { color: "#fff", fontWeight: "900", fontSize: 14, marginTop: 6 },
+
+  /* Posts */
+  postsHeader: {
+    marginTop: 18,
+    marginHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  postsTitle: { color: "#ffd700", fontSize: 20, fontWeight: "950" },
+  postsCount: {
+    color: "rgba(255,255,255,0.75)",
+    fontWeight: "900",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
 
-  postsGrid: {
+  grid: {
+    marginTop: 12,
+    marginHorizontal: 18,
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-start",
+    gap: 10,
   },
-  postItem: {
+  gridItem: {
     width: "48%",
-    margin: "1%",
     aspectRatio: 1,
-    borderRadius: 10,
+    borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: "#232323",
-    borderWidth: 2,
-    borderColor: "#e0245e",
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
-  postVideoPreview: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#222",
-  },
-
-  modalOverlay: {
+  gridMedia: { width: "100%", height: "100%" },
+  videoThumb: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
     justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
   },
-  modalContent: {
-    width: "90%",
-    backgroundColor: "#232323",
-    borderRadius: 12,
-    padding: 16,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#e0245e",
-  },
-  modalImage: { width: 300, height: 300, borderRadius: 10, marginBottom: 12 },
-  modalVideo: { width: 300, height: 300, borderRadius: 10, marginBottom: 12 },
-
-  likeRow: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  likeCount: { fontWeight: "900", fontSize: 16, color: "#ffd700" },
-  likeError: { color: "red", marginLeft: 8 },
-
-  modalCaption: {
+  videoLabel: {
+    color: "rgba(255,255,255,0.8)",
     fontWeight: "900",
-    fontSize: 16,
-    marginBottom: 8,
-    textAlign: "center",
-    color: "#ffd700",
+    marginTop: 8,
   },
-  closeButton: {
+
+  /* Empty + Not found */
+  emptyCard: {
+    marginHorizontal: 18,
     marginTop: 12,
-    backgroundColor: "#e0245e",
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
   },
-  closeButtonText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+  emptyTitle: {
+    color: "#fff",
+    fontWeight: "950",
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  emptyText: {
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+
+  notFoundCard: {
+    margin: 18,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: "#121212",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  notFoundTitle: {
+    color: "#fff",
+    fontWeight: "950",
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  notFoundText: { color: "rgba(255,255,255,0.65)", lineHeight: 18 },
 });
