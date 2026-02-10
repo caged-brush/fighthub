@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import env from "dotenv";
 import cookieParser from "cookie-parser";
-import jwt from "jsonwebtoken";
+
 import path from "path";
 import fs from "fs";
 import passport from "passport";
@@ -72,20 +72,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ===== JWT UTILITY =====
-const createToken = (userId) => {
-  const secret = (process.env.JWT_SECRET || "").trim();
-
-  if (!secret) {
-    // This will show in Render logs immediately
-    console.error(
-      "JWT_SECRET is missing at runtime. Keys:",
-      Object.keys(process.env),
-    );
-    throw new Error("Missing JWT_SECRET");
-  }
-
-  return jwt.sign({ id: userId }, secret, { expiresIn: "7d" });
-};
 
 // ===== MIDDLEWARE =====
 
@@ -164,7 +150,7 @@ app.use(postsRoute(supabase, upload, uploadDir));
 app.use(followersRoute(supabase));
 app.use(likesRoute(supabase));
 app.use(usersRoute(supabase));
-app.use(authRoutes(supabase, createToken, validateUserInput));
+//app.use(authRoutes(supabase, createToken, validateUserInput));
 app.use(profileRoutes(supabase, upload, requireAuth));
 app.use("/fighters", fightersRoute(supabase, requireAuth));
 app.use("/scouts", scoutsRoutes(supabase, requireAuth));

@@ -134,7 +134,7 @@ const Signup = () => {
       );
 
       // 3) Move them to Login
-      navigation.replace("Login", { email });
+      navigation.replace("Login", { email, role: selectedRole });
     } catch (e) {
       Alert.alert("Error", e.message || "Something went wrong");
     } finally {
