@@ -1,473 +1,56 @@
 import express from "express";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import { sendOtpEmail } from "../service/emailService.js";
-import crypto from "crypto";
 import { supabaseAdmin } from "../config/supabase.js";
+import requireAuth from "../middleware/requireAuth.js"; // this must verify Supabase token + load public.users
 
 const router = express.Router();
 
-export default function authRoutes(supabase, createToken, validateUserInput) {
-  /**
-   * POST /register
-   * Creates user + assigns role + initializes role table
-   */
-  // Register
-  router.post("/register", validateUserInput, async (req, res) => {
-    console.log("/register body:", req.body);
+router.post("/register", async (req, res) => {
+  const { email, password, role } = req.body;
 
-    const { fname, lname, email, password, role } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: "email and password are required" });
+  }
+  if (!["fighter", "scout"].includes(role)) {
+    return res.status(400).json({ message: "Invalid role" });
+  }
 
-    // ✅ role required
-    if (!["fighter", "scout"].includes(role)) {
-      return res.status(400).json({ message: "Invalid role" });
-    }
-
-    try {
-      // 1) Check if user exists
-      const { data: existingUser, error: existsError } = await supabase
-        .from("users")
-        .select("id,email")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (existsError) {
-        console.error("exists check error:", existsError);
-        return res.status(500).json({ message: "Database error" });
-      }
-
-      if (existingUser) {
-        return res
-          .status(409)
-          .json({ message: "Email already in use please login" });
-      }
-
-      // 2) Hash password
-      const salt = await bcrypt.genSalt(10);
-      const hashedPassword = await bcrypt.hash(password, salt);
-
-      // 3) Insert user
-      const { data: newUser, error: userInsertError } = await supabase
-        .from("users")
-        .insert([{ fname, lname, email, password: hashedPassword, role }]) // ✅ add role
-        .select()
-        .single();
-
-      if (userInsertError) {
-        console.error("user insert error:", userInsertError);
-        return res.status(500).json({ message: "Failed to create user" });
-      }
-
-      const userId = newUser.id;
-
-      // 4) Insert role into user_roles
-      const roleInsert = await supabase
-        .from("user_roles")
-        .insert([{ user_id: userId, role }])
-        .select("*")
-        .single();
-
-      console.log("ROLE INSERT:", roleInsert.data, roleInsert.error);
-
-      const verify = await supabase
-        .from("user_roles")
-        .select("*")
-        .eq("user_id", userId);
-
-      console.log("VERIFY user_roles:", verify.data, verify.error);
-
-      console.log("ROLE INSERT OK:", roleInsert.data);
-
-      console.log("ROLE INSERT RESULT:", roleInsert);
-
-      if (roleInsert.error) {
-        console.error("ROLE INSERT ERROR FULL:", roleInsert.error);
-
-        // TEMP: do not delete the user while debugging (keep evidence)
-        return res.status(500).json({
-          message: "Failed to set role",
-          details: roleInsert.error,
-        });
-      }
-
-      // 5) Create profile row (optional but recommended)
-      if (role === "fighter") {
-        const { error: fighterError } = await supabase
-          .from("fighters")
-          .insert([{ user_id: userId }]);
-
-        if (fighterError) {
-          console.error("fighter create error:", fighterError);
-          // best-effort rollback
-          await supabase.from("user_roles").delete().eq("user_id", userId);
-          await supabase.from("users").delete().eq("id", userId);
-          return res
-            .status(500)
-            .json({ message: "Failed to create fighter profile" });
-        }
-      }
-
-      if (role === "scout") {
-        const { error: scoutError } = await supabase
-          .from("scouts")
-          .insert([{ user_id: userId }]);
-
-        if (scoutError) {
-          console.error("scout create error:", scoutError);
-          // best-effort rollback
-          await supabase.from("user_roles").delete().eq("user_id", userId);
-          await supabase.from("users").delete().eq("id", userId);
-          return res
-            .status(500)
-            .json({ message: "Failed to create scout profile" });
-        }
-      }
-
-      // 6) email otp send
-      // normalize email once
-      const emailClean = String(email).trim().toLowerCase();
-
-      // 6) email otp send
-      const otp = String(crypto.randomInt(100000, 1000000));
-      const otpHash = await bcrypt.hash(otp, 10);
-      const expiryMinutes = 10;
-      const expiresAt = new Date(
-        Date.now() + expiryMinutes * 60 * 1000,
-      ).toISOString();
-
-      // store verification state
-      const { error: verErr } = await supabaseAdmin
-        .from("users")
-        .update({
-          email_verified: false,
-          email_verify_token: otpHash,
-          email_verify_expiry: expiresAt,
-        })
-        .eq("id", userId);
-
-      if (verErr) {
-        console.error("verification store error:", verErr);
-        return res
-          .status(500)
-          .json({ message: "Failed to start email verification" });
-      }
-
-      // send OTP email (rollback if this fails)
-      try {
-        await sendOtpEmail({
-          to: emailClean,
-          name: fname,
-          otp,
-          expiryMinutes,
-        });
-      } catch (e) {
-        console.error("sendOtpEmail failed:", e);
-
-        // rollback to avoid dead unverified accounts
-        await supabaseAdmin.from("user_roles").delete().eq("user_id", userId);
-        await supabaseAdmin.from("fighters").delete().eq("user_id", userId);
-        await supabaseAdmin.from("scouts").delete().eq("user_id", userId);
-        await supabaseAdmin.from("users").delete().eq("id", userId);
-
-        return res
-          .status(500)
-          .json({ message: "Failed to send verification email" });
-      }
-
-      return res.status(200).json({
-        message: "Verification code sent",
-        userId,
-        role,
-        email: emailClean,
-      });
-    } catch (err) {
-      console.error("register error:", err);
-      res.status(500).json({ error: "Server error" });
-    }
+  // Create auth user (Supabase will email verify if enabled in dashboard)
+  const { data, error } = await supabaseAdmin.auth.signUp({
+    email: String(email).trim().toLowerCase(),
+    password: String(password),
+    options: {
+      emailRedirectTo: process.env.EMAIL_CONFIRM_REDIRECT || undefined,
+    },
   });
 
-  //Email verification route//
+  if (error) return res.status(400).json({ message: error.message });
+  const userId = data.user?.id;
+  if (!userId) return res.status(500).json({ message: "Failed to create auth user" });
 
-  router.post("/verify-email", async (req, res) => {
-    const { email, code } = req.body;
+  // Ensure profile exists (trigger should do this, but this is a safe fallback)
+  await supabaseAdmin.from("users").upsert({ id: userId, role });
 
-    try {
-      if (!email || !code) {
-        return res.status(400).json({ message: "Email and code are required" });
-      }
+  // Create role-specific row
+  if (role === "fighter") {
+    await supabaseAdmin.from("fighters").upsert({ user_id: userId });
+  } else {
+    await supabaseAdmin.from("scouts").upsert({ user_id: userId });
+  }
 
-      const emailClean = String(email).trim().toLowerCase();
-      const codeClean = String(code).trim();
-
-      const { data: user, error } = await supabase
-        .from("users")
-        .select(
-          "id, email_verify_token, email_verify_expiry, email_verified, role",
-        )
-        .eq("email", emailClean)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!user) return res.status(400).json({ message: "Invalid code" });
-
-      if (user.email_verified) {
-        const token = createToken(user.id);
-        return res.status(200).json({
-          message: "Already verified",
-          token,
-          userId: user.id,
-          role: user.role,
-        });
-      }
-
-      if (!user.email_verify_token || !user.email_verify_expiry) {
-        return res.status(400).json({ message: "No verification pending" });
-      }
-
-      if (new Date(user.email_verify_expiry) < new Date()) {
-        return res.status(400).json({ message: "Code expired" });
-      }
-
-      const ok = await bcrypt.compare(codeClean, user.email_verify_token);
-      if (!ok) return res.status(400).json({ message: "Invalid code" });
-
-      const { error: updErr } = await supabase
-        .from("users")
-        .update({
-          email_verified: true,
-          email_verify_token: null,
-          email_verify_expiry: null,
-        })
-        .eq("id", user.id);
-
-      if (updErr) throw updErr;
-
-      const token = createToken(user.id);
-      return res.status(200).json({
-        message: "Email verified",
-        token,
-        userId: user.id,
-        role: user.role,
-      });
-    } catch (err) {
-      console.error("verify-email error:", err);
-      return res.status(500).json({ message: "Server error" });
-    }
+  return res.status(200).json({
+    message: "Account created. Check your email to verify.",
   });
+});
 
-  router.post("/resend-verification", async (req, res) => {
-    const { email } = req.body;
-
-    try {
-      if (!email) {
-        return res.status(400).json({ message: "Email is required" });
-      }
-
-      const emailClean = String(email).trim().toLowerCase();
-
-      const { data: user, error } = await supabase
-        .from("users")
-        .select("id, fname, email_verified")
-        .eq("email", emailClean)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      // SECURITY: do not reveal whether the email exists
-      if (!user) {
-        return res
-          .status(200)
-          .json({ message: "If that email exists, a new code was sent." });
-      }
-
-      if (user.email_verified) {
-        return res.status(200).json({ message: "Email is already verified." });
-      }
-
-      const otp = String(crypto.randomInt(100000, 1000000));
-      const otpHash = await bcrypt.hash(otp, 10);
-      const expiryMinutes = 10;
-      const expiresAt = new Date(
-        Date.now() + expiryMinutes * 60 * 1000,
-      ).toISOString();
-
-      // Use admin client if these fields are protected by RLS
-      const { error: updErr } = await supabaseAdmin
-        .from("users")
-        .update({
-          email_verify_token: otpHash,
-          email_verify_expiry: expiresAt,
-        })
-        .eq("id", user.id);
-
-      if (updErr) throw updErr;
-
-      await sendOtpEmail({
-        to: emailClean,
-        name: user.fname,
-        otp,
-        expiryMinutes,
-      });
-
-      return res.status(200).json({ message: "New verification code sent." });
-    } catch (err) {
-      console.error("resend-verification error:", err);
-      return res.status(500).json({ message: "Server error" });
-    }
+/**
+ * GET /me
+ * client sends Authorization: Bearer <SUPABASE_ACCESS_TOKEN>
+ */
+router.get("/me", requireAuth, async (req, res) => {
+  return res.status(200).json({
+    id: req.user.id,
+    role: req.user.role,
   });
+});
 
-  /**
-   * POST /login
-   * Authenticates user and returns roles
-   */
-  router.post("/login", validateUserInput, async (req, res) => {
-    const { email, password } = req.body;
-
-    try {
-      const { data: user, error } = await supabase
-        .from("users")
-        .select(
-          "id, password, scout_onboarded, fighter_onboarded, role, email_verified",
-        )
-        .eq("email", email)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!user)
-        return res.status(401).json({ message: "Invalid credentials" });
-
-      const valid = await bcrypt.compare(password, user.password);
-      if (!valid)
-        return res.status(401).json({ message: "Invalid credentials" });
-
-      // ✅ ENFORCE EMAIL VERIFICATION
-      if (!user.email_verified) {
-        return res.status(403).json({ message: "Please verify your email" });
-      }
-
-      let role = user.role;
-
-      if (!role) {
-        const { data: rolesData, error: rolesError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id);
-
-        if (rolesError) throw rolesError;
-        role = rolesData?.[0]?.role;
-      }
-
-      if (!role)
-        return res.status(500).json({ message: "Role not found for user" });
-
-      const isOnBoarded =
-        role === "scout" ? !!user.scout_onboarded : !!user.fighter_onboarded;
-
-      const token = createToken(user.id);
-
-      return res.status(200).json({
-        token,
-        userId: user.id,
-        role,
-        isOnBoarded,
-      });
-    } catch (err) {
-      console.error("Login error:", err);
-      return res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  /**
-   * POST /forgot-password
-   * Sends reset token (hashed in DB)
-   */
-  router.post("/forgot-password", async (req, res) => {
-    const { email } = req.body;
-
-    try {
-      const { data: user, error } = await supabase
-        .from("users")
-        .select("id")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      const resetToken = Math.random().toString(36).slice(2, 10);
-      const hashedToken = await bcrypt.hash(resetToken, 10);
-
-      await supabase
-        .from("users")
-        .update({
-          reset_token: hashedToken,
-          reset_token_expiry: new Date(
-            Date.now() + 60 * 60 * 1000,
-          ).toISOString(),
-        })
-        .eq("id", user.id);
-
-      await transport.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: "Password Reset",
-        text: `Your password reset code is: ${resetToken}`,
-      });
-
-      res.status(200).json({ message: "Reset email sent" });
-    } catch (err) {
-      console.error("Forgot password error:", err);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  /**
-   * POST /reset-password
-   * Verifies token and updates password
-   */
-  router.post("/reset-password", async (req, res) => {
-    const { email, token, newPassword } = req.body;
-
-    try {
-      const { data: user, error } = await supabase
-        .from("users")
-        .select("id, reset_token, reset_token_expiry")
-        .eq("email", email)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!user) {
-        return res.status(400).json({ message: "Invalid request" });
-      }
-
-      if (!user.reset_token || new Date(user.reset_token_expiry) < new Date()) {
-        return res.status(400).json({ message: "Token expired" });
-      }
-
-      const validToken = await bcrypt.compare(token, user.reset_token);
-      if (!validToken) {
-        return res.status(400).json({ message: "Invalid token" });
-      }
-
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      await supabase
-        .from("users")
-        .update({
-          password: hashedPassword,
-          reset_token: null,
-          reset_token_expiry: null,
-        })
-        .eq("id", user.id);
-
-      res.status(200).json({ message: "Password updated" });
-    } catch (err) {
-      console.error("Reset password error:", err);
-      res.status(500).json({ message: "Server error" });
-    }
-  });
-
-  return router;
-}
+export default router;

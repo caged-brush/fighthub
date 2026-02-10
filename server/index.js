@@ -12,7 +12,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
 import fightersRoute from "./routes/fighter.js";
-
+import bookingRoutes from "./routes/booking.js";
 import postsRoute from "./routes/posts.js";
 import followersRoute from "./routes/followers.js";
 import likesRoute from "./routes/likes.js";
@@ -114,7 +114,6 @@ app.use((req, res, next) => {
 
 // ===== EMAIL SETUP =====
 
-
 // ===== FILE UPLOAD SETUP =====
 const uploadDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
@@ -172,6 +171,7 @@ app.use("/scouts", scoutsRoutes(supabase, requireAuth));
 app.use("/scouts", scoutWatchlistRoutes(supabase, requireAuth));
 app.use("/inbox", inboxRoutes(supabase, requireAuth));
 app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
+app.use("/booking", bookingRoutes);
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));
 
