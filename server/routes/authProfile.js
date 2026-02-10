@@ -1,6 +1,6 @@
 import express from "express";
 import requireAuth from "../middleware/requireAuth.js"; // Supabase-token middleware
-import { supabaseAdmin } from "../config/supabaseAdmin.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 const router = express.Router();
 

@@ -24,6 +24,7 @@ import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import * as Google from "expo-auth-session/providers/google";
 import { auth } from "../firebaseConfig";
 import { API_URL } from "../Constants";
+import { supabase } from "../lib/supabase";
 
 const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 
@@ -107,34 +108,35 @@ const Signup = () => {
     if (!validate()) return;
 
     setSubmitting(true);
-
     try {
-      const { fname, lname, email, password, confirmPassword } = formData;
+      const email = formData.email.trim().toLowerCase();
+      const password = formData.password;
 
-      const res = await axios.post(`${API_URL}/register`, {
-        fname,
-        lname,
+      // 1) Supabase signup (email verification happens automatically)
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        confirm: confirmPassword,
-        role: selectedRole,
+        options: {
+          // optional: your redirect if you have one
+          // emailRedirectTo: "kavyx://auth/callback"
+        },
       });
 
-      const { userId, role } = res.data || {};
-      if (!userId || !role) {
-        console.log("BAD REGISTER RESPONSE:", res.data);
-        Alert.alert("Error", "Registration failed");
+      if (error) {
+        Alert.alert("Signup failed", error.message);
         return;
       }
 
-      navigation.replace("VerifyEmail", { email, userId, role });
-    } catch (error) {
-      console.error("Signup error:", error.response?.data || error.message);
+      // 2) Tell user to verify email
       Alert.alert(
-        "Error",
-        error.response?.data?.message ||
-          "Something went wrong. Please try again",
+        "Verify your email",
+        "We sent you a verification link. Open it, verify, then come back and log in.",
       );
+
+      // 3) Move them to Login
+      navigation.replace("Login", { email });
+    } catch (e) {
+      Alert.alert("Error", e.message || "Something went wrong");
     } finally {
       setSubmitting(false);
     }
