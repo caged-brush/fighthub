@@ -7,7 +7,7 @@ import path from "path";
 import fs from "fs";
 import passport from "passport";
 import multer from "multer";
-
+import authProfileRoutes from "./routes/authProfile.js";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { fileURLToPath } from "url";
@@ -172,6 +172,8 @@ app.use("/scouts", scoutWatchlistRoutes(supabase, requireAuth));
 app.use("/inbox", inboxRoutes(supabase, requireAuth));
 app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
 app.use("/booking", bookingRoutes);
+app.use("/auth", authProfileRoutes);
+
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));
 
