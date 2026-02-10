@@ -1,10 +1,10 @@
 import express from "express";
-import requireSupabaseAuth from "../middleware/requireSupabaseAuth.js";
+import requireAuth from "../middleware/requireAuth.js";
 import { supabaseAsUser } from "../config/supabaseUser.js";
 
 const router = express.Router();
 
-router.post("/requests/send", requireSupabaseAuth, async (req, res) => {
+router.post("/requests/send", requireAuth, async (req, res) => {
   const {
     fight_slot_id,
     fighter_id,
@@ -31,7 +31,7 @@ router.post("/requests/send", requireSupabaseAuth, async (req, res) => {
   return res.json({ request_id: data });
 });
 
-router.post("/slots/apply", requireSupabaseAuth, async (req, res) => {
+router.post("/slots/apply", requireAuth, async (req, res) => {
   const {
     fight_slot_id,
     note = null,
@@ -53,7 +53,7 @@ router.post("/slots/apply", requireSupabaseAuth, async (req, res) => {
   return res.json({ request_id: data });
 });
 
-router.post("/requests/:id/accept", requireSupabaseAuth, async (req, res) => {
+router.post("/requests/:id/accept", requireAuth, async (req, res) => {
   const requestId = req.params.id;
   const supabase = supabaseAsUser(req.accessToken);
 
