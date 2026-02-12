@@ -118,7 +118,7 @@ const Signup = () => {
         password,
         options: {
           // optional: your redirect if you have one
-          emailRedirectTo: "kavyx://auth/callback",
+          emailRedirectTo: "https://kavyx.tech/verify",
         },
       });
 
