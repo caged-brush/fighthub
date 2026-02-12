@@ -118,8 +118,17 @@ const Signup = () => {
         password,
         options: {
           // optional: your redirect if you have one
-          // emailRedirectTo: "kavyx://auth/callback"
+          emailRedirectTo: "kavyx://auth/callback",
         },
+      });
+
+      // const { data, error } = await supabase.auth.signUp({ email, password });
+
+      console.log("SUPABASE SIGNUP:", {
+        error: error?.message || null,
+        userId: data?.user?.id || null,
+        email: data?.user?.email || null,
+        hasSession: !!data?.session,
       });
 
       if (error) {

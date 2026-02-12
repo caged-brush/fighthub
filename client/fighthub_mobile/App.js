@@ -20,6 +20,22 @@ import ScoutHome from "./screens/ScoutSearch";
 import ScoutTabs from "./screens/ScoutTabs";
 import ClipViewer from "./screens/ClipViewer";
 import VerifyEmail from "./screens/VerifyScreen";
+import * as Linking from "expo-linking";
+import { useEffect } from "react";
+import { supabase } from "./lib/supabase";
+
+useEffect(() => {
+  const sub = Linking.addEventListener("url", async ({ url }) => {
+    // Supabase verification links come back here
+    const { error } = await supabase.auth.exchangeCodeForSession(url);
+    if (!error) {
+      // send them to a clear screen
+      // navigation.navigate("EmailVerified");
+    }
+  });
+
+  return () => sub.remove();
+}, []);
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId, role } =
