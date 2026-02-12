@@ -18,7 +18,6 @@ import {
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation } from "@react-navigation/native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import axios from "axios";
 import { API_URL } from "../Constants";
 import { format } from "date-fns";
 
@@ -44,26 +43,36 @@ export default function UserListScreen() {
     }
 
     try {
-      const res = await axios.get(`${FIGHTHUB_BASE_URL}/inbox/me`, {
-        headers: authHeaders,
+      const res = await fetch(`${FIGHTHUB_BASE_URL}/inbox/me`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+          "Content-Type": "application/json",
+        },
       });
 
-      const list = Array.isArray(res.data?.conversations)
-        ? res.data.conversations
-        : [];
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
 
+      if (!res.ok) {
+        throw new Error(data?.message || data?.error || "Inbox fetch failed");
+      }
+
+      const list = Array.isArray(data?.conversations) ? data.conversations : [];
       setConversations(list);
     } catch (err) {
-      console.log(
-        "Inbox fetch failed:",
-        err?.response?.data || err?.message || err
-      );
+      console.log("Inbox fetch failed:", err?.message || err);
       setConversations([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userToken, authHeaders]);
+  }, [userToken, FIGHTHUB_BASE_URL]);
 
   useEffect(() => {
     fetchInbox();

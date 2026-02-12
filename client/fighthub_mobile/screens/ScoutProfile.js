@@ -13,7 +13,6 @@ import {
   Alert,
   TouchableOpacity,
 } from "react-native";
-import axios from "axios";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { API_URL } from "../Constants";
 import { AuthContext } from "../context/AuthContext";
@@ -36,32 +35,33 @@ export default function ScoutProfile() {
   }, [userToken]);
 
   const fetchScoutProfile = useCallback(async () => {
-    if (!userToken) return;
+    if (!userToken) {
+      setScoutData({
+        scoutFName: "",
+        scoutLName: "",
+        scoutOrganization: "",
+        scoutRegion: "",
+      });
+      return;
+    }
 
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/scouts/me`, {
-        headers: authHeaders,
-      });
-
-      const s = res.data;
+      const s = await apiGet(`${API_URL}/scouts/me`, { token: userToken });
 
       setScoutData({
-        scoutFName: s?.users?.fname ?? "", // requires backend join
+        scoutFName: s?.users?.fname ?? "",
         scoutLName: s?.users?.lname ?? "",
         scoutOrganization: s?.organization ?? "",
         scoutRegion: s?.region ?? "",
       });
-    } catch (err) {
-      console.error(
-        "fetchScoutProfile error:",
-        err?.response?.data || err?.message
-      );
+    } catch (e) {
+      console.error("fetchScoutProfile error:", e?.message || e);
       Alert.alert("Error", "Failed to load scout profile");
     } finally {
       setLoading(false);
     }
-  }, [userToken, authHeaders]);
+  }, [userToken]);
 
   useEffect(() => {
     fetchScoutProfile();

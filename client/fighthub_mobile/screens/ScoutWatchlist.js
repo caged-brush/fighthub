@@ -15,7 +15,6 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import axios from "axios";
 import { useNavigation } from "@react-navigation/native";
 import { API_URL } from "../Constants";
 import { AuthContext } from "../context/AuthContext";
@@ -56,23 +55,20 @@ export default function ScoutWatchlist() {
     if (!userToken) return;
 
     try {
-      const res = await axios.get(`${API_URL}/scouts/watchlist`, {
-        headers: authHeaders,
+      const data = await apiGet(`${API_URL}/scouts/watchlist`, {
+        token: userToken,
       });
 
-      const list = Array.isArray(res.data?.watchlist) ? res.data.watchlist : [];
+      const list = Array.isArray(data?.watchlist) ? data.watchlist : [];
       setWatchlist(list);
     } catch (e) {
-      console.error(
-        "GET /scouts/watchlist error:",
-        e?.response?.data || e?.message || e
-      );
+      console.error("GET /scouts/watchlist error:", e?.message || e);
       Alert.alert("Error", "Failed to load watchlist.");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userToken, authHeaders]);
+  }, [userToken]);
 
   useEffect(() => {
     fetchWatchlist();
@@ -86,16 +82,20 @@ export default function ScoutWatchlist() {
   const removeFromWatchlist = async (fighterId) => {
     if (!userToken) return;
 
-    // optimistic remove
-    const prev = watchlist;
-    setWatchlist((cur) => cur.filter((f) => f.user_id !== fighterId));
+    let snapshot = null;
+
+    // optimistic remove (safe)
+    setWatchlist((cur) => {
+      snapshot = cur; // capture what we actually removed from
+      return cur.filter((f) => f.user_id !== fighterId);
+    });
 
     try {
-      await axios.delete(`${API_URL}/scouts/watchlist/${fighterId}`, {
-        headers: authHeaders,
+      await apiDelete(`${API_URL}/scouts/watchlist/${fighterId}`, {
+        token: userToken,
       });
     } catch (e) {
-      setWatchlist(prev); // rollback
+      if (snapshot) setWatchlist(snapshot); // rollback to real snapshot
       Alert.alert("Error", "Failed to remove from watchlist.");
     }
   };

@@ -16,7 +16,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import axios from "axios";
+
 import { useNavigation } from "@react-navigation/native";
 import { API_URL } from "../Constants";
 import { useContext } from "react";
@@ -100,7 +100,7 @@ export default function ScoutSearch() {
 
       return params;
     },
-    [weightClass, minWins, style, region]
+    [weightClass, minWins, style, region],
   );
 
   const fetchPage = useCallback(
@@ -110,10 +110,27 @@ export default function ScoutSearch() {
       inFlightRef.current = true;
 
       try {
-        const params = buildParams(pageOffset);
-        const res = await axios.get(`${API_URL}/fighters/search`, { params });
+        const paramsObj = buildParams(pageOffset);
 
-        const list = Array.isArray(res.data) ? res.data : [];
+        // build query string
+        const qs = new URLSearchParams();
+        Object.entries(paramsObj || {}).forEach(([k, v]) => {
+          if (v === undefined || v === null || v === "") return;
+          qs.append(k, String(v));
+        });
+
+        const url = `${API_URL}/fighters/search?${qs.toString()}`;
+
+        const res = await fetch(url, { method: "GET" });
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          const msg =
+            data?.message || data?.error || "Failed to load fighters.";
+          throw new Error(msg);
+        }
+
+        const list = Array.isArray(data) ? data : [];
 
         // detect end
         const noMore = list.length < PAGE_SIZE;
@@ -135,10 +152,7 @@ export default function ScoutSearch() {
           setOffset((prev) => prev + list.length);
         }
       } catch (err) {
-        console.error(
-          "ScoutHome fetch error:",
-          err?.response?.data || err?.message || err
-        );
+        console.error("ScoutHome fetch error:", err?.message || err);
         Alert.alert("Error", "Failed to load fighters. Try again.");
       } finally {
         inFlightRef.current = false;
@@ -147,7 +161,7 @@ export default function ScoutSearch() {
         setLoadingMore(false);
       }
     },
-    [buildParams]
+    [buildParams],
   );
 
   // initial load
@@ -227,13 +241,29 @@ export default function ScoutSearch() {
   const loadWatchlistIds = useCallback(async () => {
     if (!userToken) return;
 
-    const res = await axios.get(`${API_URL}/scouts/watchlist`, {
-      headers: authHeaders,
-    });
+    try {
+      const res = await fetch(`${API_URL}/scouts/watchlist`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-    const ids = new Set((res.data?.watchlist || []).map((f) => f.user_id));
-    setWatchSet(ids);
-  }, [userToken, authHeaders]);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg = data?.message || data?.error || "Failed to load watchlist";
+        throw new Error(msg);
+      }
+
+      const ids = new Set((data?.watchlist || []).map((f) => f.user_id));
+
+      setWatchSet(ids);
+    } catch (err) {
+      console.error("Watchlist load error:", err?.message || err);
+    }
+  }, [userToken]);
 
   useEffect(() => {
     loadWatchlistIds();
@@ -253,16 +283,30 @@ export default function ScoutSearch() {
     });
 
     try {
-      if (isSaved) {
-        await axios.delete(`${API_URL}/scouts/watchlist/${fighterId}`, {
-          headers: authHeaders,
-        });
-      } else {
-        await axios.post(
-          `${API_URL}/scouts/watchlist/${fighterId}`,
-          {},
-          { headers: authHeaders }
-        );
+      const url = `${API_URL}/scouts/watchlist/${fighterId}`;
+
+      const res = await fetch(url, {
+        method: isSaved ? "DELETE" : "POST",
+        headers: {
+          Authorization: `Bearer ${userToken}`,
+          "Content-Type": "application/json",
+        },
+        // POST body optional; keep it empty
+        body: isSaved ? undefined : JSON.stringify({}),
+      });
+
+      // some DELETEs return empty response, so don't assume JSON
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        const msg = data?.message || data?.error || "Watchlist update failed.";
+        throw new Error(msg);
       }
     } catch (e) {
       // rollback if API failed
@@ -273,7 +317,7 @@ export default function ScoutSearch() {
         return next;
       });
 
-      Alert.alert("Error", "Watchlist update failed.");
+      Alert.alert("Error", e?.message || "Watchlist update failed.");
     }
   };
 

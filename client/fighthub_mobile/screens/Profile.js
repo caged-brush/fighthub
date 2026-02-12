@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { Video } from "expo-av";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -33,6 +32,46 @@ const getFullMediaUrl = (url) => {
   const base = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
   const path = url.startsWith("/") ? url : `/${url}`;
   return `${base}${path}`;
+};
+
+const safeJson = async (res) => {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+};
+
+const apiGet = async (url, { token } = {}) => {
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "application/json",
+    },
+  });
+
+  const data = await safeJson(res);
+  if (!res.ok)
+    throw new Error(data?.message || data?.error || "Request failed");
+  return data;
+};
+
+const apiPost = async (url, body, { token } = {}) => {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body ?? {}),
+  });
+
+  const data = await safeJson(res);
+  if (!res.ok)
+    throw new Error(data?.message || data?.error || "Request failed");
+  return data;
 };
 
 const isImage = (url) =>
@@ -92,8 +131,7 @@ export default function Profile() {
     setProfileNotFound(false);
 
     try {
-      const res = await axios.get(`${API_URL}/fighters/${profileUserId}`);
-      const f = res.data;
+      const f = await apiGet(`${API_URL}/fighters/${profileUserId}`);
 
       const pic = f?.users?.profile_picture_url || "";
       const base = API_URL.endsWith("/") ? API_URL.slice(0, -1) : API_URL;
@@ -105,52 +143,48 @@ export default function Profile() {
       setFighterInfo({
         fname: f?.users?.fname || "",
         lname: f?.users?.lname || "",
-
         region: f?.users?.region || f?.region || "",
         weight_class: f?.weight_class || "",
         gym: f?.gym || "",
         bio: f?.bio || "",
         is_available: !!f?.is_available,
-
         wins: f?.wins ?? 0,
         losses: f?.losses ?? 0,
         draws: f?.draws ?? 0,
         fight_style: f?.fight_style || "",
-
         weight: f?.weight ?? null,
         height: f?.height ?? null,
-
         profileUrl: picUrl,
       });
 
-      // follower count (for THIS profile)
+      // follower count
       try {
-        const followerRes = await axios.post(`${API_URL}/follower-count`, {
+        const followerData = await apiPost(`${API_URL}/follower-count`, {
           userId: profileUserId,
         });
-        setFollowerCount(followerRes.data.count || 0);
+        setFollowerCount(followerData?.count || 0);
       } catch {
         setFollowerCount(0);
       }
 
-      // following count (for THIS profile)
+      // following count
       try {
-        const followingRes = await axios.post(`${API_URL}/following-count`, {
+        const followingData = await apiPost(`${API_URL}/following-count`, {
           userId: profileUserId,
         });
-        setFollowingCount(followingRes.data.count || 0);
+        setFollowingCount(followingData?.count || 0);
       } catch {
         setFollowingCount(0);
       }
 
-      // follow status (current user -> profile user)
+      // follow status (only if not own profile)
       if (!viewingOwnProfile) {
         try {
-          const followRes = await axios.post(`${API_URL}/is-following`, {
+          const followData = await apiPost(`${API_URL}/is-following`, {
             followerId: authedUserId,
             followingId: profileUserId,
           });
-          setIsFollowing(!!followRes.data.isFollowing);
+          setIsFollowing(!!followData?.isFollowing);
         } catch {
           setIsFollowing(false);
         }
@@ -158,16 +192,16 @@ export default function Profile() {
         setIsFollowing(false);
       }
     } catch (err) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message || err?.message;
+      const msg = err?.message || "Failed to load fighter profile.";
 
-      console.log("GET /fighters/:userId failed:", status, msg);
-
-      if (status === 404) {
+      // If you really want 404 behavior, your backend should return a message/code.
+      // With fetch, you don’t get err.response.status unless you capture it manually.
+      if (String(msg).toLowerCase().includes("not found")) {
         setProfileNotFound(true);
         return;
       }
 
+      console.log("GET /fighters/:userId failed:", msg);
       Alert.alert("Error", "Failed to load fighter profile.");
     }
   }, [profileUserId, viewingOwnProfile, authedUserId]);
@@ -176,22 +210,16 @@ export default function Profile() {
     if (!profileUserId) return;
 
     try {
-      const headers = { Authorization: `Bearer ${userToken}` };
-      const response = await axios.get(
+      const data = await apiGet(
         `${API_URL}/fight-clips/user/${profileUserId}`,
-        { headers },
+        {
+          token: userToken,
+        },
       );
 
-      // console.log("USER CLIPS:", response.data?.clips);
-
-      setUserPosts(
-        Array.isArray(response.data?.clips) ? response.data.clips : [],
-      );
+      setUserPosts(Array.isArray(data?.clips) ? data.clips : []);
     } catch (error) {
-      console.log(
-        "Error fetching user posts:",
-        error?.response?.data || error?.message,
-      );
+      console.log("Error fetching user posts:", error?.message);
       setUserPosts([]);
     }
   }, [profileUserId, userToken]);
@@ -202,15 +230,15 @@ export default function Profile() {
       if (!selectedPost) return;
 
       try {
-        const res = await axios.post(`${API_URL}/like-count`, {
+        const likeData = await apiPost(`${API_URL}/like-count`, {
           postId: selectedPost.id,
         });
-        setPostLikes(res.data.likes || 0);
+        setPostLikes(likeData?.likes || 0);
 
-        const likedRes = await axios.post(`${API_URL}/liked-posts`, {
+        const likedData = await apiPost(`${API_URL}/liked-posts`, {
           userId: authedUserId,
         });
-        const likedPostIds = likedRes.data.likedPostIds || [];
+        const likedPostIds = likedData?.likedPostIds || [];
         setHasLiked(likedPostIds.includes(selectedPost.id));
       } catch {
         setPostLikes(0);
@@ -229,14 +257,14 @@ export default function Profile() {
 
     try {
       if (hasLiked) {
-        await axios.post(`${API_URL}/unlike`, {
+        await apiPost(`${API_URL}/unlike`, {
           userId: authedUserId,
           postId: selectedPost.id,
         });
         setHasLiked(false);
         setPostLikes((p) => Math.max(p - 1, 0));
       } else {
-        await axios.post(`${API_URL}/like`, {
+        await apiPost(`${API_URL}/like`, {
           userId: authedUserId,
           postId: selectedPost.id,
         });
@@ -252,31 +280,25 @@ export default function Profile() {
 
   const handleFollow = async () => {
     try {
-      const response = await axios.post(`${API_URL}/follow`, {
+      const data = await apiPost(`${API_URL}/follow`, {
         followingId: profileUserId,
         followerId: authedUserId,
       });
-      if (response.data?.message) setIsFollowing(true);
+      if (data?.message) setIsFollowing(true);
     } catch (error) {
-      console.log(
-        "Error following user:",
-        error?.response?.data || error?.message,
-      );
+      console.log("Error following user:", error?.message);
     }
   };
 
   const handleUnfollow = async () => {
     try {
-      const response = await axios.post(`${API_URL}/unfollow`, {
+      const data = await apiPost(`${API_URL}/unfollow`, {
         followingId: profileUserId,
         followerId: authedUserId,
       });
-      if (response.data?.message) setIsFollowing(false);
+      if (data?.message) setIsFollowing(false);
     } catch (error) {
-      console.log(
-        "Error unfollowing user:",
-        error?.response?.data || error?.message,
-      );
+      console.log("Error unfollowing user:", error?.message);
     }
   };
 

@@ -11,7 +11,6 @@ import FighterOnboarding from "./screens/FighterOnboarding";
 import ScoutOnboarding from "./screens/ScoutOnboarding";
 import Login from "./screens/Login";
 import Onboarding from "./screens/FighterOnboarding";
-import Config from "react-native-config";
 import Welcome from "./screens/Welcome";
 import { useFonts } from "expo-font";
 import ChatScreen from "./screens/ChatScreen";
@@ -19,23 +18,9 @@ import UserProfile from "./screens/UserProfile"; // Import UserProfile
 import ScoutHome from "./screens/ScoutSearch";
 import ScoutTabs from "./screens/ScoutTabs";
 import ClipViewer from "./screens/ClipViewer";
-import VerifyEmail from "./screens/VerifyScreen";
 import * as Linking from "expo-linking";
 import { useEffect } from "react";
 import { supabase } from "./lib/supabase";
-
-useEffect(() => {
-  const sub = Linking.addEventListener("url", async ({ url }) => {
-    // Supabase verification links come back here
-    const { error } = await supabase.auth.exchangeCodeForSession(url);
-    if (!error) {
-      // send them to a clear screen
-      // navigation.navigate("EmailVerified");
-    }
-  });
-
-  return () => sub.remove();
-}, []);
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId, role } =
@@ -43,6 +28,17 @@ function AppNavigator() {
   console.log("User Token:", userToken);
   console.log("User ID:", userId);
   console.log("Is OnBoarded:", isOnBoarded);
+
+  useEffect(() => {
+    const sub = Linking.addEventListener("url", async ({ url }) => {
+      const { error } = await supabase.auth.exchangeCodeForSession(url);
+      if (!error) {
+        // navigate if you want
+      }
+    });
+
+    return () => sub.remove();
+  }, []);
 
   const BottomTab = createBottomTabNavigator();
   const Stack = createNativeStackNavigator();
@@ -77,11 +73,6 @@ function AppNavigator() {
             />
             <Stack.Screen name="Signup" component={Signup} />
             <Stack.Screen name="Login" component={Login} />
-            <Stack.Screen
-              name="VerifyEmail"
-              component={VerifyEmail}
-              options={{ headerShown: false }}
-            />
           </>
         ) : !isOnBoarded ? (
           role === "scout" ? (

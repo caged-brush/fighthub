@@ -9,7 +9,6 @@ import {
   RefreshControl,
   Image,
 } from "react-native";
-import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 
@@ -88,14 +87,20 @@ export default function FeedScreen({ navigation }) {
 
   const headers = { Authorization: `Bearer ${userToken}` };
 
+  const loadFeedCore = async () => {
+    const data = await apiGet(`${API_URL}/fight-clips/feed`, {
+      token: userToken,
+    });
+    setClips(data?.clips || []);
+    setNextCursor(data?.nextCursor || null);
+  };
+
   const loadFeed = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/fight-clips/feed`, { headers });
-      setClips(res.data?.clips || []);
-      setNextCursor(res.data?.nextCursor || null);
+      await loadFeedCore();
     } catch (e) {
-      console.log("FEED ERROR:", e?.response?.data || e.message);
+      console.log("FEED ERROR:", e?.message || e);
     } finally {
       setLoading(false);
     }
@@ -104,9 +109,7 @@ export default function FeedScreen({ navigation }) {
   const refresh = async () => {
     try {
       setRefreshing(true);
-      const res = await axios.get(`${API_URL}/fight-clips/feed`, { headers });
-      setClips(res.data?.clips || []);
-      setNextCursor(res.data?.nextCursor || null);
+      await loadFeedCore();
     } finally {
       setRefreshing(false);
     }
@@ -117,16 +120,25 @@ export default function FeedScreen({ navigation }) {
 
     try {
       setLoadingMore(true);
-      const res = await axios.get(
+
+      const data = await apiGet(
         `${API_URL}/fight-clips/feed?cursor=${encodeURIComponent(nextCursor)}`,
-        { headers },
+        { token: userToken },
       );
 
-      const newClips = res.data?.clips || [];
-      const seen = new Set(clips.map((c) => c.id));
+      const newClips = data?.clips || [];
+      const newCursor = data?.nextCursor || null;
 
-      setClips([...clips, ...newClips.filter((c) => !seen.has(c.id))]);
-      setNextCursor(res.data?.nextCursor || null);
+      setClips((prev) => {
+        const seen = new Set(prev.map((c) => c.id));
+        const merged = [...prev];
+        for (const c of newClips) {
+          if (!seen.has(c.id)) merged.push(c);
+        }
+        return merged;
+      });
+
+      setNextCursor(newCursor);
     } finally {
       setLoadingMore(false);
     }

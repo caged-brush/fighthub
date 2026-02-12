@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -93,10 +92,12 @@ export default function ScoutOnboarding() {
       Alert.alert("Missing info", "Please select your date of birth.");
       return;
     }
+
     if (!org) {
       Alert.alert("Missing info", "Organization / Promotion is required.");
       return;
     }
+
     if (!region) {
       Alert.alert(
         "Missing info",
@@ -117,26 +118,29 @@ export default function ScoutOnboarding() {
 
       console.log("SCOUT ONBOARDING SUBMIT:", payload);
 
-      const res = await axios.put(`${API_URL}/scouts/me`, payload, {
-        headers: { Authorization: `Bearer ${userToken}` },
+      const res = await fetch(`${API_URL}/scouts/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${userToken}`,
+        },
+        body: JSON.stringify(payload),
       });
 
-      console.log("SCOUT ONBOARDING RESPONSE:", res.data);
+      const data = await res.json().catch(() => null);
 
-      // Let your conditional navigator route based on onboarding state
+      if (!res.ok) {
+        const message =
+          data?.message || data?.error || "Failed to save scout profile";
+        throw new Error(message);
+      }
+
+      console.log("SCOUT ONBOARDING RESPONSE:", data);
+
       await completeOnboarding();
     } catch (err) {
-      console.log("STATUS:", err.response?.status);
-      console.log("DATA:", err.response?.data);
-      console.log("MSG:", err.message);
-
-      const msg =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        "Failed to save scout profile";
-
-      Alert.alert("Error", msg);
+      console.log("ERROR:", err?.message);
+      Alert.alert("Error", err?.message || "Failed to save scout profile");
     } finally {
       setSubmitting(false);
     }

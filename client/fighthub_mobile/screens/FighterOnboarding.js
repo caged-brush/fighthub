@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
   Switch,
 } from "react-native";
-import axios from "axios";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
@@ -178,27 +177,32 @@ export default function FighterOnboarding() {
 
         fight_style: fightStyle,
 
-        // ✅ NEW
         gym: gym.trim(),
         bio: bio.trim(),
         is_available: !!isAvailable,
       };
 
-      const res = await axios.put(`${API_URL}/fighters/me`, payload, {
-        headers: { Authorization: `Bearer ${userToken}` },
+      const res = await fetch(`${API_URL}/fighters/me`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${userToken}`,
+        },
+        body: JSON.stringify(payload),
       });
 
-      console.log("FIGHTER ONBOARDING RESPONSE:", res.data);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const msg = data?.message || "Failed to save fighter profile";
+        throw new Error(msg);
+      }
+
+      console.log("FIGHTER ONBOARDING RESPONSE:", data);
       await completeOnboarding();
     } catch (err) {
-      console.error(
-        "FIGHTER ONBOARDING ERROR:",
-        err?.response?.data || err?.message,
-      );
-      Alert.alert(
-        "Error",
-        err?.response?.data?.message || "Failed to save fighter profile",
-      );
+      console.error("FIGHTER ONBOARDING ERROR:", err?.message);
+      Alert.alert("Error", err?.message || "Failed to save fighter profile");
     } finally {
       setSubmitting(false);
     }

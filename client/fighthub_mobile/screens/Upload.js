@@ -19,7 +19,6 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { API_URL } from "../Constants";
@@ -251,6 +250,20 @@ export default function UploadFightClipScreen() {
   const upload = async () => {
     if (!userToken) return Alert.alert("Auth", "Missing token.");
 
+    const authHeaders = {
+      Authorization: `Bearer ${userToken}`,
+      "Content-Type": "application/json",
+    };
+
+    const safeJson = async (res) => {
+      const text = await res.text();
+      try {
+        return text ? JSON.parse(text) : null;
+      } catch {
+        return null;
+      }
+    };
+
     // YouTube mode
     if (clipMode === "youtube") {
       const id = extractYouTubeId(youtubeUrl);
@@ -258,20 +271,24 @@ export default function UploadFightClipScreen() {
 
       setLoading(true);
       try {
-        const headers = { Authorization: `Bearer ${userToken}` };
-
-        await axios.post(
-          `${API_URL}/fight-clips/create-youtube`,
-          {
+        const res = await fetch(`${API_URL}/fight-clips/create-youtube`, {
+          method: "POST",
+          headers: authHeaders,
+          body: JSON.stringify({
             youtube_url: youtubeUrl.trim(),
             fight_date: fightDate || null,
             opponent: opponent || null,
             promotion: promotion || null,
             result,
             notes: notes || null,
-          },
-          { headers },
-        );
+          }),
+        });
+
+        const data = await safeJson(res);
+
+        if (!res.ok) {
+          throw new Error(data?.message || "Failed to add YouTube clip");
+        }
 
         Alert.alert("Success", "YouTube fight clip added.");
         clearMedia();
@@ -283,12 +300,7 @@ export default function UploadFightClipScreen() {
         setNotes("");
         return;
       } catch (e) {
-        Alert.alert(
-          "Error",
-          e?.response?.data?.message ||
-            e?.message ||
-            "Failed to add YouTube clip",
-        );
+        Alert.alert("Error", e?.message || "Failed to add YouTube clip");
       } finally {
         setLoading(false);
       }
@@ -312,19 +324,27 @@ export default function UploadFightClipScreen() {
 
       const ext = guessExt(video.uri, video.fileName);
       const mimeType = guessMime(ext);
-      const headers = { Authorization: `Bearer ${userToken}` };
 
-      const signRes = await axios.post(
-        `${API_URL}/fight-clips/sign-upload`,
-        { fileExt: ext, mimeType },
-        { headers },
-      );
+      // 1) Sign upload
+      const signRes = await fetch(`${API_URL}/fight-clips/sign-upload`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ fileExt: ext, mimeType }),
+      });
 
-      const { storagePath, signedUrl } = signRes.data || {};
+      const signData = await safeJson(signRes);
+
+      if (!signRes.ok) {
+        throw new Error(signData?.message || "Failed to sign upload");
+      }
+
+      const { storagePath, signedUrl } = signData || {};
       if (!storagePath || !signedUrl) {
         throw new Error("Sign response missing storagePath/signedUrl");
       }
 
+      // 2) Upload to signed URL (this is NOT your API; it’s storage)
+      // IMPORTANT: do NOT send your Bearer token here.
       const up = await uploadToSignedUrl({
         signedUrl,
         fileUri: video.uri,
@@ -335,9 +355,11 @@ export default function UploadFightClipScreen() {
         throw new Error(`Upload failed (status ${up.status})`);
       }
 
-      await axios.post(
-        `${API_URL}/fight-clips/create`,
-        {
+      // 3) Create clip record in your DB
+      const createRes = await fetch(`${API_URL}/fight-clips/create`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
           fight_date: fightDate || null,
           opponent: opponent || null,
           promotion: promotion || null,
@@ -346,9 +368,14 @@ export default function UploadFightClipScreen() {
           storage_path: storagePath,
           mime_type: mimeType,
           file_size: size,
-        },
-        { headers },
-      );
+        }),
+      });
+
+      const createData = await safeJson(createRes);
+
+      if (!createRes.ok) {
+        throw new Error(createData?.message || "Failed to create clip record");
+      }
 
       Alert.alert("Success", "Fight clip uploaded.");
 
@@ -361,10 +388,7 @@ export default function UploadFightClipScreen() {
       setResult("win");
       setNotes("");
     } catch (e) {
-      Alert.alert(
-        "Error",
-        e?.response?.data?.message || e?.message || "Upload failed",
-      );
+      Alert.alert("Error", e?.message || "Upload failed");
     } finally {
       setLoading(false);
     }

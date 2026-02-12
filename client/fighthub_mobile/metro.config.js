@@ -1,8 +1,11 @@
 const { getDefaultConfig } = require("@expo/metro-config");
 
-const defaultConfig = getDefaultConfig(__dirname);
+const config = getDefaultConfig(__dirname);
 
-defaultConfig.resolver.sourceExts.push("cjs");
-defaultConfig.resolver.unstable_enablePackageExports = false;
+// Keep this if you need it for some packages
+config.resolver.sourceExts.push("cjs");
 
-module.exports = defaultConfig;
+// Leave package exports ON. Turning it off can cause wrong entry resolution.
+config.resolver.unstable_enablePackageExports = true;
+
+module.exports = config;

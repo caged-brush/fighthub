@@ -15,7 +15,6 @@ import {
 import React, { useContext, useState } from "react";
 import CustomButton from "../component/CustomButton";
 import { useNavigation } from "@react-navigation/native";
-import axios from "axios";
 import { AuthContext } from "../context/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { API_URL } from "../Constants";
@@ -52,31 +51,40 @@ const Login = () => {
       Alert.alert("Invalid email", "Enter a valid email address.");
       return;
     }
+
     if (!password || password.length < 1) {
       Alert.alert("Missing password", "Enter your password.");
       return;
     }
 
     setSubmitting(true);
+
     try {
-      const response = await axios.post(`${API_URL}/login`, {
-        email,
-        password,
+      const res = await fetch(`${API_URL}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (response.data?.token) {
-        const { token, userId, role, isOnBoarded } = response.data;
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const message = data?.message || "Please try again.";
+        throw new Error(message);
+      }
+
+      if (data?.token) {
+        const { token, userId, role, isOnBoarded } = data;
         await login(token, userId, role, isOnBoarded);
 
-        console.log("LOGIN PAYLOAD:", response.data); // remove later
+        console.log("LOGIN PAYLOAD:", data); // remove later
       } else {
-        Alert.alert("Error", response.data?.message || "Login failed");
+        Alert.alert("Error", data?.message || "Login failed");
       }
     } catch (error) {
-      Alert.alert(
-        "Login failed",
-        error.response?.data?.message || "Please try again.",
-      );
+      Alert.alert("Login failed", error?.message || "Please try again.");
     } finally {
       setSubmitting(false);
     }

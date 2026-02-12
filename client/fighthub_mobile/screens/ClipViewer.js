@@ -9,7 +9,6 @@ import {
 } from "react-native";
 import { Video } from "expo-av";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import axios from "axios";
 import { WebView } from "react-native-webview";
 
 import { AuthContext } from "../context/AuthContext";
@@ -160,18 +159,31 @@ export default function ClipViewer({ route, navigation }) {
     const fetchUrl = async () => {
       try {
         setLoading(true);
-        const headers = { Authorization: `Bearer ${userToken}` };
-        const res = await axios.get(`${API_URL}/fight-clips/${clip.id}/play`, {
-          headers,
+
+        const res = await fetch(`${API_URL}/fight-clips/${clip.id}/play`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+            "Content-Type": "application/json",
+          },
         });
-        setUrl(res.data?.url || null);
+
+        const text = await res.text();
+        let data = null;
+
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          data = null;
+        }
+
+        if (!res.ok) {
+          throw new Error(data?.message || "Failed to fetch play URL");
+        }
+
+        setUrl(data?.url || null);
       } catch (e) {
-        console.log(
-          "PLAY URL ERROR:",
-          e?.response?.status,
-          e?.response?.data,
-          e?.message,
-        );
+        console.log("PLAY URL ERROR:", e?.message);
         setUrl(null);
       } finally {
         setLoading(false);

@@ -14,7 +14,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import CustomButton from "../component/CustomButton";
-import axios from "axios";
 import { useContext, useMemo, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -25,6 +24,7 @@ import * as Google from "expo-auth-session/providers/google";
 import { auth } from "../firebaseConfig";
 import { API_URL } from "../Constants";
 import { supabase } from "../lib/supabase";
+import { apiFetch } from "../lib/apiFetch";
 
 const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 
@@ -112,23 +112,12 @@ const Signup = () => {
       const email = formData.email.trim().toLowerCase();
       const password = formData.password;
 
-      // 1) Supabase signup (email verification happens automatically)
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          // optional: your redirect if you have one
-          emailRedirectTo: "https://kavyx.tech/verify",
+          emailRedirectTo: "https://kavyx.tech/verified",
         },
-      });
-
-      // const { data, error } = await supabase.auth.signUp({ email, password });
-
-      console.log("SUPABASE SIGNUP:", {
-        error: error?.message || null,
-        userId: data?.user?.id || null,
-        email: data?.user?.email || null,
-        hasSession: !!data?.session,
       });
 
       if (error) {
@@ -136,13 +125,19 @@ const Signup = () => {
         return;
       }
 
-      // 2) Tell user to verify email
+      // IMPORTANT: Supabase signup won't store your custom role in public.users automatically.
+      // Call your backend to set role + create fighter/scout row.
+      await apiFetch("/auth/register-profile", {
+        method: "POST",
+        body: { role: selectedRole }, // backend will use supabase token to know who
+        token: data?.session?.access_token || null,
+      });
+
       Alert.alert(
         "Verify your email",
         "We sent you a verification link. Open it, verify, then come back and log in.",
       );
 
-      // 3) Move them to Login
       navigation.replace("Login", { email, role: selectedRole });
     } catch (e) {
       Alert.alert("Error", e.message || "Something went wrong");
