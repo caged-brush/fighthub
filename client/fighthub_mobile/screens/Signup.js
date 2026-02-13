@@ -104,36 +104,24 @@ const Signup = () => {
   };
 
   const handleUserSignup = async () => {
-    console.log("SUPABASE URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
-    console.log("SUPABASE KEY:", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
-
     if (submitting) return;
     if (!validate()) return;
 
     setSubmitting(true);
+
     try {
       const email = formData.email.trim().toLowerCase();
       const password = formData.password;
-      const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-      const r = await fetch(`${url}/auth/v1/health`, {
-        headers: {
-          apikey: anon,
-          Authorization: `Bearer ${anon}`,
-        },
-      });
-      const t = await r.text();
-      console.log("health status", r.status);
-      console.log("health body", t);
-
-      console.log("SIGNUP PATH: using supabase.auth.signUp");
-
-      await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { role: selectedRole, fname, lname },
+          data: {
+            role: selectedRole,
+            fname: formData.fname?.trim(),
+            lname: formData.lname?.trim(),
+          },
           emailRedirectTo: "https://kavyx.tech/verify",
         },
       });
@@ -141,24 +129,13 @@ const Signup = () => {
       console.log("SIGNUP RAW:", { data, error });
 
       if (error) {
-        console.log("SIGNUP ERROR JSON:", JSON.stringify(error, null, 2));
         Alert.alert("Signup failed", error.message);
         return;
       }
 
-      if (error) {
-        Alert.alert("Signup failed", error.message);
-        return;
-      }
-
-      // IMPORTANT: Supabase signup won't store your custom role in public.users automatically.
-      // Call your backend to set role + create fighter/scout row.
-      await apiFetch("/auth/set-role", {
-        method: "POST",
-        body: { role: selectedRole },
-        token: session.access_token,
-      });
-
+      // IMPORTANT:
+      // With email confirmation enabled, data.session is often null.
+      // So you cannot call protected backend routes yet.
       Alert.alert(
         "Verify your email",
         "We sent you a verification link. Open it, verify, then come back and log in.",
@@ -166,7 +143,17 @@ const Signup = () => {
 
       navigation.replace("Login", { email, role: selectedRole });
     } catch (e) {
-      Alert.alert("Error", e.message || "Something went wrong");
+      // When Supabase/Cloudflare returns HTML/522, error messages can be messy.
+      // Give a clean user-facing message.
+      const msg = String(e?.message || "");
+      const friendly =
+        msg.includes("Network") ||
+        msg.includes("Failed to fetch") ||
+        msg.includes("timed out")
+          ? "Signup service is temporarily unavailable. Try again in a minute."
+          : msg || "Something went wrong";
+
+      Alert.alert("Error", friendly);
     } finally {
       setSubmitting(false);
     }

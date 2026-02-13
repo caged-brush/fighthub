@@ -18,6 +18,8 @@ import { useNavigation } from "@react-navigation/native";
 import { AuthContext } from "../context/AuthContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { API_URL } from "../Constants";
+import { supabase } from "../lib/supabase";
+import { apiFetch } from "../lib/apiFetch";
 
 const Login = () => {
   const navigation = useNavigation();
@@ -47,44 +49,64 @@ const Login = () => {
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
 
-    if (!email || !email.includes("@")) {
-      Alert.alert("Invalid email", "Enter a valid email address.");
-      return;
-    }
-
-    if (!password || password.length < 1) {
-      Alert.alert("Missing password", "Enter your password.");
-      return;
-    }
+    if (!email.includes("@"))
+      return Alert.alert("Invalid email", "Enter a valid email.");
+    if (!password)
+      return Alert.alert("Missing password", "Enter your password.");
 
     setSubmitting(true);
-
     try {
-      const res = await fetch(`${API_URL}/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        const message = data?.message || "Please try again.";
-        throw new Error(message);
+      if (error) {
+        Alert.alert("Login failed", error.message);
+        return;
       }
 
-      if (data?.token) {
-        const { token, userId, role, isOnBoarded } = data;
-        await login(token, userId, role, isOnBoarded);
+      const session = data?.session;
+      if (!session?.access_token) {
+        Alert.alert("Login failed", "No session returned.");
+        return;
+      }
 
-        console.log("LOGIN PAYLOAD:", data); // remove later
+      // Get role/profile from your backend
+      const me = await apiFetch("/auth/me", { token });
+
+      const { role, scout_onboarded, fighter_onboarded } = me.user;
+
+      let isOnboarded = false;
+
+      if (role === "fighter") {
+        isOnboarded = fighter_onboarded;
+      } else if (role === "scout") {
+        isOnboarded = scout_onboarded;
+      }
+
+      await login(token, me.user.id, role, isOnboarded);
+
+      if (!isOnboarded) {
+        navigation.reset({
+          index: 0,
+          routes: [
+            {
+              name:
+                role === "fighter" ? "FighterOnboarding" : "ScoutOnboarding",
+            },
+          ],
+        });
       } else {
-        Alert.alert("Error", data?.message || "Login failed");
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Home" }],
+        });
       }
-    } catch (error) {
-      Alert.alert("Login failed", error?.message || "Please try again.");
+
+      // Persist token + role in your app state
+    } catch (e) {
+      Alert.alert("Login failed", e?.message || "Please try again.");
     } finally {
       setSubmitting(false);
     }
