@@ -104,6 +104,9 @@ const Signup = () => {
   };
 
   const handleUserSignup = async () => {
+    console.log("SUPABASE URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
+    console.log("SUPABASE KEY:", process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+
     if (submitting) return;
     if (!validate()) return;
 
@@ -111,14 +114,37 @@ const Signup = () => {
     try {
       const email = formData.email.trim().toLowerCase();
       const password = formData.password;
+      const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const anon = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-      const { data, error } = await supabase.auth.signUp({
+      const r = await fetch(`${url}/auth/v1/health`, {
+        headers: {
+          apikey: anon,
+          Authorization: `Bearer ${anon}`,
+        },
+      });
+      const t = await r.text();
+      console.log("health status", r.status);
+      console.log("health body", t);
+
+      console.log("SIGNUP PATH: using supabase.auth.signUp");
+
+      await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: "https://kavyx.tech/verified",
+          data: { role: selectedRole, fname, lname },
+          emailRedirectTo: "https://kavyx.tech/verify",
         },
       });
+
+      console.log("SIGNUP RAW:", { data, error });
+
+      if (error) {
+        console.log("SIGNUP ERROR JSON:", JSON.stringify(error, null, 2));
+        Alert.alert("Signup failed", error.message);
+        return;
+      }
 
       if (error) {
         Alert.alert("Signup failed", error.message);
@@ -127,10 +153,10 @@ const Signup = () => {
 
       // IMPORTANT: Supabase signup won't store your custom role in public.users automatically.
       // Call your backend to set role + create fighter/scout row.
-      await apiFetch("/auth/register-profile", {
+      await apiFetch("/auth/set-role", {
         method: "POST",
-        body: { role: selectedRole }, // backend will use supabase token to know who
-        token: data?.session?.access_token || null,
+        body: { role: selectedRole },
+        token: session.access_token,
       });
 
       Alert.alert(
