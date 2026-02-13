@@ -191,7 +191,25 @@ export default function FighterOnboarding() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json().catch(() => null);
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = text;
+      }
+
+      console.log("FIGHTER /me status:", res.status);
+      console.log("FIGHTER /me body:", data);
+
+      if (!res.ok) {
+        const msg =
+          (data && (data.message || data.error)) ||
+          `Failed to save fighter profile (${res.status})`;
+        throw new Error(msg);
+      }
+
+      //const data = await res.json().catch(() => null);
 
       if (!res.ok) {
         const msg = data?.message || "Failed to save fighter profile";

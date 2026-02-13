@@ -1,5 +1,6 @@
 // fightersRoutes.js
 import express from "express";
+import { supabaseAdmin } from "../config/supabase";
 
 const router = express.Router();
 
@@ -190,7 +191,7 @@ export default function fightersRoutes(supabase, requireAuth) {
 
     try {
       // 1) Update fighter row
-      const { data: fighter, error: fighterErr } = await supabase
+      const { data: fighter, error: fighterErr } = await supabaseAdmin
         .from("fighters")
         .upsert(
           {

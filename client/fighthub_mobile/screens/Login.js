@@ -72,7 +72,8 @@ const Login = () => {
         return;
       }
 
-      // Get role/profile from your backend
+      const token = session.access_token;
+
       const me = await apiFetch("/auth/me", { token });
 
       const { role, scout_onboarded, fighter_onboarded } = me.user;
@@ -86,23 +87,6 @@ const Login = () => {
       }
 
       await login(token, me.user.id, role, isOnboarded);
-
-      if (!isOnboarded) {
-        navigation.reset({
-          index: 0,
-          routes: [
-            {
-              name:
-                role === "fighter" ? "FighterOnboarding" : "ScoutOnboarding",
-            },
-          ],
-        });
-      } else {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Home" }],
-        });
-      }
 
       // Persist token + role in your app state
     } catch (e) {
