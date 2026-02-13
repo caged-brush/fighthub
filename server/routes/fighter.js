@@ -1,6 +1,6 @@
 // fightersRoutes.js
 import express from "express";
-import { supabaseAdmin } from "../config/supabase";
+import { supabaseAdmin } from "../config/supabase.js";
 
 const router = express.Router();
 
