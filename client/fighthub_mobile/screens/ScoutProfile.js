@@ -17,6 +17,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { API_URL } from "../Constants";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
+import { apiGet } from "../lib/apiGet";
+
 
 export default function ScoutProfile() {
   const [scoutData, setScoutData] = useState({

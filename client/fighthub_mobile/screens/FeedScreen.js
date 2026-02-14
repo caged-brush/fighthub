@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
+import { apiGet } from "../lib/apiGet";
 
 function ClipCard({ clip, onPress }) {
   const isYoutube = (clip.source_type || "upload") === "youtube";

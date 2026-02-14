@@ -1,6 +1,8 @@
 // AuthContext.js
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
+import { apiFetch } from "../lib/apiFetch";
 
 export const AuthContext = createContext();
 
@@ -76,7 +78,7 @@ export const AuthProvider = ({ children }) => {
       // ✅ cache the server truth locally so app restart doesn't regress
       await AsyncStorage.setItem(
         onboardingKeyFor(incomingRole),
-        incomingIsOnBoarded ? "true" : "false"
+        incomingIsOnBoarded ? "true" : "false",
       );
     } finally {
       setIsLoading(false);
@@ -122,24 +124,45 @@ export const AuthProvider = ({ children }) => {
 
   const isLoggedIn = async () => {
     setIsLoading(true);
-    try {
-      const storedToken = await AsyncStorage.getItem("userToken");
-      const storedUserId = await AsyncStorage.getItem("userId");
-      const storedRole = await AsyncStorage.getItem("role");
 
-      let onboarded = false;
-      if (storedToken && storedUserId && storedRole) {
-        onboarded = await getOnboardingStatusForRole(storedRole);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        // Just set state to logged out — DO NOT wipe storage
+        setUserToken(null);
+        setUserId(null);
+        setRole(null);
+        setIsOnBoarded(false);
+        return;
       }
 
-      // set onboarding BEFORE token triggers navigation
-      setIsOnBoarded(onboarded);
+      const token = session.access_token;
 
-      setUserToken(storedToken);
-      setUserId(storedUserId);
-      setRole(storedRole);
+      // Optionally fetch backend truth here
+      const me = await apiFetch("/auth/me", { token });
+      const { id, role, scout_onboarded, fighter_onboarded } = me.user;
+
+      const onboarded =
+        role === "fighter"
+          ? !!fighter_onboarded
+          : role === "scout"
+            ? !!scout_onboarded
+            : false;
+
+      setUserToken(token);
+      setUserId(id);
+      setRole(role);
+      setIsOnBoarded(onboarded);
     } catch (e) {
       console.log("isLoggedIn error:", e?.message || e);
+
+      setUserToken(null);
+      setUserId(null);
+      setRole(null);
+      setIsOnBoarded(false);
     } finally {
       setIsLoading(false);
     }

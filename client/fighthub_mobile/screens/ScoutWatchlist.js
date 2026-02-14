@@ -18,6 +18,8 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { API_URL } from "../Constants";
 import { AuthContext } from "../context/AuthContext";
+import { apiGet } from "../lib/apiGet";
+
 
 function calcScore(f) {
   const wins = Number(f?.wins ?? 0);
