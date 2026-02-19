@@ -1,129 +1,59 @@
-import React, { useState, useEffect, useCallback, useContext } from "react";
+import React, { useCallback, useContext, useEffect, useState } from "react";
 import {
   View,
   Text,
   FlatList,
-  Image,
   ActivityIndicator,
-  Platform,
   TouchableOpacity,
-  StyleSheet,
   SafeAreaView,
+  StyleSheet,
+  RefreshControl,
+  Alert,
 } from "react-native";
-import { useVideoPlayer, VideoView } from "expo-video";
-import axios from "axios";
-import { StatusBar } from "expo-status-bar";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { AuthContext } from "../context/AuthContext";
-import { useNavigation } from "@react-navigation/native";
-import { API_URL } from "../Constants";
+import { apiFetch } from "../lib/apiFetch";
 
-const isValidUrl = (url) => {
-  if (!url) return false;
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
-};
+export default function FightsHome({ navigation }) {
+  const { userToken, role } = useContext(AuthContext);
+  const token = userToken;
 
-const getMediaUrl = (post) => {
-  if (!post) return null;
-  return post.media_signed_url || post.media_url || null;
-};
-
-const VideoPost = ({ mediaUri }) => {
-  const player = useVideoPlayer(mediaUri, (player) => {
-    player.loop = true;
-  });
-
-  // Add error boundary for video playback
-  const [hasError, setHasError] = useState(false);
-
-  if (hasError) {
-    return (
-      <View
-        style={[
-          styles.postImage,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <Text style={{ color: "#fff" }}>Failed to load video</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ width: "100%", height: 350, backgroundColor: "black" }}>
-      <VideoView
-        player={player}
-        style={{ width: "100%", height: 350 }}
-        useNativeControls
-        resizeMode="cover"
-        onError={(error) => {
-          console.log("Video Error:", error);
-          setHasError(true);
-        }}
-        onLoadStart={() => console.log("Loading video...")}
-        onLoad={() => console.log("Video loaded successfully")}
-      />
-    </View>
-  );
-};
-
-const Home = () => {
-  const [posts, setPosts] = useState([]);
+  const [items, setItems] = useState([]); // [{slot, event}]
   const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [userProfiles, setUserProfiles] = useState({});
-  const { userId } = useContext(AuthContext);
-  const [likedPosts, setLikedPosts] = useState({});
-  const [likeCounts, setLikeCounts] = useState({});
-  const [error, setError] = useState(null);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
 
-  const navigation = useNavigation();
-
-  const fetchPosts = async () => {
+  const load = async ({ reset = false } = {}) => {
+    if (!token) return;
     if (loading) return;
+    if (!reset && !hasMore) return;
 
     setLoading(true);
     try {
-      const response = await axios.get(
-        `${API_URL}/posts?page=${page}&limit=10`
-      );
+      const cursorParam =
+        !reset && nextCursor ? `&cursor=${encodeURIComponent(nextCursor)}` : "";
+      const res = await apiFetch(`/fights/open-slots?limit=20${cursorParam}`, {
+        token,
+      });
 
-      // Destructure the correct response structure from Supabase
-      const { posts, total, currentPage, pages } = response.data;
+      const newItems = res?.slots || [];
+      const newCursor = res?.nextCursor ?? null;
 
-      if (page === 1) {
-        setPosts(posts);
+      if (reset) {
+        setItems(newItems);
       } else {
-        setPosts((prevPosts) => {
-          const existingIds = new Set(prevPosts.map((p) => p.id));
-          const newUniquePosts = posts.filter(
-            (post) => !existingIds.has(post.id)
-          );
-          return [...prevPosts, ...newUniquePosts];
+        setItems((prev) => {
+          const seen = new Set(prev.map((x) => x.slot.id));
+          const unique = newItems.filter((x) => !seen.has(x.slot.id));
+          return [...prev, ...unique];
         });
       }
 
-      setHasMore(currentPage < pages);
-
-      // Fetch profiles and likes for new posts
-      posts.forEach((post) => {
-        if (post.user_id) getUserProfile(post.user_id);
-      });
-
-      const postIds = posts.map((post) => post.id);
-      if (postIds.length > 0) {
-        fetchBatchLikes(postIds);
-      }
-    } catch (error) {
-      console.error("Error fetching posts:", error);
-      handleError(error);
+      setNextCursor(newCursor);
+      setHasMore(!!newCursor && newItems.length > 0);
+    } catch (e) {
+      Alert.alert("Error", e.message || "Failed to load fight opportunities");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -131,446 +61,177 @@ const Home = () => {
   };
 
   useEffect(() => {
-    if (posts.length > 0) {
-      const postIds = posts.map((post) => post.id);
-      fetchBatchLikes(postIds);
-    }
-  }, [posts]);
+    load({ reset: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
-  const handleRefresh = async () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    setPage(1);
-    try {
-      const response = await axios.get(
-        `${API_URL}/posts?page=1&limit=10`
-      );
-
-      // ✅ Destructure properly
-      const { posts, total, currentPage, pages } = response.data;
-
-      setPosts(posts);
-      setHasMore(currentPage < pages);
-
-      posts.forEach((post) => {
-        getUserProfile(post.user_id);
-      });
-
-      const postIds = posts.map((post) => post.id);
-      fetchBatchLikes(postIds);
-    } catch (error) {
-      console.error("Error refreshing posts:", error);
-      handleError(error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  const getUserProfile = async (userId) => {
-    if (userProfiles[userId]) return;
-    try {
-      const response = await axios.post(
-        `${API_URL}/fighter-info`,
-        { userId }
-      );
-      if (response.data) {
-        setUserProfiles((prevProfiles) => ({
-          ...prevProfiles,
-          [userId]: {
-            fname: response.data.fname || "",
-            lname: response.data.lname || "",
-            // Update to use signed URL from response
-            profileUrl: response.data.profile_signed_url || null,
-            wins: response.data.wins,
-            losses: response.data.losses,
-            draws: response.data.draws,
-          },
-        }));
-      }
-    } catch (error) {
-      console.log(`Error fetching profile for userId ${userId}:`, error);
-    }
-  };
-
-  useEffect(() => {
-    fetchPosts();
-  }, [page]);
-
-  const handleLike = async (postId) => {
-    const isLiked = likedPosts[postId];
-
-    try {
-      if (isLiked) {
-        await axios.post(`${API_URL}/unlike`, {
-          userId,
-          postId,
-        });
-
-        setLikeCounts((prev) => ({
-          ...prev,
-          [postId]: Math.max((prev[postId] || 1) - 1, 0),
-        }));
-      } else {
-        await axios.post(`${API_URL}/like`, {
-          userId,
-          postId,
-        });
-
-        setLikeCounts((prev) => ({
-          ...prev,
-          [postId]: (prev[postId] || 0) + 1,
-        }));
-      }
-
-      setLikedPosts((prev) => ({
-        ...prev,
-        [postId]: !isLiked,
-      }));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const fetchBatchLikes = async (postIds) => {
-    if (!postIds.length) return;
-
-    try {
-      // Batch fetch like counts
-      const likeCountResp = await axios.post(
-        `${API_URL}/like-counts`,
-        { postIds }
-      );
-
-      // Batch fetch liked posts by this user
-      const likedPostsResp = await axios.post(
-        `${API_URL}/liked-posts`,
-        { userId, postIds }
-      );
-
-      // Use response data directly
-      const newLikeCounts = likeCountResp.data || {};
-
-      const likedPostIds = likedPostsResp.data.likedPostIds || [];
-
-      // Map liked posts to boolean object
-      const newLikedPosts = {};
-      likedPostIds.forEach((id) => {
-        newLikedPosts[id] = true;
-      });
-
-      setLikeCounts((prev) => ({ ...prev, ...newLikeCounts }));
-      setLikedPosts((prev) => ({ ...prev, ...newLikedPosts }));
-    } catch (error) {
-      console.error("Error batch fetching likes:", error);
-    }
-  };
-
-  useEffect(() => {
-    if (userId) {
-      fetchPosts();
-    }
-  }, [page, userId]);
-
-  const renderPost = ({ item }) => {
-    const mediaUri = getMediaUrl(item);
-    const profile = userProfiles[item.user_id] || {};
-
-    return (
-      <View style={styles.postCard}>
-        {/* Header: Profile Pic + Username + Fight Stats */}
-        <View style={styles.postHeader}>
-          <TouchableOpacity
-            onPress={() =>
-              navigation.navigate("UserProfile", {
-                profileUserId: item.user_id,
-              })
-            }
-          >
-            {profile?.profileUrl && isValidUrl(profile.profileUrl) ? (
-              <Image
-                source={{
-                  uri: profile.profileUrl,
-                  // Add cache busting only if needed
-                  headers: { "Cache-Control": "no-cache" },
-                }}
-                style={styles.profilePic}
-                resizeMode="cover"
-              />
-            ) : (
-              <Ionicons
-                name="body-outline"
-                size={48}
-                color="#ffd700"
-                style={{ marginRight: 12 }}
-              />
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() =>
-              navigation.navigate("UserProfile", {
-                profileUserId: item.user_id,
-              })
-            }
-          >
-            <Text style={styles.username}>
-              {profile?.fname} {profile?.lname}
-            </Text>
-          </TouchableOpacity>
-          {/* Fight stats */}
-          {profile && (
-            <View style={styles.fightStats}>
-              <Text style={styles.statText}>
-                {profile.wins ?? 0}W-{profile.losses ?? 0}L-{profile.draws ?? 0}
-                D
-              </Text>
-              <Ionicons name="hand-left-outline" size={18} color="#ffd700" />
-            </View>
-          )}
-        </View>
-
-        {/* Media with error handling */}
-        {mediaUri && item.type === "video" ? (
-          <VideoPost
-            mediaUri={mediaUri}
-            onError={(error) => console.log("Video Error:", error)}
-          />
-        ) : mediaUri && item.type === "image" ? (
-          <Image
-            source={{
-              uri: mediaUri,
-              headers: { "Cache-Control": "no-cache" },
-            }}
-            style={styles.postImage}
-            resizeMode="cover"
-            onError={(error) => console.log("Image Error:", error)}
-          />
-        ) : (
-          <View
-            style={[
-              styles.postImage,
-              { justifyContent: "center", alignItems: "center" },
-            ]}
-          >
-            <Text style={{ color: "#666" }}>Media not available</Text>
-          </View>
-        )}
-
-        {/* Actions */}
-        <View style={styles.actionsRow}>
-          <View style={styles.likeContainer}>
-            <TouchableOpacity onPress={() => handleLike(item.id)}>
-              <Ionicons
-                name={likedPosts[item.id] ? "flame" : "flame-outline"}
-                size={28}
-                color="#e0245e"
-              />
-            </TouchableOpacity>
-            <Text style={styles.likeText}>{likeCounts[item.id] ?? 0}</Text>
-          </View>
-          <Ionicons name="hand-left-outline" size={18} color="#ffd700" />
-          <Ionicons
-            name="chatbubble-ellipses-outline"
-            size={28}
-            color="#ffd700"
-            style={{ marginRight: 18 }}
-          />
-          <Ionicons name="share-social-outline" size={28} color="#ffd700" />
-        </View>
-
-        {/* Caption */}
-        <View style={styles.captionContainer}>
-          <Text style={styles.caption}>{item.caption}</Text>
-        </View>
-
-        {/* Timestamp */}
-        <Text style={styles.timestamp}>
-          {new Date(item.created_at).toLocaleString()}
-        </Text>
-      </View>
-    );
+    setHasMore(true);
+    setNextCursor(null);
+    await load({ reset: true });
   };
 
   const loadMore = useCallback(() => {
-    if (!loading && hasMore) {
-      setPage((prevPage) => prevPage + 1);
-    }
-  }, [loading, hasMore]);
+    load({ reset: false });
+  }, [nextCursor, hasMore, loading]);
 
-  // Add error handler
-  const handleError = (error) => {
-    console.error(error);
-    setError(error.message);
-    setLoading(false);
-    setRefreshing(false);
-  };
+  const renderItem = ({ item }) => {
+    const { slot, event } = item;
 
-  // Add error UI
-  if (error) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View
-          style={[
-            styles.container,
-            { justifyContent: "center", alignItems: "center" },
-          ]}
-        >
-          <Text style={{ color: "#e0245e", marginBottom: 10 }}>{error}</Text>
-          <TouchableOpacity
-            onPress={() => {
-              setError(null);
-              setPage(1);
-              fetchPosts();
-            }}
-            style={styles.retryButton}
-          >
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() =>
+          navigation.navigate("FightOpportunityDetails", { slotId: slot.id })
+        }
+      >
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>
+            {event?.title || "Fight Opportunity"}
+          </Text>
+
+          <View style={styles.pill}>
+            <Text style={styles.pillText}>
+              {String(slot.status).toUpperCase()}
+            </Text>
+          </View>
         </View>
-      </SafeAreaView>
+
+        <Text style={styles.sub}>
+          {event?.promotion_name || "Promotion"} • {event?.city || "City"},{" "}
+          {event?.region || "Region"}
+        </Text>
+
+        <View style={styles.row}>
+          <Ionicons name="barbell-outline" size={16} color="#ffd700" />
+          <Text style={styles.rowText}>
+            {slot.weight_class} • {slot.target_weight_lbs} lbs (±
+            {slot.weight_tolerance_lbs})
+          </Text>
+        </View>
+
+        <View style={styles.row}>
+          <Ionicons name="calendar-outline" size={16} color="#ffd700" />
+          <Text style={styles.rowText}>
+            Event: {event?.event_date || "—"} • Deadline:{" "}
+            {slot.application_deadline || "—"}
+          </Text>
+        </View>
+
+        <View style={styles.row}>
+          <Ionicons name="cash-outline" size={16} color="#ffd700" />
+          <Text style={styles.rowText}>
+            Purse:{" "}
+            {slot.purse_cents != null
+              ? `$${(slot.purse_cents / 100).toFixed(2)}`
+              : "—"}{" "}
+            • Travel: {slot.travel_support ? "Yes" : "No"}
+          </Text>
+        </View>
+
+        {role === "fighter" ? (
+          <View style={styles.ctaRow}>
+            <Text style={styles.ctaHint}>Tap to view details & apply</Text>
+            <Ionicons name="chevron-forward" size={18} color="#ffd700" />
+          </View>
+        ) : (
+          <View style={styles.ctaRow}>
+            <Text style={styles.ctaHint}>Tap to view details</Text>
+            <Ionicons name="chevron-forward" size={18} color="#ffd700" />
+          </View>
+        )}
+      </TouchableOpacity>
     );
-  }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {Platform.OS === "ios" ? (
-          <StatusBar style="light" />
-        ) : (
-          <StatusBar style="light" />
-        )}
+        <Text style={styles.screenTitle}>Open Fights</Text>
+
         <FlatList
-          data={posts}
-          renderItem={renderPost}
-          keyExtractor={(item, index) => `${item.id}-${index}`}
+          data={items}
+          renderItem={renderItem}
+          keyExtractor={(x) => x.slot.id}
           onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={
-            loading ? <ActivityIndicator size="large" color="#aaa" /> : null
+          onEndReachedThreshold={0.6}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#fff"
+            />
           }
-          onRefresh={handleRefresh}
-          refreshing={refreshing}
-          showsVerticalScrollIndicator={false}
+          ListFooterComponent={
+            loading ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} />
+            ) : null
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={{ padding: 24 }}>
+                <Text style={{ color: "#aaa" }}>
+                  No open fight opportunities right now.
+                </Text>
+              </View>
+            ) : null
+          }
         />
       </View>
     </SafeAreaView>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#181818",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#181818",
-    paddingHorizontal: 8,
-    paddingTop: 0, // Remove extra top padding
-  },
-  postCard: {
-    backgroundColor: "#232323",
-    marginVertical: 14,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#e0245e", // Fighthub red accent
-    overflow: "hidden",
-    shadowColor: "#e0245e",
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  postHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: "#1a1a1a",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0245e",
-  },
-  profilePic: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 12,
-    backgroundColor: "#444",
-    borderWidth: 2,
-    borderColor: "#e0245e",
-  },
-  username: {
-    fontWeight: "bold",
-    fontSize: 18,
-    color: "#ffd700", // gold for fighter name
-    letterSpacing: 1,
-  },
-  fightStats: {
-    marginLeft: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#222",
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  statText: {
+  safeArea: { flex: 1, backgroundColor: "#181818" },
+  container: { flex: 1, paddingHorizontal: 12, paddingTop: 6 },
+  screenTitle: {
     color: "#fff",
-    fontWeight: "bold",
-    fontSize: 13,
-    marginRight: 8,
+    fontSize: 22,
+    fontWeight: "900",
+    marginBottom: 10,
   },
-  postImage: {
-    width: "100%",
-    aspectRatio: 1,
-    backgroundColor: "#222",
-    borderBottomWidth: 2,
-    borderBottomColor: "#e0245e",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#1a1a1a",
-    borderTopWidth: 1,
-    borderTopColor: "#e0245e",
-  },
-  likeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 28,
-  },
-  likeText: {
-    color: "#e0245e",
-    fontWeight: "bold",
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  captionContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#232323",
-  },
-  caption: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-    letterSpacing: 0.5,
-  },
-  timestamp: {
-    color: "#aaa",
-    fontSize: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 10,
-    fontStyle: "italic",
-  },
-  retryButton: {
-    backgroundColor: "#e0245e",
-    padding: 10,
-    borderRadius: 5,
-  },
-  retryText: {
-    color: "#fff",
-    fontWeight: "bold",
-  },
-});
 
-export default Home;
+  card: {
+    backgroundColor: "#232323",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#333",
+    padding: 14,
+    marginBottom: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  title: {
+    color: "#ffd700",
+    fontSize: 16,
+    fontWeight: "900",
+    flex: 1,
+    paddingRight: 10,
+  },
+  sub: { color: "#aaa", marginTop: 6 },
+
+  pill: {
+    borderWidth: 1,
+    borderColor: "#444",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  pillText: { color: "#fff", fontWeight: "800", fontSize: 12 },
+
+  row: { flexDirection: "row", alignItems: "center", marginTop: 10 },
+  rowText: { color: "#fff", marginLeft: 8, fontWeight: "600" },
+
+  ctaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  ctaHint: { color: "#aaa", fontWeight: "600" },
+});

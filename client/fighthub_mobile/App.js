@@ -21,6 +21,7 @@ import ClipViewer from "./screens/ClipViewer";
 import * as Linking from "expo-linking";
 import { useEffect } from "react";
 import { supabase } from "./lib/supabase";
+import FightOpportunityDetailsScreen from "./screens/FightOpportunityDetailsScreen";
 
 function AppNavigator() {
   const { isLoading, userToken, isOnBoarded, userId, role } =
@@ -130,6 +131,11 @@ function AppNavigator() {
                   shadowOpacity: 0,
                 },
               }}
+            />
+            <Stack.Screen
+              name="Fight Details"
+              component={FightOpportunityDetailsScreen}
+              options={{ headerShown: false }}
             />
           </>
         )}
