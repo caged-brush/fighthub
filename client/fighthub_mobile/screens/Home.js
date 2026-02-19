@@ -14,7 +14,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { AuthContext } from "../context/AuthContext";
 import { apiFetch } from "../lib/apiFetch";
 
-export default function FightsHome({ navigation }) {
+export default function Home({ navigation }) {
   const { userToken, role } = useContext(AuthContext);
   const token = userToken;
 

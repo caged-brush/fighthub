@@ -133,7 +133,7 @@ function AppNavigator() {
               }}
             />
             <Stack.Screen
-              name="Fight Details"
+              name="FightOpportunityDetails"
               component={FightOpportunityDetailsScreen}
               options={{ headerShown: false }}
             />

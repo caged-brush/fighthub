@@ -4,8 +4,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import Profile from "./Profile";
 import Settings from "./Settings";
 import Upload from "./Upload";
-import FeedScreen from "./FeedScreen";
 import Message from "./Message";
+import Home from "./Home";
 
 const Tabs = createBottomTabNavigator();
 
@@ -36,7 +36,7 @@ export default function Dashboard() {
     >
       <Tabs.Screen
         name="Home"
-        component={FeedScreen}
+        component={Home}
         options={{ headerShown: false }}
       />
       <Tabs.Screen

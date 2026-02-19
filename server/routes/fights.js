@@ -138,8 +138,8 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
   const viewerId = req.supabaseUser?.id;
 
   try {
-    // Fetch slot + event
-    const { data: slotRow, error: slotErr } = await supabaseAdmin
+    // 1) slot
+    const { data: slot, error: slotErr } = await supabaseAdmin
       .from("fight_slots")
       .select(
         `
@@ -157,46 +157,53 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
         purse_cents,
         status,
         created_at,
-        updated_at,
-        events:events (
-          id,
-          created_by,
-          promotion_name,
-          title,
-          discipline,
-          region,
-          city,
-          venue,
-          event_date,
-          description,
-          rules,
-          status,
-          created_at,
-          updated_at
-        )
+        updated_at
       `,
       )
       .eq("id", slotId)
       .maybeSingle();
 
     if (slotErr) return res.status(500).json({ message: slotErr.message });
-    if (!slotRow) return res.status(404).json({ message: "Slot not found" });
+    if (!slot) return res.status(404).json({ message: "Slot not found" });
 
-    const event = slotRow.events;
-    const slot = { ...slotRow };
-    delete slot.events;
+    // 2) event
+    const { data: event, error: eventErr } = await supabaseAdmin
+      .from("events")
+      .select(
+        `
+        id,
+        created_by,
+        promotion_name,
+        title,
+        discipline,
+        region,
+        city,
+        venue,
+        event_date,
+        description,
+        rules,
+        status,
+        created_at,
+        updated_at
+      `,
+      )
+      .eq("id", slot.event_id)
+      .maybeSingle();
 
-    // Authorization:
+    if (eventErr) return res.status(500).json({ message: eventErr.message });
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    // auth: owner scout can view anything, others only open slots
     const isOwnerScout =
-      req.user?.role === "scout" && event?.created_by === viewerId;
-    const isPublic = slot.status === "open"; // you can add "pending" if you want
+      req.user?.role === "scout" && event.created_by === viewerId;
+    const isPublic = slot.status === "open";
     if (!isOwnerScout && !isPublic) {
       return res
         .status(403)
         .json({ message: "Not allowed to view this slot." });
     }
 
-    // Meta: applicants_count
+    // 3) applicants_count
     const { count, error: countErr } = await supabaseAdmin
       .from("fight_applications")
       .select("id", { count: "exact", head: true })
@@ -204,7 +211,7 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
 
     if (countErr) return res.status(500).json({ message: countErr.message });
 
-    // Meta: viewer status (fighters only)
+    // 4) viewer_application_status (fighters only)
     let viewerStatus = null;
     if (req.user?.role === "fighter") {
       const { data: appRow, error: appErr } = await supabaseAdmin
@@ -227,6 +234,7 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       },
     });
   } catch (e) {
+    console.error("[GET /fights/slots/:id] crash:", e);
     return res.status(500).json({ message: e?.message || "Server error" });
   }
 });
