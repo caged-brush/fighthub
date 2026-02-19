@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import env from "dotenv";
 import cookieParser from "cookie-parser";
-
+import fightsRoutes from "./routes/fights.js";
 import path from "path";
 import fs from "fs";
 import passport from "passport";
@@ -159,6 +159,7 @@ app.use("/inbox", inboxRoutes(supabase, requireAuth));
 app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
 app.use("/booking", bookingRoutes);
 app.use("/auth", authProfileRoutes);
+app.use("/api/fights", fightsRoutes);
 
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));

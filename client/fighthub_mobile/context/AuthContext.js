@@ -19,7 +19,7 @@ const safeSetItem = async (key, v) => {
 
 export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [userToken, setUserToken] = useState(null);
+  const [userToken, setUserToken] = useState(null); 
   const [userId, setUserId] = useState(null);
   const [isOnBoarded, setIsOnBoarded] = useState(false);
   const [role, setRole] = useState(null);
