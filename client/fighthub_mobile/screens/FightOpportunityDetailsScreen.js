@@ -25,6 +25,13 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
   const canApply = useMemo(() => role === "fighter", [role]);
   const isScout = useMemo(() => role === "scout", [role]);
 
+  function supaErrToString(err) {
+    if (!err) return "Unknown Supabase error";
+    return (
+      err.message || err.details || err.hint || err.code || JSON.stringify(err)
+    );
+  }
+
   const load = async () => {
     if (!slotId) {
       Alert.alert("Error", "Missing slotId");
@@ -44,7 +51,9 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
       const res = await apiFetch(`/fights/slots/${slotId}`, { token });
       setData(res);
     } catch (e) {
-      Alert.alert("Error", e.message || "Failed to load opportunity");
+      console.log("STATUS:", e.status);
+      console.log("DATA:", e.data);
+      Alert.alert("Error", e.message);
     } finally {
       setLoading(false);
     }

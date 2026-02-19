@@ -11,6 +11,29 @@ const router = express.Router();
  *
  * Atomic via Supabase RPC: accept_fight_application(p_application_id uuid)
  */
+function supaErr(err) {
+  if (!err) return { message: "Unknown Supabase error" };
+  return {
+    message:
+      err.message ||
+      err.details ||
+      err.hint ||
+      err.code ||
+      "Supabase error (no message/details)",
+    code: err.code,
+    details: err.details,
+    hint: err.hint,
+  };
+}
+
+router.use((req, res, next) => {
+  if (!supabaseAdmin) {
+    console.error("[FIGHTS] supabaseAdmin undefined");
+    return res.status(500).json({ message: "supabaseAdmin not configured" });
+  }
+  next();
+});
+
 router.post("/applications/:id/accept", requireAuth, async (req, res) => {
   const applicationId = req.params.id;
 
@@ -118,7 +141,8 @@ router.post("/opportunities", requireAuth, async (req, res) => {
     );
 
     if (error) {
-      return res.status(400).json({ message: error.message });
+      console.error("[opportunities] rpc error", error);
+      return res.status(400).json(supaErr(error));
     }
 
     const row = Array.isArray(data) ? data[0] : data;
@@ -163,7 +187,11 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .eq("id", slotId)
       .maybeSingle();
 
-    if (slotErr) return res.status(500).json({ message: slotErr.message });
+    if (slotErr) {
+      console.error("[slots/:id] slotErr", slotErr);
+      return res.status(500).json(supaErr(slotErr));
+    }
+
     if (!slot) return res.status(404).json({ message: "Slot not found" });
 
     // 2) event
@@ -350,7 +378,10 @@ router.get("/open-slots", requireAuth, async (req, res) => {
     if (cursor) q = q.lt("created_at", cursor);
 
     const { data: slots, error } = await q;
-    if (error) return res.status(500).json({ message: error.message });
+    if (error) {
+      console.error("[open-slots] slots error", error);
+      return res.status(500).json(supaErr(error));
+    }
 
     const nextCursor =
       slots && slots.length === limit
