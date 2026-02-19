@@ -159,7 +159,7 @@ app.use("/inbox", inboxRoutes(supabase, requireAuth));
 app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
 app.use("/booking", bookingRoutes);
 app.use("/auth", authProfileRoutes);
-app.use("/api/fights", fightsRoutes);
+app.use("/fights", fightsRoutes);
 
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));

@@ -146,11 +146,19 @@ export default function ScoutCreateFightPostScreen({ navigation }) {
 
       const res = await apiFetch("/fights/opportunities", {
         method: "POST",
-        token,
-        body: { event: eventPayload, slot: slotPayload },
+        token, // MUST be your userToken
+        body: {
+          event: eventPayload,
+          slot: slotPayload,
+        },
       });
 
+      const eventId = res?.event?.id;
       const slotId = res?.slot?.id;
+
+      if (!eventId || !slotId) {
+        throw new Error("Backend did not return event/slot id.");
+      }
 
       Alert.alert("Posted", "Fight opportunity created successfully.");
       // Navigate to detail screen if you have it
