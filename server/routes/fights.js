@@ -321,7 +321,7 @@ router.post("/slots/:id/apply", requireAuth, async (req, res) => {
 router.get("/open-slots", requireAuth, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
-    const cursor = req.query.cursor || null; // ISO timestamp of created_at (or application_deadline)
+    const cursor = req.query.cursor || null;
 
     let q = supabaseAdmin
       .from("fight_slots")
@@ -340,18 +340,7 @@ router.get("/open-slots", requireAuth, async (req, res) => {
         travel_support,
         purse_cents,
         status,
-        created_at,
-        events:events (
-          id,
-          promotion_name,
-          title,
-          region,
-          city,
-          venue,
-          event_date,
-          discipline,
-          created_by
-        )
+        created_at
       `,
       )
       .eq("status", "open")
@@ -360,22 +349,42 @@ router.get("/open-slots", requireAuth, async (req, res) => {
 
     if (cursor) q = q.lt("created_at", cursor);
 
-    const { data, error } = await q;
+    const { data: slots, error } = await q;
     if (error) return res.status(500).json({ message: error.message });
 
     const nextCursor =
-      data && data.length === limit ? data[data.length - 1].created_at : null;
+      slots && slots.length === limit
+        ? slots[slots.length - 1].created_at
+        : null;
+
+    // fetch events in batch
+    const eventIds = [
+      ...new Set((slots || []).map((s) => s.event_id).filter(Boolean)),
+    ];
+
+    let eventsById = {};
+    if (eventIds.length) {
+      const { data: events, error: eErr } = await supabaseAdmin
+        .from("events")
+        .select(
+          "id, promotion_name, title, region, city, venue, event_date, discipline, created_by",
+        )
+        .in("id", eventIds);
+
+      if (eErr) return res.status(500).json({ message: eErr.message });
+
+      eventsById = Object.fromEntries((events || []).map((e) => [e.id, e]));
+    }
 
     return res.json({
-      slots: (data || []).map((r) => {
-        const event = r.events;
-        const slot = { ...r };
-        delete slot.events;
-        return { slot, event };
-      }),
+      slots: (slots || []).map((slot) => ({
+        slot,
+        event: eventsById[slot.event_id] || null,
+      })),
       nextCursor,
     });
   } catch (e) {
+    console.error("[GET /fights/open-slots] crash:", e);
     return res.status(500).json({ message: e?.message || "Server error" });
   }
 });
