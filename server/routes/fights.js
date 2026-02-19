@@ -1,6 +1,6 @@
 import express from "express";
 import requireAuth from "../middleware/requireAuth.js";
-import { supabaseUser } from "../config/supabaseUser.js";
+import { supabaseAsUser } from "../config/supabaseUser.js";
 
 const router = express.Router();
 
@@ -22,7 +22,7 @@ router.post("/applications/:id/accept", requireAuth, async (req, res) => {
 
   if (!token) return res.status(401).json({ message: "Missing token" });
 
-  const supabase = supabaseUser(token);
+  const supabase = supabaseAsUser(token);
 
   const { data, error } = await supabase.rpc("accept_fight_application", {
     p_application_id: applicationId,
