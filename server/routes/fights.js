@@ -81,6 +81,11 @@ router.post("/applications/:id/accept", requireAuth, async (req, res) => {
 });
 
 router.post("/opportunities", requireAuth, async (req, res) => {
+  if (!req.supabaseUser?.id) {
+    return res
+      .status(401)
+      .json({ message: "Not authenticated (missing supabase user)" });
+  }
   try {
     // Only scouts can create opportunities
     if (req.user?.role !== "scout") {
@@ -159,6 +164,11 @@ router.post("/opportunities", requireAuth, async (req, res) => {
 });
 
 router.get("/slots/:id", requireAuth, async (req, res) => {
+  if (!req.supabaseUser?.id) {
+    return res
+      .status(401)
+      .json({ message: "Not authenticated (missing supabase user)" });
+  }
   const slotId = req.params.id;
   const viewerId = req.supabaseUser?.id;
 
@@ -219,7 +229,7 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .eq("id", slot.event_id)
       .maybeSingle();
 
-    if (eventErr) return res.status(500).json({ message: eventErr.message });
+    if (eventErr) return res.status(500).json(supaErr(eventErr));
     if (!event) return res.status(404).json({ message: "Event not found" });
 
     // auth: owner scout can view anything, others only open slots
@@ -238,7 +248,7 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .select("id", { count: "exact", head: true })
       .eq("fight_slot_id", slotId);
 
-    if (countErr) return res.status(500).json({ message: countErr.message });
+    if (countErr) return res.status(500).json(supaErr(countErr));
 
     // 4) viewer_application_status (fighters only)
     let viewerStatus = null;
@@ -250,7 +260,7 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
         .eq("fighter_id", viewerId)
         .maybeSingle();
 
-      if (appErr) return res.status(500).json({ message: appErr.message });
+      if (appErr) return res.status(500).json(supaErr(appErr));
       viewerStatus = appRow?.status || null;
     }
 
@@ -269,6 +279,11 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
 });
 
 router.post("/slots/:id/apply", requireAuth, async (req, res) => {
+  if (!req.supabaseUser?.id) {
+    return res
+      .status(401)
+      .json({ message: "Not authenticated (missing supabase user)" });
+  }
   const slotId = req.params.id;
   const fighterId = req.supabaseUser?.id;
 
@@ -403,7 +418,7 @@ router.get("/open-slots", requireAuth, async (req, res) => {
         )
         .in("id", eventIds);
 
-      if (eErr) return res.status(500).json({ message: eErr.message });
+      if (eErr) return res.status(500).json(supaErr(eErr));
 
       eventsById = Object.fromEntries((events || []).map((e) => [e.id, e]));
     }
