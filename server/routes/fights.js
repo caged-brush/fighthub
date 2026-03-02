@@ -11,6 +11,7 @@ const router = express.Router();
  *
  * Atomic via Supabase RPC: accept_fight_application(p_application_id uuid)
  */
+
 function supaErr(err) {
   if (!err) return { message: "Unknown Supabase error" };
   return {
