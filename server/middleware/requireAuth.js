@@ -1,3 +1,5 @@
+import supabase, { supabaseAdmin } from "../config/supabase.js";
+
 export default async function requireAuth(req, res, next) {
   console.log("[AUTH] start", req.method, req.originalUrl);
 
