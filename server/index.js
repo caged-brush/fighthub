@@ -98,6 +98,14 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    console.log("[REQ]", res.statusCode, req.method, req.originalUrl, `${Date.now() - start}ms`);
+  });
+  next();
+});
+
 // ===== EMAIL SETUP =====
 
 // ===== FILE UPLOAD SETUP =====
