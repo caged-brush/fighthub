@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import "dotenv/config";
 
-const url = process.env.SUPABASE_URL;
-const anon = process.env.SUPABASE_ANON_KEY;
-const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = (process.env.SUPABASE_URL || "").trim();
+const anon = (process.env.SUPABASE_ANON_KEY || "").trim();
+const service = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
 if (!url) throw new Error("Missing SUPABASE_URL");
 if (!anon) throw new Error("Missing SUPABASE_ANON_KEY");

@@ -169,6 +169,28 @@ console.log("SUPABASE ENV:", {
   anonPrefix: (process.env.SUPABASE_ANON_KEY || "").slice(0, 10),
 });
 
+console.log("[SUPABASE ENV]", {
+  url: process.env.SUPABASE_URL,
+  anonPrefix: (process.env.SUPABASE_ANON_KEY || "").slice(0, 10),
+  servicePrefix: (process.env.SUPABASE_SERVICE_ROLE_KEY || "").slice(0, 10),
+  sameKey:
+    (process.env.SUPABASE_ANON_KEY || "").trim() ===
+    (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim(),
+});
+
+(async () => {
+  const { data, error } = await supabaseAdmin
+    .from("fight_slots")
+    .select("id")
+    .limit(1);
+
+  console.log("[SUPABASE ADMIN TEST]", {
+    ok: !error,
+    error,
+    rows: data?.length,
+  });
+})();
+
 // ===== SOCKET.IO SETUP =====
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
