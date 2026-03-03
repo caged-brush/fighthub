@@ -230,11 +230,17 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .maybeSingle();
 
     if (eventErr) return res.status(500).json(supaErr(eventErr));
-    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (!event) {
+      console.error("[slots/:id] event not found for slot", {
+        slotId,
+        event_id: slot.event_id,
+      });
+      return res.status(404).json({ message: "Event not found" });
+    }
 
     // auth: owner scout can view anything, others only open slots
     const isOwnerScout =
-      req.user?.role === "scout" && event.created_by === viewerId;
+      req.user?.role === "scout" && event?.created_by === viewerId;
     const isPublic = slot.status === "open";
     if (!isOwnerScout && !isPublic) {
       return res
