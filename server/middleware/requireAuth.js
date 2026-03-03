@@ -19,7 +19,11 @@ export default async function requireAuth(req, res, next) {
     .maybeSingle();
 
   if (profileError) {
-    return res.status(500).json({ message: profileError.message });
+    console.error("[requireAuth] profileError RAW:", profileError);
+    return res.status(500).json({
+      message: "Profile lookup failed",
+      error: profileError,
+    });
   }
 
   let finalProfile = profile;
