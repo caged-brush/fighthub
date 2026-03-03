@@ -1,48 +1,40 @@
-import supabase, { supabaseAdmin } from "../config/supabase.js";
-
 export default async function requireAuth(req, res, next) {
+  console.log("[AUTH] start", req.method, req.originalUrl);
+
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-  if (!token) return res.status(401).json({ message: "No token" });
+  if (!token) {
+    console.log("[AUTH] no token");
+    return res.status(401).json({ message: "No token" });
+  }
+
+  console.log("[AUTH] token prefix", token.slice(0, 12));
 
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data?.user) {
-    return res.status(401).json({ message: "Invalid token" });
+    console.log("[AUTH] invalid token", error);
+    return res.status(401).json({ message: "Invalid token", error });
   }
 
-  const user = data.user;
+  console.log("[AUTH] user", data.user.id);
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("users")
     .select("id, role, scout_onboarded, fighter_onboarded")
-    .eq("id", user.id)
+    .eq("id", data.user.id)
     .maybeSingle();
 
   if (profileError) {
-    console.error("[requireAuth] profileError RAW:", profileError);
-    return res.status(500).json({
-      message: "Profile lookup failed",
-      error: profileError,
-    });
+    console.log("[AUTH] profileError RAW", profileError);
+    return res
+      .status(500)
+      .json({ message: "Profile lookup failed", profileError });
   }
 
-  let finalProfile = profile;
-  if (!finalProfile) {
-    const { data: created, error: createError } = await supabaseAdmin
-      .from("users")
-      .upsert({ id: user.id, role: null })
-      .select("id, role")
-      .single();
+  console.log("[AUTH] profile ok", profile?.id, profile?.role);
 
-    if (createError) {
-      return res.status(500).json({ message: createError.message });
-    }
-    finalProfile = created;
-  }
-
-  req.user = finalProfile;
+  req.user = profile ?? null;
   req.accessToken = token;
-  req.supabaseUser = user;
-
+  req.supabaseUser = data.user;
   next();
 }
