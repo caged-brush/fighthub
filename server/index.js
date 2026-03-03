@@ -178,19 +178,7 @@ console.log("[SUPABASE ENV]", {
     (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim(),
 });
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  res.on("finish", () => {
-    console.log(
-      "[REQ]",
-      res.statusCode,
-      req.method,
-      req.originalUrl,
-      `${Date.now() - start}ms`,
-    );
-  });
-  next();
-});
+
 
 (async () => {
   const { data, error } = await supabaseAdmin
