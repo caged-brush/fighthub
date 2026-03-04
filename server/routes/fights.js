@@ -199,7 +199,16 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .maybeSingle();
 
     if (slotErr) {
-      console.error("[slots/:id] slotErr", slotErr);
+      console.error("[slots/:id] slotErr RAW:", slotErr);
+      console.error(
+        "[slots/:id] slotErr keys:",
+        slotErr && Object.keys(slotErr),
+      );
+      console.error("[slots/:id] slotErr string:", String(slotErr));
+      console.error(
+        "[slots/:id] slotErr json:",
+        JSON.stringify(slotErr, null, 2),
+      );
       return res.status(500).json(supaErr(slotErr));
     }
 
