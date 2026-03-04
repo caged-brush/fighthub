@@ -245,6 +245,9 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .eq("id", slot.event_id)
       .maybeSingle();
 
+    console.log("[slots/:id] eventErr RAW:", eventErr);
+    console.log("[slots/:id] event RAW:", event);
+
     if (eventErr) return res.status(500).json(supaErr(eventErr));
     if (!event) {
       console.error("[slots/:id] event not found for slot", {
@@ -270,6 +273,9 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .select("id", { count: "exact", head: true })
       .eq("fight_slot_id", slotId);
 
+    console.log("[slots/:id] countErr RAW:", countErr);
+    console.log("[slots/:id] applicants_count RAW:", count);
+
     if (countErr) return res.status(500).json(supaErr(countErr));
 
     // 4) viewer_application_status (fighters only)
@@ -281,6 +287,9 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
         .eq("fight_slot_id", slotId)
         .eq("fighter_id", viewerId)
         .maybeSingle();
+
+      console.log("[slots/:id] appErr RAW:", appErr);
+      console.log("[slots/:id] appRow RAW:", appRow);
 
       if (appErr) return res.status(500).json(supaErr(appErr));
       viewerStatus = appRow?.status || null;
