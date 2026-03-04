@@ -175,8 +175,6 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
   // console.log("[slots/:id] slotId =", slotId);
   // console.log("[slots/:id] SUPABASE_URL =", process.env.SUPABASE_URL);
   console.log("[slots/:id] supabaseAdmin exists?", !!supabaseAdmin);
-  console.log("[slots/:id] slotErr RAW:", slotErr);
-  console.log("[slots/:id] slot RAW:", slot);
 
   try {
     // 1) slot
@@ -217,6 +215,9 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       );
       return res.status(500).json(supaErr(slotErr));
     }
+
+    console.log("[slots/:id] slotErr RAW:", slotErr);
+    console.log("[slots/:id] slot RAW:", slot);
 
     if (!slot) return res.status(404).json({ message: "Slot not found" });
 
