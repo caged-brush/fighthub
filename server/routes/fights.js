@@ -172,8 +172,11 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
   const slotId = req.params.id;
   const viewerId = req.supabaseUser?.id;
 
-  console.log("[slots/:id] slotId =", slotId);
-  console.log("[slots/:id] SUPABASE_URL =", process.env.SUPABASE_URL);
+  // console.log("[slots/:id] slotId =", slotId);
+  // console.log("[slots/:id] SUPABASE_URL =", process.env.SUPABASE_URL);
+  console.log("[slots/:id] supabaseAdmin exists?", !!supabaseAdmin);
+  console.log("[slots/:id] slotErr RAW:", slotErr);
+  console.log("[slots/:id] slot RAW:", slot);
 
   try {
     // 1) slot
