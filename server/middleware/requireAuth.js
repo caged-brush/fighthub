@@ -1,10 +1,11 @@
-import supabase, { supabaseAdmin } from "../config/supabase.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 export default async function requireAuth(req, res, next) {
   console.log("[AUTH] start", req.method, req.originalUrl);
 
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+
   if (!token) {
     console.log("[AUTH] no token");
     return res.status(401).json({ message: "No token" });
@@ -12,10 +13,17 @@ export default async function requireAuth(req, res, next) {
 
   console.log("[AUTH] token prefix", token.slice(0, 12));
 
-  const { data, error } = await supabase.auth.getUser(token);
+  // ✅ VERIFY TOKEN USING ADMIN CLIENT
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+
   if (error || !data?.user) {
-    console.log("[AUTH] invalid token", error);
-    return res.status(401).json({ message: "Invalid token", error });
+    console.log("[AUTH] invalid token RAW", error);
+    return res.status(401).json({
+      message: "Invalid token",
+      code: error?.code ?? null,
+      status: error?.status ?? null,
+      error: error?.message ?? String(error),
+    });
   }
 
   console.log("[AUTH] user", data.user.id);
@@ -28,9 +36,13 @@ export default async function requireAuth(req, res, next) {
 
   if (profileError) {
     console.log("[AUTH] profileError RAW", profileError);
-    return res
-      .status(500)
-      .json({ message: "Profile lookup failed", profileError });
+    return res.status(500).json({
+      message: "Profile lookup failed",
+      code: profileError?.code ?? null,
+      details: profileError?.details ?? null,
+      hint: profileError?.hint ?? null,
+      error: profileError?.message ?? String(profileError),
+    });
   }
 
   console.log("[AUTH] profile ok", profile?.id, profile?.role);
