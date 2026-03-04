@@ -164,17 +164,21 @@ router.post("/opportunities", requireAuth, async (req, res) => {
 });
 
 router.get("/slots/:id", requireAuth, async (req, res) => {
+  console.log("➡️ GET", req.originalUrl);
+
   if (!req.supabaseUser?.id) {
+    console.log("[slots/:id] missing req.supabaseUser");
     return res
       .status(401)
       .json({ message: "Not authenticated (missing supabase user)" });
   }
-  const slotId = req.params.id;
-  const viewerId = req.supabaseUser?.id;
 
-  // console.log("[slots/:id] slotId =", slotId);
-  // console.log("[slots/:id] SUPABASE_URL =", process.env.SUPABASE_URL);
+  const slotId = req.params.id;
+  const viewerId = req.supabaseUser.id;
+
   console.log("[slots/:id] supabaseAdmin exists?", !!supabaseAdmin);
+  console.log("[slots/:id] slotId =", slotId);
+  console.log("[slots/:id] viewerId =", viewerId);
 
   try {
     // 1) slot
@@ -202,23 +206,10 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .eq("id", slotId)
       .maybeSingle();
 
-    if (slotErr) {
-      console.error("[slots/:id] slotErr RAW:", slotErr);
-      console.error(
-        "[slots/:id] slotErr keys:",
-        slotErr && Object.keys(slotErr),
-      );
-      console.error("[slots/:id] slotErr string:", String(slotErr));
-      console.error(
-        "[slots/:id] slotErr json:",
-        JSON.stringify(slotErr, null, 2),
-      );
-      return res.status(500).json(supaErr(slotErr));
-    }
-
-    console.log("[slots/:id] slotErr RAW:", slotErr);
+    console.log("[slots/:id] slotErr JSON:", JSON.stringify(slotErr, null, 2));
     console.log("[slots/:id] slot RAW:", slot);
 
+    if (slotErr) return res.status(500).json(supaErr(slotErr));
     if (!slot) return res.status(404).json({ message: "Slot not found" });
 
     // 2) event
@@ -245,41 +236,67 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       .eq("id", slot.event_id)
       .maybeSingle();
 
-    console.log("[slots/:id] eventErr RAW:", eventErr);
+    console.log(
+      "[slots/:id] eventErr JSON:",
+      JSON.stringify(eventErr, null, 2),
+    );
     console.log("[slots/:id] event RAW:", event);
 
     if (eventErr) return res.status(500).json(supaErr(eventErr));
-    if (!event) {
-      console.error("[slots/:id] event not found for slot", {
-        slotId,
-        event_id: slot.event_id,
-      });
-      return res.status(404).json({ message: "Event not found" });
-    }
+    if (!event) return res.status(404).json({ message: "Event not found" });
 
     // auth: owner scout can view anything, others only open slots
     const isOwnerScout =
-      req.user?.role === "scout" && event?.created_by === viewerId;
+      req.user?.role === "scout" && event.created_by === viewerId;
     const isPublic = slot.status === "open";
+
+    console.log(
+      "[slots/:id] isOwnerScout =",
+      isOwnerScout,
+      "isPublic =",
+      isPublic,
+    );
+
     if (!isOwnerScout && !isPublic) {
       return res
         .status(403)
         .json({ message: "Not allowed to view this slot." });
     }
 
-    // 3) applicants_count
+    // 3) DEBUG: ping fight_applications to see if table exists
+    const { data: ping, error: pingErr } = await supabaseAdmin
+      .from("fight_applications")
+      .select("id")
+      .limit(1);
+
+    console.log("[slots/:id] pingErr JSON:", JSON.stringify(pingErr, null, 2));
+    console.log("[slots/:id] ping RAW:", ping);
+
+    if (pingErr) {
+      // This is the smoking gun (missing table / wrong schema / permissions)
+      return res.status(500).json({
+        message: "fight_applications ping failed",
+        ...supaErr(pingErr),
+      });
+    }
+
+    // 4) applicants_count (your original count)
     const { count, error: countErr } = await supabaseAdmin
       .from("fight_applications")
       .select("id", { count: "exact", head: true })
       .eq("fight_slot_id", slotId);
 
-    console.log("[slots/:id] countErr RAW:", countErr);
+    console.log(
+      "[slots/:id] countErr JSON:",
+      JSON.stringify(countErr, null, 2),
+    );
     console.log("[slots/:id] applicants_count RAW:", count);
 
     if (countErr) return res.status(500).json(supaErr(countErr));
 
-    // 4) viewer_application_status (fighters only)
+    // 5) viewer_application_status (fighters only)
     let viewerStatus = null;
+
     if (req.user?.role === "fighter") {
       const { data: appRow, error: appErr } = await supabaseAdmin
         .from("fight_applications")
@@ -288,13 +305,14 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
         .eq("fighter_id", viewerId)
         .maybeSingle();
 
-      console.log("[slots/:id] appErr RAW:", appErr);
+      console.log("[slots/:id] appErr JSON:", JSON.stringify(appErr, null, 2));
       console.log("[slots/:id] appRow RAW:", appRow);
 
       if (appErr) return res.status(500).json(supaErr(appErr));
       viewerStatus = appRow?.status || null;
     }
 
+    // success
     return res.json({
       slot,
       event,
@@ -304,7 +322,11 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
       },
     });
   } catch (e) {
-    console.error("[GET /fights/slots/:id] crash:", e);
+    console.error("[GET /fights/slots/:id] CRASH:", e);
+    console.error(
+      "[GET /fights/slots/:id] CRASH JSON:",
+      JSON.stringify(e, null, 2),
+    );
     return res.status(500).json({ message: e?.message || "Server error" });
   }
 });
