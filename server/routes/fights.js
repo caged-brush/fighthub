@@ -164,8 +164,6 @@ router.post("/opportunities", requireAuth, async (req, res) => {
 });
 
 router.get("/slots/:id", requireAuth, async (req, res) => {
-  console.log("[slots/:id] slotId =", slotId);
-  console.log("[slots/:id] SUPABASE_URL =", process.env.SUPABASE_URL);
   if (!req.supabaseUser?.id) {
     return res
       .status(401)
@@ -173,6 +171,9 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
   }
   const slotId = req.params.id;
   const viewerId = req.supabaseUser?.id;
+
+  console.log("[slots/:id] slotId =", slotId);
+  console.log("[slots/:id] SUPABASE_URL =", process.env.SUPABASE_URL);
 
   try {
     // 1) slot
