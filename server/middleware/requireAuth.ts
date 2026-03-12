@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from "express";
+import { RequestHandler } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
 import type { AuthUser } from "../types/domain.js";
 
@@ -11,11 +11,7 @@ interface ErrorResponse {
   error?: string | null;
 }
 
-export default async function requireAuth(
-  req: Request,
-  res: Response<ErrorResponse>,
-  next: NextFunction,
-): Promise<void | Response<ErrorResponse>> {
+const requireAuth: RequestHandler = async (req, res, next) => {
   console.log("[AUTH] start", req.method, req.originalUrl);
 
   const auth = req.headers.authorization || "";
@@ -23,7 +19,9 @@ export default async function requireAuth(
 
   if (!token) {
     console.log("[AUTH] no token");
-    return res.status(401).json({ message: "No token" });
+    return res
+      .status(401)
+      .json({ message: "No token" } satisfies ErrorResponse);
   }
 
   console.log("[AUTH] token prefix", token.slice(0, 12));
@@ -37,7 +35,7 @@ export default async function requireAuth(
       code: error?.code ?? null,
       status: error?.status ?? null,
       error: error?.message ?? String(error),
-    });
+    } satisfies ErrorResponse);
   }
 
   console.log("[AUTH] user", data.user.id);
@@ -56,7 +54,7 @@ export default async function requireAuth(
       details: profileError.details ?? null,
       hint: profileError.hint ?? null,
       error: profileError.message ?? String(profileError),
-    });
+    } satisfies ErrorResponse);
   }
 
   console.log("[AUTH] profile ok", profile?.id, profile?.role);
@@ -66,4 +64,6 @@ export default async function requireAuth(
   req.supabaseUser = data.user;
 
   next();
-}
+};
+
+export default requireAuth;
