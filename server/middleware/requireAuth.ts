@@ -1,6 +1,21 @@
+import { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
+import type { AuthUser } from "../types/domain.js";
 
-export default async function requireAuth(req, res, next) {
+interface ErrorResponse {
+  message: string;
+  code?: string | null;
+  status?: number | null;
+  details?: string | null;
+  hint?: string | null;
+  error?: string | null;
+}
+
+export default async function requireAuth(
+  req: Request,
+  res: Response<ErrorResponse>,
+  next: NextFunction,
+): Promise<void | Response<ErrorResponse>> {
   console.log("[AUTH] start", req.method, req.originalUrl);
 
   const auth = req.headers.authorization || "";
@@ -13,7 +28,6 @@ export default async function requireAuth(req, res, next) {
 
   console.log("[AUTH] token prefix", token.slice(0, 12));
 
-  // ✅ VERIFY TOKEN USING ADMIN CLIENT
   const { data, error } = await supabaseAdmin.auth.getUser(token);
 
   if (error || !data?.user) {
@@ -32,16 +46,16 @@ export default async function requireAuth(req, res, next) {
     .from("users")
     .select("id, role, scout_onboarded, fighter_onboarded")
     .eq("id", data.user.id)
-    .maybeSingle();
+    .maybeSingle<AuthUser>();
 
   if (profileError) {
     console.log("[AUTH] profileError RAW", profileError);
     return res.status(500).json({
       message: "Profile lookup failed",
-      code: profileError?.code ?? null,
-      details: profileError?.details ?? null,
-      hint: profileError?.hint ?? null,
-      error: profileError?.message ?? String(profileError),
+      code: profileError.code ?? null,
+      details: profileError.details ?? null,
+      hint: profileError.hint ?? null,
+      error: profileError.message ?? String(profileError),
     });
   }
 
@@ -50,5 +64,6 @@ export default async function requireAuth(req, res, next) {
   req.user = profile ?? null;
   req.accessToken = token;
   req.supabaseUser = data.user;
+
   next();
 }
