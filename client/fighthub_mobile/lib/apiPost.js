@@ -1,6 +1,8 @@
+import { API_URL } from "../Constants";
 import { safeJson } from "./safeJson";
-export const apiPost = async (url, body, { token } = {}) => {
-  const res = await fetch(url, {
+
+export const apiPost = async (path, body, { token } = {}) => {
+  const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -10,7 +12,9 @@ export const apiPost = async (url, body, { token } = {}) => {
   });
 
   const data = await safeJson(res);
-  if (!res.ok)
+  if (!res.ok) {
     throw new Error(data?.message || data?.error || "Request failed");
+  }
+
   return data;
 };

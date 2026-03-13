@@ -1,6 +1,8 @@
+import { API_URL } from "../Constants";
 import { safeJson } from "./safeJson";
-export const apiGet = async (url, { token } = {}) => {
-  const res = await fetch(url, {
+
+export const apiGet = async (path, { token } = {}) => {
+  const res = await fetch(`${API_URL}${path}`, {
     method: "GET",
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -9,7 +11,9 @@ export const apiGet = async (url, { token } = {}) => {
   });
 
   const data = await safeJson(res);
-  if (!res.ok)
+  if (!res.ok) {
     throw new Error(data?.message || data?.error || "Request failed");
+  }
+
   return data;
 };
