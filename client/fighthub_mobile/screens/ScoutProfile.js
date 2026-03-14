@@ -19,7 +19,6 @@ import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { apiGet } from "../lib/apiGet";
 
-
 export default function ScoutProfile() {
   const [scoutData, setScoutData] = useState({
     scoutFName: "",
@@ -49,7 +48,7 @@ export default function ScoutProfile() {
 
     setLoading(true);
     try {
-      const s = await apiGet(`${API_URL}/scouts/me`, { token: userToken });
+      const s = await apiGet("/scouts/me", { token: userToken });
 
       setScoutData({
         scoutFName: s?.users?.fname ?? "",

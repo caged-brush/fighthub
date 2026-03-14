@@ -499,97 +499,148 @@ router.post<IdParams, ApplyResponse | ErrorResponse>(
   "/slots/:id/apply",
   requireAuth,
   async (req, res) => {
-    const slotId = req.params.id;
-    const fighterId = req.supabaseUser?.id;
+    try {
+      const slotId = req.params.id;
+      const fighterId = req.supabaseUser?.id;
 
-    if (!fighterId) {
-      return res.status(401).json({
-        message: "Not authenticated (missing supabase user)",
-      });
-    }
-
-    if (req.user?.role !== "fighter") {
-      return res.status(403).json({
-        message: "Only fighters can apply.",
-      });
-    }
-
-    const { data: slot, error: slotErr } = await supabaseAdmin
-      .from("fight_slots")
-      .select("id, status, allow_applications, application_deadline")
-      .eq("id", slotId)
-      .maybeSingle();
-
-    if (slotErr) {
-      return res.status(500).json({ message: slotErr.message });
-    }
-
-    if (!slot) {
-      return res.status(404).json({ message: "Slot not found." });
-    }
-
-    if (slot.status !== "open") {
-      return res.status(409).json({
-        message: "This slot is not open.",
-      });
-    }
-
-    if (!slot.allow_applications) {
-      return res.status(409).json({
-        message: "Applications are closed for this slot.",
-      });
-    }
-
-    if (slot.application_deadline) {
-      const deadline = new Date(slot.application_deadline).getTime();
-
-      if (Number.isFinite(deadline) && Date.now() > deadline) {
-        return res.status(409).json({
-          message: "Application deadline has passed.",
+      if (!fighterId) {
+        return res.status(401).json({
+          message: "Not authenticated (missing supabase user)",
         });
       }
-    }
 
-    const { data: existing, error: existingErr } = await supabaseAdmin
-      .from("fight_applications")
-      .select("id, status")
-      .eq("fight_slot_id", slotId)
-      .eq("fighter_id", fighterId)
-      .maybeSingle();
+      if (req.user?.role !== "fighter") {
+        return res.status(403).json({
+          message: "Only fighters can apply.",
+        });
+      }
 
-    if (existingErr) {
-      return res.status(500).json({ message: existingErr.message });
-    }
+      const { data: slot, error: slotErr } = await supabaseAdmin
+        .from("fight_slots")
+        .select(
+          "id, event_id, status, allow_applications, application_deadline",
+        )
+        .eq("id", slotId)
+        .maybeSingle();
 
-    if (existing) {
-      return res.status(409).json({
-        message: "You already applied to this slot.",
+      if (slotErr) {
+        return res.status(500).json({ message: slotErr.message });
+      }
+
+      if (!slot) {
+        return res.status(404).json({ message: "Slot not found." });
+      }
+
+      if (slot.status !== "open") {
+        return res.status(409).json({
+          message: "This slot is not open.",
+        });
+      }
+
+      if (!slot.allow_applications) {
+        return res.status(409).json({
+          message: "Applications are closed for this slot.",
+        });
+      }
+
+      if (slot.application_deadline) {
+        const deadline = new Date(slot.application_deadline).getTime();
+
+        if (Number.isFinite(deadline) && Date.now() > deadline) {
+          return res.status(409).json({
+            message: "Application deadline has passed.",
+          });
+        }
+      }
+
+      const { data: event, error: eventErr } = await supabaseAdmin
+        .from("events")
+        .select("id, created_by")
+        .eq("id", slot.event_id)
+        .maybeSingle();
+
+      if (eventErr) {
+        return res.status(500).json({ message: eventErr.message });
+      }
+
+      if (!event) {
+        return res.status(404).json({
+          message: "Parent event not found.",
+        });
+      }
+
+      if (!event.created_by) {
+        return res.status(500).json({
+          message: "Event poster not found.",
+        });
+      }
+
+      const { data: existing, error: existingErr } = await supabaseAdmin
+        .from("fight_applications")
+        .select("id, status")
+        .eq("fight_slot_id", slotId)
+        .eq("fighter_id", fighterId)
+        .maybeSingle();
+
+      if (existingErr) {
+        return res.status(500).json({ message: existingErr.message });
+      }
+
+      if (existing) {
+        return res.status(409).json({
+          message: "You already applied to this slot.",
+        });
+      }
+
+      const { data: created, error: createErr } = await supabaseAdmin
+        .from("fight_applications")
+        .insert({
+          fight_slot_id: slotId,
+          fighter_id: fighterId,
+          poster_id: event.created_by,
+          status: "submitted",
+        })
+        .select(
+          `
+          id,
+          poster_id,
+          fighter_id,
+          fight_slot_id,
+          status,
+          note,
+          highlight_video_url,
+          viewed_at,
+          scout_note,
+          scout_score,
+          created_at,
+          updated_at
+        `,
+        )
+        .single();
+
+      if (createErr) {
+        console.error("fight application create error:", createErr);
+
+        const msg = createErr.message || "Failed to apply.";
+        const lower = msg.toLowerCase();
+        const isDup = lower.includes("duplicate") || lower.includes("unique");
+
+        return res.status(isDup ? 409 : 500).json({
+          message: msg,
+        });
+      }
+
+      return res.status(201).json({
+        ok: true,
+        application: created,
+      });
+    } catch (err: any) {
+      console.error("POST /slots/:id/apply error:", err);
+
+      return res.status(500).json({
+        message: err?.message || "Internal server error.",
       });
     }
-
-    const { data: created, error: createErr } = await supabaseAdmin
-      .from("fight_applications")
-      .insert({
-        fight_slot_id: slotId,
-        fighter_id: fighterId,
-        status: "submitted",
-      })
-      .select("id, fight_slot_id, fighter_id, status, created_at")
-      .single();
-
-    if (createErr) {
-      const msg = createErr.message || "Failed to apply.";
-      const isDup =
-        msg.toLowerCase().includes("duplicate") ||
-        msg.toLowerCase().includes("unique");
-
-      return res.status(isDup ? 409 : 400).json({ message: msg });
-    }
-
-    return res.json({
-      ok: true,
-      application: created,
-    });
   },
 );
 

@@ -295,14 +295,19 @@ export default function ScoutCreateFightPostScreen({ navigation }) {
       </TouchableOpacity>
 
       {showEventDatePicker && (
-        <DateTimePicker
-          value={eventDate}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={onPickEventDate}
-        />
+        <View
+          style={{ backgroundColor: "white", borderRadius: 12, marginTop: 10 }}
+        >
+          <DateTimePicker
+            value={eventDate}
+            mode="date"
+            display="spinner"
+            themeVariant="light"
+            textColor="black"
+            onChange={onPickEventDate}
+          />
+        </View>
       )}
-
       <Label text="Description (optional)" />
       <Input
         value={description}
@@ -394,12 +399,18 @@ export default function ScoutCreateFightPostScreen({ navigation }) {
       </TouchableOpacity>
 
       {showDeadlinePicker && (
-        <DateTimePicker
-          value={applicationDeadline}
-          mode="datetime"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={onPickDeadline}
-        />
+        <View
+          style={{ backgroundColor: "white", borderRadius: 12, marginTop: 10 }}
+        >
+          <DateTimePicker
+            value={applicationDeadline}
+            mode="datetime"
+            display="spinner"
+            themeVariant="light"
+            textColor="black"
+            onChange={onPickDeadline}
+          />
+        </View>
       )}
 
       <Toggle

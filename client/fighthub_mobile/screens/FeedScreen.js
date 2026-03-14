@@ -89,7 +89,7 @@ export default function FeedScreen({ navigation }) {
   const headers = { Authorization: `Bearer ${userToken}` };
 
   const loadFeedCore = async () => {
-    const data = await apiGet(`${API_URL}/fight-clips/feed`, {
+    const data = await apiGet(`/fight-clips/feed`, {
       token: userToken,
     });
     setClips(data?.clips || []);
@@ -123,7 +123,7 @@ export default function FeedScreen({ navigation }) {
       setLoadingMore(true);
 
       const data = await apiGet(
-        `${API_URL}/fight-clips/feed?cursor=${encodeURIComponent(nextCursor)}`,
+        `/fight-clips/feed?cursor=${encodeURIComponent(nextCursor)}`,
         { token: userToken },
       );
 

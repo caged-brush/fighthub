@@ -320,10 +320,7 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
         )}
       </View>
 
-      <Text style={{ color: "#666", marginTop: 12, fontSize: 12 }}>
-        If this screen is blank, your backend GET /fights/slots/:id isn’t
-        implemented.
-      </Text>
+     
     </ScrollView>
   );
 }
