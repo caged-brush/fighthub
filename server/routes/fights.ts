@@ -545,7 +545,6 @@ router.post<IdParams, ApplyResponse | ErrorResponse>(
 
       if (slot.application_deadline) {
         const deadline = new Date(slot.application_deadline).getTime();
-
         if (Number.isFinite(deadline) && Date.now() > deadline) {
           return res.status(409).json({
             message: "Application deadline has passed.",
@@ -553,6 +552,7 @@ router.post<IdParams, ApplyResponse | ErrorResponse>(
         }
       }
 
+      // Get event owner
       const { data: event, error: eventErr } = await supabaseAdmin
         .from("events")
         .select("id, created_by")
@@ -569,12 +569,24 @@ router.post<IdParams, ApplyResponse | ErrorResponse>(
         });
       }
 
-      if (!event.created_by) {
-        return res.status(500).json({
-          message: "Event poster not found.",
+      // Get poster profile
+      const { data: poster, error: posterErr } = await supabaseAdmin
+        .from("fight_posters")
+        .select("id")
+        .eq("created_by", event.created_by)
+        .maybeSingle();
+
+      if (posterErr) {
+        return res.status(500).json({ message: posterErr.message });
+      }
+
+      if (!poster) {
+        return res.status(404).json({
+          message: "Poster profile not found for event owner.",
         });
       }
 
+      // Check existing application
       const { data: existing, error: existingErr } = await supabaseAdmin
         .from("fight_applications")
         .select("id, status")
@@ -597,37 +609,14 @@ router.post<IdParams, ApplyResponse | ErrorResponse>(
         .insert({
           fight_slot_id: slotId,
           fighter_id: fighterId,
-          poster_id: event.created_by,
+          poster_id: poster.id,
           status: "submitted",
         })
-        .select(
-          `
-          id,
-          poster_id,
-          fighter_id,
-          fight_slot_id,
-          status,
-          note,
-          highlight_video_url,
-          viewed_at,
-          scout_note,
-          scout_score,
-          created_at,
-          updated_at
-        `,
-        )
+        .select("id, fight_slot_id, fighter_id, poster_id, status, created_at")
         .single();
 
       if (createErr) {
-        console.error("fight application create error:", createErr);
-
-        const msg = createErr.message || "Failed to apply.";
-        const lower = msg.toLowerCase();
-        const isDup = lower.includes("duplicate") || lower.includes("unique");
-
-        return res.status(isDup ? 409 : 500).json({
-          message: msg,
-        });
+        return res.status(500).json({ message: createErr.message });
       }
 
       return res.status(201).json({
@@ -635,8 +624,6 @@ router.post<IdParams, ApplyResponse | ErrorResponse>(
         application: created,
       });
     } catch (err: any) {
-      console.error("POST /slots/:id/apply error:", err);
-
       return res.status(500).json({
         message: err?.message || "Internal server error.",
       });
