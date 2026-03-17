@@ -211,11 +211,26 @@ interface ScoutApplicationsResponse {
     fighter_id: string;
     status: string;
     created_at?: string | null;
+
     fighter_first_name?: string | null;
     fighter_last_name?: string | null;
     fighter_name?: string | null;
-    fighter_record?: string | null;
+    fighter_region?: string | null;
+    fighter_profile_picture_url?: string | null;
+
+    fighter_weight_class?: string | null;
+    fighter_style?: string | null;
+    fighter_weight?: number | null;
+    fighter_height?: number | null;
+    fighter_bio?: string | null;
     fighter_gym?: string | null;
+    fighter_is_available?: boolean | null;
+
+    fighter_wins?: number | null;
+    fighter_losses?: number | null;
+    fighter_draws?: number | null;
+    fighter_record?: string | null;
+
     event_title?: string | null;
     discipline?: string | null;
     weight_class?: string | null;
@@ -947,6 +962,7 @@ router.get(
         });
       }
 
+      // 1) Get applications where this scout is the poster
       const { data: applications, error: appErr } = await supabaseAdmin
         .from("fight_applications")
         .select(
@@ -983,6 +999,7 @@ router.get(
       const slotIds = [...new Set(typedApps.map((a) => a.fight_slot_id))];
       const fighterIds = [...new Set(typedApps.map((a) => a.fighter_id))];
 
+      // 2) Get related fight slots
       const { data: slots, error: slotErr } = await supabaseAdmin
         .from("fight_slots")
         .select("id, event_id, discipline, weight_class")
@@ -1005,6 +1022,7 @@ router.get(
       const slotMap = Object.fromEntries(typedSlots.map((s) => [s.id, s]));
       const eventIds = [...new Set(typedSlots.map((s) => s.event_id))];
 
+      // 3) Get related events
       const { data: events, error: eventErr } = await supabaseAdmin
         .from("events")
         .select("id, title")
@@ -1022,10 +1040,24 @@ router.get(
         ),
       );
 
-      // Change this section to match your actual fighter profile table
+      // 4) Get fighter-specific data
       const { data: fighters, error: fighterErr } = await supabaseAdmin
-        .from("fighter_profiles")
-        .select("user_id, first_name, last_name, gym, record")
+        .from("fighters")
+        .select(
+          `
+          user_id,
+          weight_class,
+          wins,
+          losses,
+          draws,
+          fight_style,
+          weight,
+          height,
+          bio,
+          gym,
+          is_available
+        `,
+        )
         .in("user_id", fighterIds);
 
       if (fighterErr) {
@@ -1034,22 +1066,66 @@ router.get(
         });
       }
 
+      // 5) Get user/basic profile data
+      const { data: usersData, error: usersErr } = await supabaseAdmin
+        .from("users")
+        .select(
+          `
+          id,
+          fname,
+          lname,
+          region,
+          profile_picture_url
+        `,
+        )
+        .in("id", fighterIds);
+
+      if (usersErr) {
+        return res.status(500).json({
+          message: usersErr.message,
+        });
+      }
+
       const fighterMap = Object.fromEntries(
         (
           (fighters as Array<{
             user_id: string;
-            first_name?: string | null;
-            last_name?: string | null;
+            weight_class?: string | null;
+            wins?: number | null;
+            losses?: number | null;
+            draws?: number | null;
+            fight_style?: string | null;
+            weight?: number | null;
+            height?: number | null;
+            bio?: string | null;
             gym?: string | null;
-            record?: string | null;
+            is_available?: boolean | null;
           }> | null) ?? []
         ).map((f) => [f.user_id, f]),
       );
 
+      const userMap = Object.fromEntries(
+        (
+          (usersData as Array<{
+            id: string;
+            fname?: string | null;
+            lname?: string | null;
+            region?: string | null;
+            profile_picture_url?: string | null;
+          }> | null) ?? []
+        ).map((u) => [u.id, u]),
+      );
+
+      // 6) Merge everything into one frontend-friendly payload
       const enriched = typedApps.map((app) => {
         const slot = slotMap[app.fight_slot_id];
         const event = slot ? eventMap[slot.event_id] : null;
         const fighter = fighterMap[app.fighter_id];
+        const user = userMap[app.fighter_id];
+
+        const wins = fighter?.wins ?? 0;
+        const losses = fighter?.losses ?? 0;
+        const draws = fighter?.draws ?? 0;
 
         return {
           id: app.id,
@@ -1057,14 +1133,27 @@ router.get(
           fighter_id: app.fighter_id,
           status: app.status,
           created_at: app.created_at ?? null,
-          fighter_first_name: fighter?.first_name ?? null,
-          fighter_last_name: fighter?.last_name ?? null,
+
+          fighter_first_name: user?.fname ?? null,
+          fighter_last_name: user?.lname ?? null,
           fighter_name:
-            [fighter?.first_name, fighter?.last_name]
-              .filter(Boolean)
-              .join(" ") || null,
-          fighter_record: fighter?.record ?? null,
+            [user?.fname, user?.lname].filter(Boolean).join(" ") || null,
+          fighter_region: user?.region ?? null,
+          fighter_profile_picture_url: user?.profile_picture_url ?? null,
+
+          fighter_weight_class: fighter?.weight_class ?? null,
+          fighter_style: fighter?.fight_style ?? null,
+          fighter_weight: fighter?.weight ?? null,
+          fighter_height: fighter?.height ?? null,
+          fighter_bio: fighter?.bio ?? null,
           fighter_gym: fighter?.gym ?? null,
+          fighter_is_available: fighter?.is_available ?? null,
+
+          fighter_wins: wins,
+          fighter_losses: losses,
+          fighter_draws: draws,
+          fighter_record: `${wins}-${losses}-${draws}`,
+
           event_title: event?.title ?? null,
           discipline: slot?.discipline ?? null,
           weight_class: slot?.weight_class ?? null,
