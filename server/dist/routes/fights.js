@@ -243,80 +243,131 @@ router.get("/slots/:id", requireAuth, async (req, res) => {
     });
 });
 router.post("/slots/:id/apply", requireAuth, async (req, res) => {
-    const slotId = req.params.id;
-    const fighterId = req.supabaseUser?.id;
-    if (!fighterId) {
-        return res.status(401).json({
-            message: "Not authenticated (missing supabase user)",
-        });
-    }
-    if (req.user?.role !== "fighter") {
-        return res.status(403).json({
-            message: "Only fighters can apply.",
-        });
-    }
-    const { data: slot, error: slotErr } = await supabaseAdmin
-        .from("fight_slots")
-        .select("id, status, allow_applications, application_deadline")
-        .eq("id", slotId)
-        .maybeSingle();
-    if (slotErr) {
-        return res.status(500).json({ message: slotErr.message });
-    }
-    if (!slot) {
-        return res.status(404).json({ message: "Slot not found." });
-    }
-    if (slot.status !== "open") {
-        return res.status(409).json({
-            message: "This slot is not open.",
-        });
-    }
-    if (!slot.allow_applications) {
-        return res.status(409).json({
-            message: "Applications are closed for this slot.",
-        });
-    }
-    if (slot.application_deadline) {
-        const deadline = new Date(slot.application_deadline).getTime();
-        if (Number.isFinite(deadline) && Date.now() > deadline) {
-            return res.status(409).json({
-                message: "Application deadline has passed.",
+    try {
+        const slotId = req.params.id;
+        const fighterId = req.supabaseUser?.id;
+        if (!fighterId) {
+            return res.status(401).json({
+                message: "Not authenticated (missing supabase user)",
             });
         }
-    }
-    const { data: existing, error: existingErr } = await supabaseAdmin
-        .from("fight_applications")
-        .select("id, status")
-        .eq("fight_slot_id", slotId)
-        .eq("fighter_id", fighterId)
-        .maybeSingle();
-    if (existingErr) {
-        return res.status(500).json({ message: existingErr.message });
-    }
-    if (existing) {
-        return res.status(409).json({
-            message: "You already applied to this slot.",
+        if (req.user?.role !== "fighter") {
+            return res.status(403).json({
+                message: "Only fighters can apply.",
+            });
+        }
+        const { data: slot, error: slotErr } = await supabaseAdmin
+            .from("fight_slots")
+            .select("id, event_id, status, allow_applications, application_deadline")
+            .eq("id", slotId)
+            .maybeSingle();
+        if (slotErr) {
+            return res.status(500).json({
+                message: slotErr.message,
+            });
+        }
+        if (!slot) {
+            return res.status(404).json({
+                message: "Slot not found.",
+            });
+        }
+        if (slot.status !== "open") {
+            return res.status(409).json({
+                message: "This slot is not open.",
+            });
+        }
+        if (!slot.allow_applications) {
+            return res.status(409).json({
+                message: "Applications are closed for this slot.",
+            });
+        }
+        if (slot.application_deadline) {
+            const deadline = new Date(slot.application_deadline).getTime();
+            if (Number.isFinite(deadline) && Date.now() > deadline) {
+                return res.status(409).json({
+                    message: "Application deadline has passed.",
+                });
+            }
+        }
+        const { data: event, error: eventErr } = await supabaseAdmin
+            .from("events")
+            .select("id, created_by")
+            .eq("id", slot.event_id)
+            .maybeSingle();
+        if (eventErr) {
+            return res.status(500).json({
+                message: eventErr.message,
+            });
+        }
+        if (!event) {
+            return res.status(404).json({
+                message: "Parent event not found.",
+            });
+        }
+        if (!event.created_by) {
+            return res.status(500).json({
+                message: "Event owner not found.",
+            });
+        }
+        const { data: existing, error: existingErr } = await supabaseAdmin
+            .from("fight_applications")
+            .select("id, status")
+            .eq("fight_slot_id", slotId)
+            .eq("fighter_id", fighterId)
+            .maybeSingle();
+        if (existingErr) {
+            return res.status(500).json({
+                message: existingErr.message,
+            });
+        }
+        if (existing) {
+            return res.status(409).json({
+                message: "You already applied to this slot.",
+            });
+        }
+        const { data: created, error: createErr } = await supabaseAdmin
+            .from("fight_applications")
+            .insert({
+            fight_slot_id: slotId,
+            fighter_id: fighterId,
+            poster_id: event.created_by,
+            status: "submitted",
+        })
+            .select(`
+          id,
+          poster_id,
+          fighter_id,
+          fight_slot_id,
+          status,
+          note,
+          highlight_video_url,
+          viewed_at,
+          scout_note,
+          scout_score,
+          created_at,
+          updated_at
+        `)
+            .single();
+        if (createErr) {
+            console.error("fight application create error:", createErr);
+            const msg = createErr.message || "Failed to apply.";
+            const lower = msg.toLowerCase();
+            const isDup = lower.includes("duplicate") || lower.includes("unique");
+            return res.status(isDup ? 409 : 500).json({
+                message: msg,
+            });
+        }
+        return res.status(201).json({
+            ok: true,
+            application: created,
         });
     }
-    const { data: created, error: createErr } = await supabaseAdmin
-        .from("fight_applications")
-        .insert({
-        fight_slot_id: slotId,
-        fighter_id: fighterId,
-        status: "submitted",
-    })
-        .select("id, fight_slot_id, fighter_id, status, created_at")
-        .single();
-    if (createErr) {
-        const msg = createErr.message || "Failed to apply.";
-        const isDup = msg.toLowerCase().includes("duplicate") ||
-            msg.toLowerCase().includes("unique");
-        return res.status(isDup ? 409 : 400).json({ message: msg });
+    catch (err) {
+        console.error("POST /slots/:id/apply error:", err);
+        return res.status(500).json({
+            message: err?.message || "Internal server error.",
+        });
     }
-    return res.json({
-        ok: true,
-        application: created,
-    });
 });
 router.get("/open-slots", requireAuth, async (req, res) => {
     try {
@@ -381,6 +432,203 @@ router.get("/open-slots", requireAuth, async (req, res) => {
     catch (e) {
         console.error("[GET /fights/open-slots] crash:", e);
         return res.status(500).json({ message: getErrorMessage(e) });
+    }
+});
+router.get("/opportunities/mine", requireAuth, async (req, res) => {
+    try {
+        const viewerId = req.supabaseUser?.id;
+        if (!viewerId) {
+            return res.status(401).json({
+                message: "Not authenticated (missing supabase user)",
+            });
+        }
+        if (req.user?.role !== "scout") {
+            return res.status(403).json({
+                message: "Only scouts can view their published fights.",
+            });
+        }
+        const { data: events, error: eventErr } = await supabaseAdmin
+            .from("events")
+            .select(`
+          id,
+          created_by,
+          promotion_name,
+          title,
+          region,
+          city,
+          venue,
+          event_date
+        `)
+            .eq("created_by", viewerId)
+            .order("event_date", { ascending: false });
+        if (eventErr) {
+            return res.status(500).json({
+                message: eventErr.message,
+            });
+        }
+        const typedEvents = events ?? [];
+        if (!typedEvents.length) {
+            return res.json({ opportunities: [] });
+        }
+        const eventIds = typedEvents.map((e) => e.id);
+        const eventMap = Object.fromEntries(typedEvents.map((e) => [e.id, e]));
+        const { data: slots, error: slotErr } = await supabaseAdmin
+            .from("fight_slots")
+            .select(`
+          id,
+          event_id,
+          discipline,
+          weight_class,
+          target_weight_lbs,
+          weight_tolerance_lbs,
+          min_experience,
+          style_preferences,
+          allow_applications,
+          application_deadline,
+          travel_support,
+          purse_cents,
+          status,
+          created_at,
+          updated_at
+        `)
+            .in("event_id", eventIds)
+            .order("created_at", { ascending: false });
+        if (slotErr) {
+            return res.status(500).json({
+                message: slotErr.message,
+            });
+        }
+        const typedSlots = slots ?? [];
+        const opportunities = typedSlots.map((slot) => {
+            const event = eventMap[slot.event_id];
+            return {
+                id: slot.id,
+                event_id: slot.event_id,
+                discipline: slot.discipline,
+                weight_class: slot.weight_class,
+                target_weight_lbs: slot.target_weight_lbs ?? null,
+                weight_tolerance_lbs: slot.weight_tolerance_lbs ?? null,
+                min_experience: slot.min_experience ?? null,
+                style_preferences: slot.style_preferences ?? null,
+                allow_applications: slot.allow_applications,
+                application_deadline: slot.application_deadline ?? null,
+                travel_support: slot.travel_support ?? null,
+                purse_cents: slot.purse_cents ?? null,
+                status: slot.status,
+                created_at: slot.created_at ?? null,
+                updated_at: slot.updated_at ?? null,
+                event_title: event?.title ?? null,
+                promotion_name: event?.promotion_name ?? null,
+                city: event?.city ?? null,
+                region: event?.region ?? null,
+                venue: event?.venue ?? null,
+                event_date: event?.event_date ?? null,
+            };
+        });
+        return res.json({ opportunities });
+    }
+    catch (e) {
+        return res.status(500).json({
+            message: getErrorMessage(e),
+        });
+    }
+});
+router.get("/applications/mine", requireAuth, async (req, res) => {
+    try {
+        const viewerId = req.supabaseUser?.id;
+        if (!viewerId) {
+            return res.status(401).json({
+                message: "Not authenticated (missing supabase user)",
+            });
+        }
+        if (req.user?.role !== "scout") {
+            return res.status(403).json({
+                message: "Only scouts can view applicants.",
+            });
+        }
+        const { data: applications, error: appErr } = await supabaseAdmin
+            .from("fight_applications")
+            .select(`
+          id,
+          fight_slot_id,
+          fighter_id,
+          status,
+          created_at
+        `)
+            .eq("poster_id", viewerId)
+            .order("created_at", { ascending: false });
+        if (appErr) {
+            return res.status(500).json({
+                message: appErr.message,
+            });
+        }
+        const typedApps = applications ?? [];
+        if (!typedApps.length) {
+            return res.json({ applications: [] });
+        }
+        const slotIds = [...new Set(typedApps.map((a) => a.fight_slot_id))];
+        const fighterIds = [...new Set(typedApps.map((a) => a.fighter_id))];
+        const { data: slots, error: slotErr } = await supabaseAdmin
+            .from("fight_slots")
+            .select("id, event_id, discipline, weight_class")
+            .in("id", slotIds);
+        if (slotErr) {
+            return res.status(500).json({
+                message: slotErr.message,
+            });
+        }
+        const typedSlots = slots ?? [];
+        const slotMap = Object.fromEntries(typedSlots.map((s) => [s.id, s]));
+        const eventIds = [...new Set(typedSlots.map((s) => s.event_id))];
+        const { data: events, error: eventErr } = await supabaseAdmin
+            .from("events")
+            .select("id, title")
+            .in("id", eventIds);
+        if (eventErr) {
+            return res.status(500).json({
+                message: eventErr.message,
+            });
+        }
+        const eventMap = Object.fromEntries((events ?? []).map((e) => [e.id, e]));
+        // Change this section to match your actual fighter profile table
+        const { data: fighters, error: fighterErr } = await supabaseAdmin
+            .from("fighter_profiles")
+            .select("user_id, first_name, last_name, gym, record")
+            .in("user_id", fighterIds);
+        if (fighterErr) {
+            return res.status(500).json({
+                message: fighterErr.message,
+            });
+        }
+        const fighterMap = Object.fromEntries((fighters ?? []).map((f) => [f.user_id, f]));
+        const enriched = typedApps.map((app) => {
+            const slot = slotMap[app.fight_slot_id];
+            const event = slot ? eventMap[slot.event_id] : null;
+            const fighter = fighterMap[app.fighter_id];
+            return {
+                id: app.id,
+                fight_slot_id: app.fight_slot_id,
+                fighter_id: app.fighter_id,
+                status: app.status,
+                created_at: app.created_at ?? null,
+                fighter_first_name: fighter?.first_name ?? null,
+                fighter_last_name: fighter?.last_name ?? null,
+                fighter_name: [fighter?.first_name, fighter?.last_name]
+                    .filter(Boolean)
+                    .join(" ") || null,
+                fighter_record: fighter?.record ?? null,
+                fighter_gym: fighter?.gym ?? null,
+                event_title: event?.title ?? null,
+                discipline: slot?.discipline ?? null,
+                weight_class: slot?.weight_class ?? null,
+            };
+        });
+        return res.json({ applications: enriched });
+    }
+    catch (e) {
+        return res.status(500).json({
+            message: getErrorMessage(e),
+        });
     }
 });
 export default router;
