@@ -2,12 +2,11 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import FeedScreen from "./FeedScreen"; // ✅ new feed
-import ScoutSearch from "./ScoutSearch"; // ✅ your current filter/search screen (rename later)
+import FeedScreen from "./FeedScreen";
+import ScoutSearch from "./ScoutSearch";
 import ScoutWatchlist from "./ScoutWatchlist";
 import ScoutProfile from "./ScoutProfile";
-import ScoutCreateFightPostScreen from "./ScoutCreateFightPostScreen";
-import ScoutFightManagerTabs from "./ScoutFightManagerTabs";
+import ScoutStack from "./ScoutStack";
 
 const Tab = createBottomTabNavigator();
 
@@ -26,6 +25,8 @@ export default function ScoutTabs() {
             iconName = focused ? "home" : "home-outline";
           } else if (route.name === "Search") {
             iconName = focused ? "search" : "search-outline";
+          } else if (route.name === "Fights") {
+            iconName = focused ? "fitness" : "fitness-outline";
           } else if (route.name === "Watchlist") {
             iconName = focused ? "star" : "star-outline";
           } else if (route.name === "Profile") {
@@ -36,13 +37,9 @@ export default function ScoutTabs() {
         },
       })}
     >
-      {/* ✅ HOME = FEED */}
       <Tab.Screen name="Home" component={FeedScreen} />
-
-      {/* ✅ SEARCH = your current ScoutHome screen */}
       <Tab.Screen name="Search" component={ScoutSearch} />
-      <Tab.Screen name="Fights" component={ScoutFightManagerTabs} />
-
+      <Tab.Screen name="Fights" component={ScoutStack} />
       <Tab.Screen name="Watchlist" component={ScoutWatchlist} />
       <Tab.Screen name="Profile" component={ScoutProfile} />
     </Tab.Navigator>

@@ -9,13 +9,11 @@ import {
   RefreshControl,
 } from "react-native";
 import { AuthContext } from "../context/AuthContext";
-import { apiFetch } from "../lib/apiFetch"; // your helper
+import { apiFetch } from "../lib/apiFetch";
 
 export default function FightOpportunityDetailsScreen({ route, navigation }) {
   const { slotId } = route.params || {};
-
-  // Your AuthContext uses userToken + role (based on what you pasted)
-  const { userToken, role, userId } = useContext(AuthContext);
+  const { userToken, role } = useContext(AuthContext);
   const token = userToken;
 
   const [loading, setLoading] = useState(true);
@@ -25,19 +23,13 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
   const canApply = useMemo(() => role === "fighter", [role]);
   const isScout = useMemo(() => role === "scout", [role]);
 
-  function supaErrToString(err) {
-    if (!err) return "Unknown Supabase error";
-    return (
-      err.message || err.details || err.hint || err.code || JSON.stringify(err)
-    );
-  }
-
   const load = async () => {
     if (!slotId) {
       Alert.alert("Error", "Missing slotId");
       navigation.goBack();
       return;
     }
+
     if (!token) {
       Alert.alert("Error", "Missing auth token");
       navigation.goBack();
@@ -46,14 +38,17 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
 
     try {
       setLoading(true);
-      // EXPECTED BACKEND:
-      // GET /fights/slots/:id  -> { slot: {...}, event: {...}, meta: {...} }
-      const res = await apiFetch(`/fights/slots/${slotId}`, { token });
+
+      const res = await apiFetch(`/fights/slots/${slotId}`, {
+        method: "GET",
+        token,
+      });
+
       setData(res);
     } catch (e) {
-      console.log("STATUS:", e.status);
-      console.log("DATA:", e.data);
-      Alert.alert("Error", e.message);
+      console.log("STATUS:", e?.status);
+      console.log("DATA:", e?.data);
+      Alert.alert("Error", e?.message || "Failed to load opportunity");
     } finally {
       setLoading(false);
     }
@@ -61,7 +56,6 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slotId]);
 
   const onRefresh = async () => {
@@ -75,28 +69,26 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
 
   const applyToSlot = async () => {
     if (!canApply) return;
+
     try {
-      // EXPECTED BACKEND:
-      // POST /fights/slots/:id/apply -> { application: { id, status } }
-      const res = await apiFetch(`/fights/slots/${slotId}/apply`, {
+      await apiFetch(`/fights/slots/${slotId}/apply`, {
         method: "POST",
         token,
-        body: {}, // keep empty; backend can infer fighter from auth.uid()/userId
+        body: {},
       });
 
       Alert.alert("Applied", "Your application was submitted.");
       await load();
-      return res;
     } catch (e) {
-      const msg = e.message || "Failed to apply";
-      Alert.alert("Error", msg);
+      Alert.alert("Error", e?.message || "Failed to apply");
     }
   };
 
   const viewApplicants = () => {
-    // You can build this next:
-    // navigation.navigate("ApplicantsList", { slotId });
-    Alert.alert("Next step", "Build the Applicants screen next.");
+    navigation.navigate("ScoutFightManager", {
+      screen: "Applicants",
+      params: { slotId },
+    });
   };
 
   if (loading) {
@@ -133,6 +125,7 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
         <Text style={{ color: "white", fontWeight: "800", fontSize: 18 }}>
           Opportunity not found
         </Text>
+
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={{
@@ -175,7 +168,7 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
           marginTop: 4,
         }}
       >
-        {value ?? "—"}
+        {Array.isArray(value) ? value.join(", ") : (value ?? "—")}
       </Text>
     </View>
   );
@@ -205,7 +198,6 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
         {statusPill(String(slot.status || "open").toUpperCase())}
       </View>
 
-      {/* EVENT */}
       <Text
         style={{
           color: "white",
@@ -225,7 +217,6 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
         <Row label="Description" value={event.description} />
       </Card>
 
-      {/* SLOT */}
       <Text
         style={{
           color: "white",
@@ -262,7 +253,6 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
         />
       </Card>
 
-      {/* META */}
       {(meta.applicants_count != null || meta.viewer_application_status) && (
         <>
           <Text
@@ -275,6 +265,7 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
           >
             Activity
           </Text>
+
           <Card>
             <Row label="Applicants" value={meta.applicants_count} />
             <Row label="Your Status" value={meta.viewer_application_status} />
@@ -282,7 +273,6 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
         </>
       )}
 
-      {/* ACTIONS */}
       <View style={{ marginTop: 18 }}>
         {canApply && (
           <TouchableOpacity
@@ -319,8 +309,6 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
       </View>
-
-     
     </ScrollView>
   );
 }

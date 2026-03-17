@@ -22,8 +22,9 @@ const STATUS_COLORS = {
   rejected: "#DC2626",
 };
 
-export default function ScoutApplicantsScreen({ navigation }) {
+export default function ScoutApplicantsScreen({ navigation, route }) {
   const { userToken, role } = useContext(AuthContext);
+  const slotId = route?.params?.slotId;
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,10 +37,16 @@ export default function ScoutApplicantsScreen({ navigation }) {
     if (!userToken || role !== "scout") return;
 
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+        setApplications([]);
+      }
 
-      const res = await apiFetch("/fights/applications/mine", {
+      const query = slotId ? `?slotId=${encodeURIComponent(slotId)}` : "";
+
+      const res = await apiFetch(`/fights/applications/mine${query}`, {
         method: "GET",
         token: userToken,
       });
@@ -60,7 +67,7 @@ export default function ScoutApplicantsScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       fetchApplicants();
-    }, [userToken, role]),
+    }, [userToken, role, slotId]),
   );
 
   const openApplicantPreview = (item) => {
@@ -127,13 +134,16 @@ export default function ScoutApplicantsScreen({ navigation }) {
       return;
     }
 
-    const supported = await Linking.canOpenURL(url);
-    if (!supported) {
-      Alert.alert("Invalid link", "Could not open highlight video.");
-      return;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (!supported) {
+        Alert.alert("Invalid link", "Could not open highlight video.");
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Error", "Could not open highlight video.");
     }
-
-    await Linking.openURL(url);
   };
 
   const renderStatusPill = (status) => {
@@ -203,7 +213,7 @@ export default function ScoutApplicantsScreen({ navigation }) {
         </Text>
 
         <Text style={{ color: "#aaa", marginTop: 4 }}>
-          {discipline.toUpperCase()} • {weightClass}
+          {String(discipline).toUpperCase()} • {weightClass}
         </Text>
 
         <Text style={{ color: "#777", marginTop: 4 }}>
@@ -332,7 +342,9 @@ export default function ScoutApplicantsScreen({ navigation }) {
       </Text>
 
       <Text style={{ color: "#888", marginTop: 6, marginBottom: 14 }}>
-        Review fighters who applied to your fight posts.
+        {slotId
+          ? "Review fighters who applied to this fight."
+          : "Review fighters who applied to your fight posts."}
       </Text>
 
       {applications.length === 0 ? (
@@ -349,7 +361,9 @@ export default function ScoutApplicantsScreen({ navigation }) {
               paddingHorizontal: 20,
             }}
           >
-            Once fighters apply to your published fights, they’ll show up here.
+            {slotId
+              ? "No fighters have applied to this fight yet."
+              : "Once fighters apply to your published fights, they’ll show up here."}
           </Text>
         </View>
       ) : (
@@ -439,6 +453,26 @@ export default function ScoutApplicantsScreen({ navigation }) {
                 </Text>
               ) : null}
 
+              {selectedApplicant?.fighter_weight ? (
+                <Text style={{ color: "#aaa", marginTop: 8 }}>
+                  Weight: {selectedApplicant.fighter_weight} lbs
+                </Text>
+              ) : null}
+
+              {selectedApplicant?.fighter_height ? (
+                <Text style={{ color: "#aaa", marginTop: 8 }}>
+                  Height: {selectedApplicant.fighter_height}
+                </Text>
+              ) : null}
+
+              {selectedApplicant?.fighter_is_available !== null &&
+              selectedApplicant?.fighter_is_available !== undefined ? (
+                <Text style={{ color: "#aaa", marginTop: 8 }}>
+                  Available:{" "}
+                  {selectedApplicant.fighter_is_available ? "Yes" : "No"}
+                </Text>
+              ) : null}
+
               {selectedApplicant?.fighter_bio ? (
                 <>
                   <Text
@@ -473,8 +507,10 @@ export default function ScoutApplicantsScreen({ navigation }) {
               </Text>
 
               <Text style={{ color: "#aaa", marginTop: 8 }}>
-                {(selectedApplicant?.discipline || "unknown").toUpperCase()} •{" "}
-                {selectedApplicant?.weight_class || "N/A"}
+                {String(
+                  selectedApplicant?.discipline || "unknown",
+                ).toUpperCase()}{" "}
+                • {selectedApplicant?.weight_class || "N/A"}
               </Text>
 
               {selectedApplicant

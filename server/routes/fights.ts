@@ -204,6 +204,10 @@ interface MyOpportunitiesResponse {
   }>;
 }
 
+interface ApplicationsMineQuery {
+  slotId?: string;
+}
+
 interface ScoutApplicationsResponse {
   applications: Array<{
     id: string;
@@ -944,7 +948,12 @@ router.get(
   "/applications/mine",
   requireAuth,
   async (
-    req: Request,
+    req: Request<
+      unknown,
+      ScoutApplicationsResponse | ErrorResponse,
+      unknown,
+      ApplicationsMineQuery
+    >,
     res: Response<ScoutApplicationsResponse | ErrorResponse>,
   ) => {
     try {
@@ -962,8 +971,7 @@ router.get(
         });
       }
 
-      // 1) Get applications where this scout is the poster
-      const { data: applications, error: appErr } = await supabaseAdmin
+      let applicationsQuery = supabaseAdmin
         .from("fight_applications")
         .select(
           `
@@ -976,6 +984,15 @@ router.get(
         )
         .eq("poster_id", viewerId)
         .order("created_at", { ascending: false });
+
+      if (req.query.slotId) {
+        applicationsQuery = applicationsQuery.eq(
+          "fight_slot_id",
+          req.query.slotId,
+        );
+      }
+
+      const { data: applications, error: appErr } = await applicationsQuery;
 
       if (appErr) {
         return res.status(500).json({
@@ -999,7 +1016,6 @@ router.get(
       const slotIds = [...new Set(typedApps.map((a) => a.fight_slot_id))];
       const fighterIds = [...new Set(typedApps.map((a) => a.fighter_id))];
 
-      // 2) Get related fight slots
       const { data: slots, error: slotErr } = await supabaseAdmin
         .from("fight_slots")
         .select("id, event_id, discipline, weight_class")
@@ -1022,7 +1038,6 @@ router.get(
       const slotMap = Object.fromEntries(typedSlots.map((s) => [s.id, s]));
       const eventIds = [...new Set(typedSlots.map((s) => s.event_id))];
 
-      // 3) Get related events
       const { data: events, error: eventErr } = await supabaseAdmin
         .from("events")
         .select("id, title")
@@ -1040,7 +1055,6 @@ router.get(
         ),
       );
 
-      // 4) Get fighter-specific data
       const { data: fighters, error: fighterErr } = await supabaseAdmin
         .from("fighters")
         .select(
@@ -1066,7 +1080,6 @@ router.get(
         });
       }
 
-      // 5) Get user/basic profile data
       const { data: usersData, error: usersErr } = await supabaseAdmin
         .from("users")
         .select(
@@ -1116,7 +1129,6 @@ router.get(
         ).map((u) => [u.id, u]),
       );
 
-      // 6) Merge everything into one frontend-friendly payload
       const enriched = typedApps.map((app) => {
         const slot = slotMap[app.fight_slot_id];
         const event = slot ? eventMap[slot.event_id] : null;
