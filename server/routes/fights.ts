@@ -204,6 +204,24 @@ interface MyOpportunitiesResponse {
   }>;
 }
 
+interface ScoutApplicationsResponse {
+  applications: Array<{
+    id: string;
+    fight_slot_id: string;
+    fighter_id: string;
+    status: string;
+    created_at?: string | null;
+    fighter_first_name?: string | null;
+    fighter_last_name?: string | null;
+    fighter_name?: string | null;
+    fighter_record?: string | null;
+    fighter_gym?: string | null;
+    event_title?: string | null;
+    discipline?: string | null;
+    weight_class?: string | null;
+  }>;
+}
+
 function supaErr(err: SupabaseErrorLike | null | undefined): ErrorResponse {
   if (!err) return { message: "Unknown Supabase error" };
 
@@ -899,6 +917,161 @@ router.get(
       });
 
       return res.json({ opportunities });
+    } catch (e) {
+      return res.status(500).json({
+        message: getErrorMessage(e),
+      });
+    }
+  },
+);
+
+router.get(
+  "/applications/mine",
+  requireAuth,
+  async (
+    req: Request,
+    res: Response<ScoutApplicationsResponse | ErrorResponse>,
+  ) => {
+    try {
+      const viewerId = req.supabaseUser?.id;
+
+      if (!viewerId) {
+        return res.status(401).json({
+          message: "Not authenticated (missing supabase user)",
+        });
+      }
+
+      if (req.user?.role !== "scout") {
+        return res.status(403).json({
+          message: "Only scouts can view applicants.",
+        });
+      }
+
+      const { data: applications, error: appErr } = await supabaseAdmin
+        .from("fight_applications")
+        .select(
+          `
+          id,
+          fight_slot_id,
+          fighter_id,
+          status,
+          created_at
+        `,
+        )
+        .eq("poster_id", viewerId)
+        .order("created_at", { ascending: false });
+
+      if (appErr) {
+        return res.status(500).json({
+          message: appErr.message,
+        });
+      }
+
+      const typedApps =
+        (applications as Array<{
+          id: string;
+          fight_slot_id: string;
+          fighter_id: string;
+          status: string;
+          created_at?: string | null;
+        }> | null) ?? [];
+
+      if (!typedApps.length) {
+        return res.json({ applications: [] });
+      }
+
+      const slotIds = [...new Set(typedApps.map((a) => a.fight_slot_id))];
+      const fighterIds = [...new Set(typedApps.map((a) => a.fighter_id))];
+
+      const { data: slots, error: slotErr } = await supabaseAdmin
+        .from("fight_slots")
+        .select("id, event_id, discipline, weight_class")
+        .in("id", slotIds);
+
+      if (slotErr) {
+        return res.status(500).json({
+          message: slotErr.message,
+        });
+      }
+
+      const typedSlots =
+        (slots as Array<{
+          id: string;
+          event_id: string;
+          discipline: string;
+          weight_class: string;
+        }> | null) ?? [];
+
+      const slotMap = Object.fromEntries(typedSlots.map((s) => [s.id, s]));
+      const eventIds = [...new Set(typedSlots.map((s) => s.event_id))];
+
+      const { data: events, error: eventErr } = await supabaseAdmin
+        .from("events")
+        .select("id, title")
+        .in("id", eventIds);
+
+      if (eventErr) {
+        return res.status(500).json({
+          message: eventErr.message,
+        });
+      }
+
+      const eventMap = Object.fromEntries(
+        ((events as Array<{ id: string; title: string }> | null) ?? []).map(
+          (e) => [e.id, e],
+        ),
+      );
+
+      // Change this section to match your actual fighter profile table
+      const { data: fighters, error: fighterErr } = await supabaseAdmin
+        .from("fighter_profiles")
+        .select("user_id, first_name, last_name, gym, record")
+        .in("user_id", fighterIds);
+
+      if (fighterErr) {
+        return res.status(500).json({
+          message: fighterErr.message,
+        });
+      }
+
+      const fighterMap = Object.fromEntries(
+        (
+          (fighters as Array<{
+            user_id: string;
+            first_name?: string | null;
+            last_name?: string | null;
+            gym?: string | null;
+            record?: string | null;
+          }> | null) ?? []
+        ).map((f) => [f.user_id, f]),
+      );
+
+      const enriched = typedApps.map((app) => {
+        const slot = slotMap[app.fight_slot_id];
+        const event = slot ? eventMap[slot.event_id] : null;
+        const fighter = fighterMap[app.fighter_id];
+
+        return {
+          id: app.id,
+          fight_slot_id: app.fight_slot_id,
+          fighter_id: app.fighter_id,
+          status: app.status,
+          created_at: app.created_at ?? null,
+          fighter_first_name: fighter?.first_name ?? null,
+          fighter_last_name: fighter?.last_name ?? null,
+          fighter_name:
+            [fighter?.first_name, fighter?.last_name]
+              .filter(Boolean)
+              .join(" ") || null,
+          fighter_record: fighter?.record ?? null,
+          fighter_gym: fighter?.gym ?? null,
+          event_title: event?.title ?? null,
+          discipline: slot?.discipline ?? null,
+          weight_class: slot?.weight_class ?? null,
+        };
+      });
+
+      return res.json({ applications: enriched });
     } catch (e) {
       return res.status(500).json({
         message: getErrorMessage(e),
