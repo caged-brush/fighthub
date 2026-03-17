@@ -7,6 +7,7 @@ import ScoutSearch from "./ScoutSearch"; // ✅ your current filter/search scree
 import ScoutWatchlist from "./ScoutWatchlist";
 import ScoutProfile from "./ScoutProfile";
 import ScoutCreateFightPostScreen from "./ScoutCreateFightPostScreen";
+import ScoutFightManagerTabs from "./ScoutFightManagerTabs";
 
 const Tab = createBottomTabNavigator();
 
@@ -40,7 +41,7 @@ export default function ScoutTabs() {
 
       {/* ✅ SEARCH = your current ScoutHome screen */}
       <Tab.Screen name="Search" component={ScoutSearch} />
-      <Tab.Screen name="Fights" component={ScoutCreateFightPostScreen} />
+      <Tab.Screen name="Fights" component={ScoutFightManagerTabs} />
 
       <Tab.Screen name="Watchlist" component={ScoutWatchlist} />
       <Tab.Screen name="Profile" component={ScoutProfile} />

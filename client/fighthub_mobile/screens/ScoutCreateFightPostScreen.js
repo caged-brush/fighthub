@@ -451,10 +451,7 @@ export default function ScoutCreateFightPostScreen({ navigation }) {
           <Text style={{ fontWeight: "800" }}>Publish Opportunity</Text>
         )}
       </TouchableOpacity>
-
-      <Text style={{ color: "#666", marginTop: 12, fontSize: 12 }}>
-        If this fails, it’s your backend contract, not the UI.
-      </Text>
+ 
     </ScrollView>
   );
 }
