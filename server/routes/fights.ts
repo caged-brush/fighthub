@@ -178,6 +178,32 @@ interface OpenSlotsEventRow {
   created_by: string;
 }
 
+interface MyOpportunitiesResponse {
+  opportunities: Array<{
+    id: string;
+    event_id: string;
+    discipline: string;
+    weight_class: string;
+    target_weight_lbs?: number | null;
+    weight_tolerance_lbs?: number | null;
+    min_experience?: string | null;
+    style_preferences?: string[] | null;
+    allow_applications: boolean;
+    application_deadline?: string | null;
+    travel_support?: string | null;
+    purse_cents?: number | null;
+    status: string;
+    created_at?: string | null;
+    updated_at?: string | null;
+    event_title: string | null;
+    promotion_name: string | null;
+    city: string | null;
+    region: string | null;
+    venue: string | null;
+    event_date: string | null;
+  }>;
+}
+
 function supaErr(err: SupabaseErrorLike | null | undefined): ErrorResponse {
   if (!err) return { message: "Unknown Supabase error" };
 
@@ -744,6 +770,139 @@ router.get(
     } catch (e) {
       console.error("[GET /fights/open-slots] crash:", e);
       return res.status(500).json({ message: getErrorMessage(e) });
+    }
+  },
+);
+
+router.get(
+  "/opportunities/mine",
+  requireAuth,
+  async (
+    req: Request,
+    res: Response<MyOpportunitiesResponse | ErrorResponse>,
+  ) => {
+    try {
+      const viewerId = req.supabaseUser?.id;
+
+      if (!viewerId) {
+        return res.status(401).json({
+          message: "Not authenticated (missing supabase user)",
+        });
+      }
+
+      if (req.user?.role !== "scout") {
+        return res.status(403).json({
+          message: "Only scouts can view their published fights.",
+        });
+      }
+
+      const { data: events, error: eventErr } = await supabaseAdmin
+        .from("events")
+        .select(
+          `
+          id,
+          created_by,
+          promotion_name,
+          title,
+          region,
+          city,
+          venue,
+          event_date
+        `,
+        )
+        .eq("created_by", viewerId)
+        .order("event_date", { ascending: false });
+
+      if (eventErr) {
+        return res.status(500).json({
+          message: eventErr.message,
+        });
+      }
+
+      const typedEvents =
+        (events as Array<{
+          id: string;
+          created_by: string;
+          promotion_name: string;
+          title: string;
+          region: string;
+          city: string;
+          venue: string;
+          event_date: string;
+        }> | null) ?? [];
+
+      if (!typedEvents.length) {
+        return res.json({ opportunities: [] });
+      }
+
+      const eventIds = typedEvents.map((e) => e.id);
+      const eventMap = Object.fromEntries(typedEvents.map((e) => [e.id, e]));
+
+      const { data: slots, error: slotErr } = await supabaseAdmin
+        .from("fight_slots")
+        .select(
+          `
+          id,
+          event_id,
+          discipline,
+          weight_class,
+          target_weight_lbs,
+          weight_tolerance_lbs,
+          min_experience,
+          style_preferences,
+          allow_applications,
+          application_deadline,
+          travel_support,
+          purse_cents,
+          status,
+          created_at,
+          updated_at
+        `,
+        )
+        .in("event_id", eventIds)
+        .order("created_at", { ascending: false });
+
+      if (slotErr) {
+        return res.status(500).json({
+          message: slotErr.message,
+        });
+      }
+
+      const typedSlots = (slots as FightSlotRow[] | null) ?? [];
+
+      const opportunities = typedSlots.map((slot) => {
+        const event = eventMap[slot.event_id];
+
+        return {
+          id: slot.id,
+          event_id: slot.event_id,
+          discipline: slot.discipline,
+          weight_class: slot.weight_class,
+          target_weight_lbs: slot.target_weight_lbs ?? null,
+          weight_tolerance_lbs: slot.weight_tolerance_lbs ?? null,
+          min_experience: slot.min_experience ?? null,
+          style_preferences: slot.style_preferences ?? null,
+          allow_applications: slot.allow_applications,
+          application_deadline: slot.application_deadline ?? null,
+          travel_support: slot.travel_support ?? null,
+          purse_cents: slot.purse_cents ?? null,
+          status: slot.status,
+          created_at: slot.created_at ?? null,
+          updated_at: slot.updated_at ?? null,
+          event_title: event?.title ?? null,
+          promotion_name: event?.promotion_name ?? null,
+          city: event?.city ?? null,
+          region: event?.region ?? null,
+          venue: event?.venue ?? null,
+          event_date: event?.event_date ?? null,
+        };
+      });
+
+      return res.json({ opportunities });
+    } catch (e) {
+      return res.status(500).json({
+        message: getErrorMessage(e),
+      });
     }
   },
 );

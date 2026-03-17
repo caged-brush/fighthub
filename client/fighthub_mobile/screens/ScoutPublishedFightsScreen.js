@@ -14,27 +14,32 @@ import { apiFetch } from "../lib/apiFetch";
 
 export default function ScoutPublishedFightsScreen({ navigation }) {
   const { userToken, role } = useContext(AuthContext);
-
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [fights, setFights] = useState([]);
 
-  const fetchFights = async (isRefresh = false) => {
-    if (!userToken || role !== "scout") return;
+  const fetchPublishedFights = async (isRefresh = false) => {
+    if (!userToken) return;
+    if (role !== "scout") return;
 
     try {
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
 
       const res = await apiFetch("/fights/opportunities/mine", {
         method: "GET",
         token: userToken,
       });
 
-      setFights(res?.opportunities || []);
+      setFights(Array.isArray(res?.opportunities) ? res.opportunities : []);
     } catch (e) {
       const msg =
-        e?.response?.data?.message || e?.message || "Failed to load fights.";
+        e?.response?.data?.message ||
+        e?.message ||
+        "Failed to load published fights.";
       Alert.alert("Error", msg);
     } finally {
       setLoading(false);
@@ -44,26 +49,23 @@ export default function ScoutPublishedFightsScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      fetchFights();
-    }, [userToken]),
+      fetchPublishedFights();
+    }, [userToken, role]),
   );
 
-  const renderItem = ({ item }) => {
-    const title = item?.event_title || "Untitled Event";
+  const renderFight = ({ item }) => {
+    const eventTitle = item?.event_title || "Untitled Event";
     const discipline = item?.discipline || "unknown";
     const weightClass = item?.weight_class || "N/A";
-    const city = item?.city || "Unknown";
-    const region = item?.region || "";
-    const date = item?.event_date
+    const location = [item?.city, item?.region].filter(Boolean).join(", ");
+    const eventDate = item?.event_date
       ? new Date(item.event_date).toDateString()
       : "No date";
 
     return (
       <TouchableOpacity
         onPress={() =>
-          navigation.navigate("FightOpportunityDetails", {
-            slotId: item.id,
-          })
+          navigation.navigate("FightOpportunityDetails", { slotId: item.id })
         }
         style={{
           backgroundColor: "#111",
@@ -74,42 +76,43 @@ export default function ScoutPublishedFightsScreen({ navigation }) {
           borderColor: "#222",
         }}
       >
-        {/* Title */}
         <Text style={{ color: "white", fontSize: 17, fontWeight: "800" }}>
-          {title}
+          {eventTitle}
         </Text>
 
-        {/* Meta */}
         <Text style={{ color: "#aaa", marginTop: 6 }}>
           {discipline.toUpperCase()} • {weightClass}
         </Text>
 
         <Text style={{ color: "#aaa", marginTop: 4 }}>
-          {city}, {region}
+          {location || "Unknown location"}
         </Text>
 
-        <Text style={{ color: "#aaa", marginTop: 4 }}>{date}</Text>
+        <Text style={{ color: "#aaa", marginTop: 4 }}>{eventDate}</Text>
 
-        {/* Status */}
         <View
           style={{
             marginTop: 10,
             alignSelf: "flex-start",
-            backgroundColor: item.allow_applications ? "#1d3b27" : "#3a2020",
+            backgroundColor:
+              item.allow_applications && item.status === "open"
+                ? "#1d3b27"
+                : "#3a2020",
             paddingHorizontal: 10,
             paddingVertical: 6,
             borderRadius: 999,
           }}
         >
           <Text style={{ color: "white", fontWeight: "700", fontSize: 12 }}>
-            {item.allow_applications ? "Applications Open" : "Closed"}
+            {item.allow_applications && item.status === "open"
+              ? "Applications Open"
+              : "Closed"}
           </Text>
         </View>
       </TouchableOpacity>
     );
   };
 
-  // 🚫 Not scout
   if (role !== "scout") {
     return (
       <View
@@ -121,13 +124,12 @@ export default function ScoutPublishedFightsScreen({ navigation }) {
         }}
       >
         <Text style={{ color: "white" }}>
-          Only scouts can view this section.
+          Only scouts can view published fights.
         </Text>
       </View>
     );
   }
 
-  // ⏳ Loading
   if (loading) {
     return (
       <View
@@ -145,7 +147,6 @@ export default function ScoutPublishedFightsScreen({ navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: "black", padding: 16 }}>
-      {/* Header */}
       <Text style={{ color: "white", fontSize: 22, fontWeight: "800" }}>
         My Published Fights
       </Text>
@@ -154,7 +155,6 @@ export default function ScoutPublishedFightsScreen({ navigation }) {
         Manage all fight opportunities you’ve posted.
       </Text>
 
-      {/* Empty state */}
       {fights.length === 0 ? (
         <View style={{ marginTop: 40, alignItems: "center" }}>
           <Text style={{ color: "white", fontSize: 16, fontWeight: "700" }}>
@@ -173,9 +173,7 @@ export default function ScoutPublishedFightsScreen({ navigation }) {
           </Text>
 
           <TouchableOpacity
-            onPress={
-              () => navigation.navigate("CreatePost") // top tab route
-            }
+            onPress={() => navigation.navigate("CreatePost")}
             style={{
               marginTop: 20,
               backgroundColor: "white",
@@ -193,12 +191,12 @@ export default function ScoutPublishedFightsScreen({ navigation }) {
         <FlatList
           data={fights}
           keyExtractor={(item) => String(item.id)}
-          renderItem={renderItem}
+          renderItem={renderFight}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => fetchFights(true)}
+              onRefresh={() => fetchPublishedFights(true)}
               tintColor="white"
             />
           }
