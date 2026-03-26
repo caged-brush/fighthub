@@ -22,16 +22,18 @@ interface ErrorResponse {
   message: string;
 }
 
+const VALID_ROLES: UserRole[] = ["fighter", "scout", "coach"];
+
 router.post(
   "/set-role",
   requireAuth,
   async (
     req: Request<unknown, SetRoleSuccessResponse | ErrorResponse, SetRoleBody>,
-    res: Response<SetRoleSuccessResponse | ErrorResponse>
+    res: Response<SetRoleSuccessResponse | ErrorResponse>,
   ) => {
     const { role } = req.body;
 
-    if (role !== "fighter" && role !== "scout") {
+    if (!role || !VALID_ROLES.includes(role)) {
       return res.status(400).json({ message: "Invalid role" });
     }
 
@@ -58,7 +60,9 @@ router.post(
       if (fighterError) {
         return res.status(500).json({ message: fighterError.message });
       }
-    } else {
+    }
+
+    if (role === "scout") {
       const { error: scoutError } = await supabaseAdmin
         .from("scouts")
         .upsert({ user_id: userId });
@@ -68,19 +72,26 @@ router.post(
       }
     }
 
+    if (role === "coach") {
+      const { error: coachError } = await supabaseAdmin
+        .from("coaches")
+        .upsert({ user_id: userId });
+
+      if (coachError) {
+        return res.status(500).json({ message: coachError.message });
+      }
+    }
+
     return res.json({ ok: true, role });
-  }
+  },
 );
 
 router.get(
   "/me",
   requireAuth,
-  async (
-    req: Request,
-    res: Response<MeResponse | ErrorResponse>
-  ) => {
+  async (req: Request, res: Response<MeResponse | ErrorResponse>) => {
     return res.json({ user: req.user });
-  }
+  },
 );
 
 export default router;

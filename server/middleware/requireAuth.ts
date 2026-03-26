@@ -42,7 +42,7 @@ const requireAuth: RequestHandler = async (req, res, next) => {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("users")
-    .select("id, role, scout_onboarded, fighter_onboarded")
+    .select("id, role, scout_onboarded, fighter_onboarded, coach_onboarded")
     .eq("id", data.user.id)
     .maybeSingle<AuthUser>();
 
@@ -57,9 +57,16 @@ const requireAuth: RequestHandler = async (req, res, next) => {
     } satisfies ErrorResponse);
   }
 
-  console.log("[AUTH] profile ok", profile?.id, profile?.role);
+  if (!profile) {
+    console.log("[AUTH] no app user row for auth user", data.user.id);
+    return res.status(404).json({
+      message: "User profile not found",
+    } satisfies ErrorResponse);
+  }
 
-  req.user = profile ?? null;
+  console.log("[AUTH] profile ok", profile.id, profile.role);
+
+  req.user = profile;
   req.accessToken = token;
   req.supabaseUser = data.user;
 

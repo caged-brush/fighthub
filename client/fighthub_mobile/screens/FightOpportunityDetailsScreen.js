@@ -19,6 +19,7 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
+  const [applying, setApplying] = useState(false);
 
   const canApply = useMemo(() => role === "fighter", [role]);
   const isScout = useMemo(() => role === "scout", [role]);
@@ -68,9 +69,11 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
   };
 
   const applyToSlot = async () => {
-    if (!canApply) return;
+    if (!canApply || applying) return;
 
     try {
+      setApplying(true);
+
       await apiFetch(`/fights/slots/${slotId}/apply`, {
         method: "POST",
         token,
@@ -81,6 +84,8 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
       await load();
     } catch (e) {
       Alert.alert("Error", e?.message || "Failed to apply");
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -277,17 +282,23 @@ export default function FightOpportunityDetailsScreen({ route, navigation }) {
         {canApply && (
           <TouchableOpacity
             onPress={applyToSlot}
+            disabled={
+              applying || !(slot.allow_applications && slot.status === "open")
+            }
             style={{
               backgroundColor: "white",
               borderRadius: 14,
               paddingVertical: 14,
               alignItems: "center",
               opacity:
-                slot.allow_applications && slot.status === "open" ? 1 : 0.5,
+                !applying && slot.allow_applications && slot.status === "open"
+                  ? 1
+                  : 0.5,
             }}
-            disabled={!(slot.allow_applications && slot.status === "open")}
           >
-            <Text style={{ fontWeight: "900" }}>Apply for Fight</Text>
+            <Text style={{ fontWeight: "900" }}>
+              {applying ? "Applying..." : "Apply for Fight"}
+            </Text>
           </TouchableOpacity>
         )}
 

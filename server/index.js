@@ -26,6 +26,8 @@ import scoutWatchlistRoutes from "./routes/scoutWatchlistRoutes.js";
 import inboxRoutes from "./routes/inbox.js";
 import fightClipsRoutes from "./routes/fightClipsRoutes.js";
 import supabase, { supabaseAdmin } from "./config/supabase.js";
+import gymRoutes from "./routes/gymRoutes.js";
+import coachRoutes from "./routes/coachRoutes.js";
 env.config();
 
 const app = express();
@@ -174,6 +176,8 @@ app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
 app.use("/booking", bookingRoutes);
 app.use("/auth", authProfileRoutes);
 app.use("/fights", fightsRoutes);
+app.use("/coach", coachRoutes);
+app.use("/gyms", gymRoutes);
 
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(uploadDir));

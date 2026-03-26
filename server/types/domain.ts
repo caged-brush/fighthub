@@ -1,9 +1,9 @@
-export type UserRole = "fighter" | "scout";
-
 export interface AuthUser {
   id: string;
-  email?: string | null;
-  role?: UserRole;
+  role: UserRole;
+  fighter_onboarded?: boolean;
+  scout_onboarded?: boolean;
+  coach_onboarded?: boolean;
 }
 
 export interface Profile {
@@ -15,3 +15,5 @@ export interface Profile {
   avatar_url?: string | null;
   created_at?: string;
 }
+
+export type UserRole = "fighter" | "scout" | "coach";

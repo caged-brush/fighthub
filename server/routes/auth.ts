@@ -18,11 +18,16 @@ interface MessageResponse {
 interface MeResponse {
   id: string;
   role: UserRole;
+  fighter_onboarded?: boolean;
+  scout_onboarded?: boolean;
+  coach_onboarded?: boolean;
 }
 
 interface ErrorResponse {
   message: string;
 }
+
+const VALID_ROLES: UserRole[] = ["fighter", "scout", "coach"];
 
 router.post(
   "/register",
@@ -38,7 +43,7 @@ router.post(
         .json({ message: "email and password are required" });
     }
 
-    if (!role || !["fighter", "scout"].includes(role)) {
+    if (!role || !VALID_ROLES.includes(role)) {
       return res.status(400).json({ message: "Invalid role" });
     }
 
@@ -62,12 +67,45 @@ router.post(
       return res.status(500).json({ message: "Failed to create auth user" });
     }
 
-    await supabaseAdmin.from("users").upsert({ id: userId, role });
+    const { error: userUpsertError } = await supabaseAdmin
+      .from("users")
+      .upsert({
+        id: userId,
+        role,
+      });
+
+    if (userUpsertError) {
+      return res.status(500).json({ message: userUpsertError.message });
+    }
 
     if (role === "fighter") {
-      await supabaseAdmin.from("fighters").upsert({ user_id: userId });
-    } else {
-      await supabaseAdmin.from("scouts").upsert({ user_id: userId });
+      const { error: fighterError } = await supabaseAdmin
+        .from("fighters")
+        .upsert({ user_id: userId });
+
+      if (fighterError) {
+        return res.status(500).json({ message: fighterError.message });
+      }
+    }
+
+    if (role === "scout") {
+      const { error: scoutError } = await supabaseAdmin
+        .from("scouts")
+        .upsert({ user_id: userId });
+
+      if (scoutError) {
+        return res.status(500).json({ message: scoutError.message });
+      }
+    }
+
+    if (role === "coach") {
+      const { error: coachError } = await supabaseAdmin
+        .from("coaches")
+        .upsert({ user_id: userId });
+
+      if (coachError) {
+        return res.status(500).json({ message: coachError.message });
+      }
     }
 
     return res.status(200).json({
@@ -87,6 +125,9 @@ router.get(
     return res.status(200).json({
       id: req.user.id,
       role: req.user.role,
+      fighter_onboarded: req.user.fighter_onboarded,
+      scout_onboarded: req.user.scout_onboarded,
+      coach_onboarded: req.user.coach_onboarded,
     });
   },
 );
