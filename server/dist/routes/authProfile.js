@@ -2,9 +2,10 @@ import express from "express";
 import requireAuth from "../middleware/requireAuth.js";
 import { supabaseAdmin } from "../config/supabase.js";
 const router = express.Router();
+const VALID_ROLES = ["fighter", "scout", "coach"];
 router.post("/set-role", requireAuth, async (req, res) => {
     const { role } = req.body;
-    if (role !== "fighter" && role !== "scout") {
+    if (!role || !VALID_ROLES.includes(role)) {
         return res.status(400).json({ message: "Invalid role" });
     }
     if (!req.user) {
@@ -26,12 +27,20 @@ router.post("/set-role", requireAuth, async (req, res) => {
             return res.status(500).json({ message: fighterError.message });
         }
     }
-    else {
+    if (role === "scout") {
         const { error: scoutError } = await supabaseAdmin
             .from("scouts")
             .upsert({ user_id: userId });
         if (scoutError) {
             return res.status(500).json({ message: scoutError.message });
+        }
+    }
+    if (role === "coach") {
+        const { error: coachError } = await supabaseAdmin
+            .from("coaches")
+            .upsert({ user_id: userId });
+        if (coachError) {
+            return res.status(500).json({ message: coachError.message });
         }
     }
     return res.json({ ok: true, role });

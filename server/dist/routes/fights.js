@@ -546,7 +546,7 @@ router.get("/applications/mine", requireAuth, async (req, res) => {
                 message: "Only scouts can view applicants.",
             });
         }
-        const { data: applications, error: appErr } = await supabaseAdmin
+        let applicationsQuery = supabaseAdmin
             .from("fight_applications")
             .select(`
           id,
@@ -557,6 +557,10 @@ router.get("/applications/mine", requireAuth, async (req, res) => {
         `)
             .eq("poster_id", viewerId)
             .order("created_at", { ascending: false });
+        if (req.query.slotId) {
+            applicationsQuery = applicationsQuery.eq("fight_slot_id", req.query.slotId);
+        }
+        const { data: applications, error: appErr } = await applicationsQuery;
         if (appErr) {
             return res.status(500).json({
                 message: appErr.message,
@@ -590,34 +594,74 @@ router.get("/applications/mine", requireAuth, async (req, res) => {
             });
         }
         const eventMap = Object.fromEntries((events ?? []).map((e) => [e.id, e]));
-        // Change this section to match your actual fighter profile table
         const { data: fighters, error: fighterErr } = await supabaseAdmin
-            .from("fighter_profiles")
-            .select("user_id, first_name, last_name, gym, record")
+            .from("fighters")
+            .select(`
+          user_id,
+          weight_class,
+          wins,
+          losses,
+          draws,
+          fight_style,
+          weight,
+          height,
+          bio,
+          gym,
+          is_available
+        `)
             .in("user_id", fighterIds);
         if (fighterErr) {
             return res.status(500).json({
                 message: fighterErr.message,
             });
         }
+        const { data: usersData, error: usersErr } = await supabaseAdmin
+            .from("users")
+            .select(`
+          id,
+          fname,
+          lname,
+          region,
+          profile_picture_url
+        `)
+            .in("id", fighterIds);
+        if (usersErr) {
+            return res.status(500).json({
+                message: usersErr.message,
+            });
+        }
         const fighterMap = Object.fromEntries((fighters ?? []).map((f) => [f.user_id, f]));
+        const userMap = Object.fromEntries((usersData ?? []).map((u) => [u.id, u]));
         const enriched = typedApps.map((app) => {
             const slot = slotMap[app.fight_slot_id];
             const event = slot ? eventMap[slot.event_id] : null;
             const fighter = fighterMap[app.fighter_id];
+            const user = userMap[app.fighter_id];
+            const wins = fighter?.wins ?? 0;
+            const losses = fighter?.losses ?? 0;
+            const draws = fighter?.draws ?? 0;
             return {
                 id: app.id,
                 fight_slot_id: app.fight_slot_id,
                 fighter_id: app.fighter_id,
                 status: app.status,
                 created_at: app.created_at ?? null,
-                fighter_first_name: fighter?.first_name ?? null,
-                fighter_last_name: fighter?.last_name ?? null,
-                fighter_name: [fighter?.first_name, fighter?.last_name]
-                    .filter(Boolean)
-                    .join(" ") || null,
-                fighter_record: fighter?.record ?? null,
+                fighter_first_name: user?.fname ?? null,
+                fighter_last_name: user?.lname ?? null,
+                fighter_name: [user?.fname, user?.lname].filter(Boolean).join(" ") || null,
+                fighter_region: user?.region ?? null,
+                fighter_profile_picture_url: user?.profile_picture_url ?? null,
+                fighter_weight_class: fighter?.weight_class ?? null,
+                fighter_style: fighter?.fight_style ?? null,
+                fighter_weight: fighter?.weight ?? null,
+                fighter_height: fighter?.height ?? null,
+                fighter_bio: fighter?.bio ?? null,
                 fighter_gym: fighter?.gym ?? null,
+                fighter_is_available: fighter?.is_available ?? null,
+                fighter_wins: wins,
+                fighter_losses: losses,
+                fighter_draws: draws,
+                fighter_record: `${wins}-${losses}-${draws}`,
                 event_title: event?.title ?? null,
                 discipline: slot?.discipline ?? null,
                 weight_class: slot?.weight_class ?? null,
