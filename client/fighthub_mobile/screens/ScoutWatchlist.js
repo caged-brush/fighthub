@@ -20,7 +20,6 @@ import { API_URL } from "../Constants";
 import { AuthContext } from "../context/AuthContext";
 import { apiGet } from "../lib/apiGet";
 
-
 function calcScore(f) {
   const wins = Number(f?.wins ?? 0);
   const losses = Number(f?.losses ?? 0);
@@ -57,7 +56,7 @@ export default function ScoutWatchlist() {
     if (!userToken) return;
 
     try {
-      const data = await apiGet(`${API_URL}/scouts/watchlist`, {
+      const data = await apiGet(`${API_URL}/scout/watchlist`, {
         token: userToken,
       });
 

@@ -10,21 +10,20 @@ import {
 import { useNavigation } from "@react-navigation/native";
 
 const Welcome = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* Top: Brand + value prop */}
         <View style={styles.header}>
           <Text style={styles.brand}>Kavyx</Text>
           <Text style={styles.headline}>Get discovered. Book faster.</Text>
           <Text style={styles.subhead}>
-            A clean hub for fighters and scouts to connect without the noise.
+            A clean hub for fighters, scouts, and coaches to connect without the
+            noise.
           </Text>
         </View>
 
-        {/* Middle: Role 선택 */}
         <View style={styles.roleGrid}>
           <RoleCard
             title="I’m a Fighter"
@@ -32,15 +31,22 @@ const Welcome = () => {
             accent="pink"
             onPress={() => navigation.navigate("Signup", { role: "fighter" })}
           />
+
           <RoleCard
             title="I’m a Scout"
             description="Filter talent fast. Message verified fighters."
             accent="gold"
             onPress={() => navigation.navigate("Signup", { role: "scout" })}
           />
+
+          <RoleCard
+            title="I’m a Coach"
+            description="Manage your gym. Build your roster. Represent your fighters."
+            accent="blue"
+            onPress={() => navigation.navigate("Signup", { role: "coach" })}
+          />
         </View>
 
-        {/* Bottom: Login */}
         <TouchableOpacity
           onPress={() => navigation.navigate("Login")}
           activeOpacity={0.8}
@@ -52,7 +58,6 @@ const Welcome = () => {
           </Text>
         </TouchableOpacity>
 
-        {/* Tiny footer */}
         <Text style={styles.footer}>
           By continuing, you agree to respectful conduct on Kavyx.
         </Text>
@@ -61,16 +66,45 @@ const Welcome = () => {
   );
 };
 
-function RoleCard({ title, description, accent, onPress }) {
-  const accentStyle =
-    accent === "pink" ? { borderColor: "#e0245e" } : { borderColor: "#ffd700" };
+type RoleAccent = "pink" | "gold" | "blue";
 
-  const badgeStyle =
-    accent === "pink"
-      ? { backgroundColor: "rgba(224,36,94,0.14)", color: "#ff4f86" }
-      : { backgroundColor: "rgba(255,215,0,0.12)", color: "#ffd700" };
+interface RoleCardProps {
+  title: string;
+  description: string;
+  accent: RoleAccent;
+  onPress: () => void;
+}
 
-  const badgeText = accent === "pink" ? "FIGHTER" : "SCOUT";
+function RoleCard({ title, description, accent, onPress }: RoleCardProps) {
+  let accentStyle = { borderColor: "#ffffff22" };
+  let badgeStyle = {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
+  };
+  let badgeText = "";
+
+  if (accent === "pink") {
+    accentStyle = { borderColor: "#e0245e" };
+    badgeStyle = {
+      backgroundColor: "rgba(224,36,94,0.14)",
+      color: "#ff4f86",
+    };
+    badgeText = "FIGHTER";
+  } else if (accent === "gold") {
+    accentStyle = { borderColor: "#ffd700" };
+    badgeStyle = {
+      backgroundColor: "rgba(255,215,0,0.12)",
+      color: "#ffd700",
+    };
+    badgeText = "SCOUT";
+  } else if (accent === "blue") {
+    accentStyle = { borderColor: "#4da3ff" };
+    badgeStyle = {
+      backgroundColor: "rgba(77,163,255,0.14)",
+      color: "#4da3ff",
+    };
+    badgeText = "COACH";
+  }
 
   return (
     <TouchableOpacity
