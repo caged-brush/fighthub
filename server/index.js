@@ -170,7 +170,7 @@ app.use(usersRoute(supabase));
 app.use(profileRoutes(supabase, upload, requireAuth));
 app.use("/fighters", fightersRoute(supabase, requireAuth));
 app.use("/scouts", scoutsRoutes(supabase, requireAuth));
-app.use("/scouts", scoutWatchlistRoutes(supabase, requireAuth));
+app.use("/scout", scoutWatchlistRoutes(supabase, requireAuth));
 app.use("/inbox", inboxRoutes(supabase, requireAuth));
 app.use("/fight-clips", fightClipsRoutes(supabase, supabaseAdmin, requireAuth));
 app.use("/booking", bookingRoutes);

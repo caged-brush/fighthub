@@ -92,7 +92,7 @@ export default function ScoutWatchlist() {
     });
 
     try {
-      await apiDelete(`${API_URL}/scouts/watchlist/${fighterId}`, {
+      await apiDelete(`${API_URL}/scout/watchlist/${fighterId}`, {
         token: userToken,
       });
     } catch (e) {
