@@ -242,7 +242,7 @@ export default function ScoutSearch() {
     if (!userToken) return;
 
     try {
-      const res = await fetch(`${API_URL}/scouts/watchlist`, {
+      const res = await fetch(`${API_URL}/scout/watchlist`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${userToken}`,
@@ -283,7 +283,7 @@ export default function ScoutSearch() {
     });
 
     try {
-      const url = `${API_URL}/scouts/watchlist/${fighterId}`;
+      const url = `${API_URL}/scout/watchlist/${fighterId}`;
 
       const res = await fetch(url, {
         method: isSaved ? "DELETE" : "POST",

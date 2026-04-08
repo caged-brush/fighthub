@@ -23,13 +23,21 @@ export const AuthProvider = ({ children }) => {
   const [userId, setUserId] = useState(null);
   const [isOnBoarded, setIsOnBoarded] = useState(false);
   const [role, setRole] = useState(null);
+
   const onboardingKeyFor = (r) => `isOnBoarded_${r}`;
 
-  // ✅ set role safely
+  const getBackendOnboardingValue = (userRole, user) => {
+    if (userRole === "fighter") return !!user.fighter_onboarded;
+    if (userRole === "scout") return !!user.scout_onboarded;
+    if (userRole === "coach") return !!user.coach_onboarded;
+    return false;
+  };
+
   const setUserRole = async (newRole) => {
     if (!newRole) {
       throw new Error(`[Auth] role is invalid: ${newRole}`);
     }
+
     setRole(newRole);
     await safeSetItem("role", newRole);
   };
@@ -40,20 +48,18 @@ export const AuthProvider = ({ children }) => {
       if (!token || !id) throw new Error("Missing token/id on signup");
       if (!initialRole) throw new Error("Missing role on signup");
 
-      // state
       setUserToken(token);
       setUserId(id);
       setIsOnBoarded(false);
       setRole(initialRole);
 
-      // persist
       await safeSetItem("userToken", token);
       await safeSetItem("userId", id);
       await safeSetItem("role", initialRole);
       await AsyncStorage.setItem(onboardingKeyFor(initialRole), "false");
     } catch (e) {
       console.log("signup error:", e?.message || e);
-      throw e; // optional, but consistent with login()
+      throw e;
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +73,6 @@ export const AuthProvider = ({ children }) => {
 
       setRole(incomingRole);
       setIsOnBoarded(!!incomingIsOnBoarded);
-
       setUserToken(token);
       setUserId(id);
 
@@ -75,11 +80,13 @@ export const AuthProvider = ({ children }) => {
       await safeSetItem("userId", id);
       await safeSetItem("role", incomingRole);
 
-      // ✅ cache the server truth locally so app restart doesn't regress
       await AsyncStorage.setItem(
         onboardingKeyFor(incomingRole),
         incomingIsOnBoarded ? "true" : "false",
       );
+    } catch (e) {
+      console.log("login error:", e?.message || e);
+      throw e;
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +107,7 @@ export const AuthProvider = ({ children }) => {
         "onboardingStep",
         "isOnBoarded_fighter",
         "isOnBoarded_scout",
+        "isOnBoarded_coach",
       ]);
     } catch (error) {
       console.log("logout error:", error?.message || error);
@@ -131,7 +139,6 @@ export const AuthProvider = ({ children }) => {
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        // Just set state to logged out — DO NOT wipe storage
         setUserToken(null);
         setUserId(null);
         setRole(null);
@@ -140,23 +147,28 @@ export const AuthProvider = ({ children }) => {
       }
 
       const token = session.access_token;
-     
 
-      // Optionally fetch backend truth here
-      const me = await apiFetch("/auth/me", { token });
-      const { id, role, scout_onboarded, fighter_onboarded } = me.user;
+      const user = await apiFetch("/auth/me", { token });
 
-      const onboarded =
-        role === "fighter"
-          ? !!fighter_onboarded
-          : role === "scout"
-            ? !!scout_onboarded
-            : false;
+      if (!user?.id || !user?.role) {
+        throw new Error("Invalid /auth/me response");
+      }
+
+      const resolvedRole = user.role;
+      const onboarded = getBackendOnboardingValue(resolvedRole, user);
 
       setUserToken(token);
-      setUserId(id);
-      setRole(role);
+      setUserId(user.id);
+      setRole(resolvedRole);
       setIsOnBoarded(onboarded);
+
+      await safeSetItem("userToken", token);
+      await safeSetItem("userId", user.id);
+      await safeSetItem("role", resolvedRole);
+      await AsyncStorage.setItem(
+        onboardingKeyFor(resolvedRole),
+        onboarded ? "true" : "false",
+      );
     } catch (e) {
       console.log("isLoggedIn error:", e?.message || e);
 
@@ -176,7 +188,9 @@ export const AuthProvider = ({ children }) => {
 
     console.log("[OnboardingCheck]", { role: r, key, perRole, legacy });
 
-    if (perRole === "true" || perRole === "false") return perRole === "true";
+    if (perRole === "true" || perRole === "false") {
+      return perRole === "true";
+    }
 
     if (legacy === "true") {
       await AsyncStorage.setItem(key, "true");
@@ -204,6 +218,8 @@ export const AuthProvider = ({ children }) => {
         role,
         setUserRole,
         completeOnboarding,
+        getOnboardingStatusForRole,
+        isLoggedIn,
       }}
     >
       {children}

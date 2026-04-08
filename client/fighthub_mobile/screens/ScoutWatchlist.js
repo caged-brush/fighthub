@@ -56,7 +56,7 @@ export default function ScoutWatchlist() {
     if (!userToken) return;
 
     try {
-      const data = await apiGet(`${API_URL}/scout/watchlist`, {
+      const data = await apiGet(`/scout/watchlist`, {
         token: userToken,
       });
 
@@ -92,7 +92,7 @@ export default function ScoutWatchlist() {
     });
 
     try {
-      await apiDelete(`${API_URL}/scout/watchlist/${fighterId}`, {
+      await apiDelete(`/scout/watchlist/${fighterId}`, {
         token: userToken,
       });
     } catch (e) {

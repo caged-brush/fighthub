@@ -1,3 +1,4 @@
+import React, { useContext, useMemo, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -14,26 +15,24 @@ import {
   ActivityIndicator,
 } from "react-native";
 import CustomButton from "../component/CustomButton";
-import { useContext, useMemo, useState } from "react";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 import { CLIENT_ID_ANDROID, CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import * as Google from "expo-auth-session/providers/google";
 import { auth } from "../firebaseConfig";
-import { API_URL } from "../Constants";
 import { supabase } from "../lib/supabase";
-import { apiFetch } from "../lib/apiFetch";
 
 const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
+const VALID_ROLES = ["fighter", "scout", "coach"];
 
 const Signup = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const selectedRole = route.params?.role; // 'fighter' | 'scout'
+  const selectedRole = route.params?.role;
 
-  const { signup, setUserRole } = useContext(AuthContext);
+  const { setUserRole } = useContext(AuthContext);
   const [submitting, setSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -47,19 +46,23 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  console.log("Selected role:", selectedRole);
+
   const roleLabel = useMemo(() => {
     if (selectedRole === "fighter") return "FIGHTER";
     if (selectedRole === "scout") return "SCOUT";
+    if (selectedRole === "coach") return "COACH";
     return null;
   }, [selectedRole]);
 
   const titleText = useMemo(() => {
     if (selectedRole === "fighter") return "Create your fighter account";
     if (selectedRole === "scout") return "Create your scout account";
+    if (selectedRole === "coach") return "Create your coach account";
     return "Create your account";
   }, [selectedRole]);
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
+  const [, , promptAsync] = Google.useAuthRequest({
     iosClientId: CLIENT_ID_IOS,
     androidClientId: CLIENT_ID_ANDROID,
     webClientId: CLIENT_ID_WEB,
@@ -75,8 +78,8 @@ const Signup = () => {
   const validate = () => {
     const { fname, lname, email, password, confirmPassword } = formData;
 
-    if (!selectedRole || !["fighter", "scout"].includes(selectedRole)) {
-      Alert.alert("Choose a role", "Go back and pick Fighter or Scout.");
+    if (!selectedRole || !VALID_ROLES.includes(selectedRole)) {
+      Alert.alert("Choose a role", "Please select a valid role.");
       return false;
     }
 
@@ -133,18 +136,22 @@ const Signup = () => {
         return;
       }
 
-      // IMPORTANT:
-      // With email confirmation enabled, data.session is often null.
-      // So you cannot call protected backend routes yet.
-      Alert.alert(
-        "Verify your email",
-        "We sent you a verification link. Open it, verify, then come back and log in.",
-      );
+      if (selectedRole && setUserRole) {
+        await setUserRole(selectedRole);
+      }
 
-      navigation.replace("Login", { email, role: selectedRole });
+      Alert.alert("Account created", "Continue setting up your profile.");
+
+      if (selectedRole === "coach") {
+        navigation.replace("CoachOnboarding");
+      } else if (selectedRole === "fighter") {
+        navigation.replace("FighterOnboarding");
+      } else if (selectedRole === "scout") {
+        navigation.replace("ScoutOnboarding");
+      } else {
+        navigation.replace("Login");
+      }
     } catch (e) {
-      // When Supabase/Cloudflare returns HTML/522, error messages can be messy.
-      // Give a clean user-facing message.
       const msg = String(e?.message || "");
       const friendly =
         msg.includes("Network") ||
@@ -166,7 +173,7 @@ const Signup = () => {
 
     const result = await promptAsync();
     if (result?.type === "success") {
-      const { idToken, accessToken } = result.authentication;
+      const { idToken, accessToken } = result.authentication || {};
       const credential = GoogleAuthProvider.credential(idToken, accessToken);
 
       signInWithCredential(auth, credential)
@@ -190,7 +197,6 @@ const Signup = () => {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Header */}
             <View style={styles.header}>
               <Text style={styles.brand}>Kavyx</Text>
 
@@ -206,7 +212,6 @@ const Signup = () => {
               </Text>
             </View>
 
-            {/* Form Card */}
             <View style={styles.card}>
               <Field
                 label="First name"
@@ -215,6 +220,7 @@ const Signup = () => {
                 placeholder="John"
                 autoCapitalize="words"
               />
+
               <Field
                 label="Last name"
                 value={formData.lname}
@@ -222,6 +228,7 @@ const Signup = () => {
                 placeholder="Doe"
                 autoCapitalize="words"
               />
+
               <Field
                 label="Email"
                 value={formData.email}
@@ -250,7 +257,6 @@ const Signup = () => {
               />
             </View>
 
-            {/* Actions */}
             <View style={styles.actions}>
               <CustomButton
                 variant="primary"
@@ -261,7 +267,7 @@ const Signup = () => {
                 {submitting ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator color="#fff" />
-                    <Text style={styles.loadingText}>Creating account…</Text>
+                    <Text style={styles.loadingText}>Creating account...</Text>
                   </View>
                 ) : (
                   "Create account"
@@ -292,7 +298,6 @@ const Signup = () => {
               </TouchableOpacity>
             </View>
 
-            {/* Footer note */}
             <Text style={styles.footer}>
               By continuing, you agree to respectful conduct on Kavyx.
             </Text>
@@ -402,7 +407,7 @@ const styles = StyleSheet.create({
   title: {
     color: "#ffd700",
     fontSize: 30,
-    fontWeight: "950",
+    fontWeight: "900",
     lineHeight: 34,
     marginBottom: 8,
   },
