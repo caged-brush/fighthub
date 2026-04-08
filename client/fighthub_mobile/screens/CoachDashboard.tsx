@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -29,7 +23,6 @@ type RootNav = {
 type AuthContextShape = {
   logout?: () => Promise<void> | void;
   userToken?: string | null;
-  userId?: string | null;
 };
 
 type Gym = {
@@ -58,15 +51,15 @@ type DashboardResponse = {
   gyms: DashboardGymMembership[];
 };
 
-type RosterUser = {
+type AppUser = {
   id: string;
   role: string | null;
-  username?: string | null;
-  full_name?: string | null;
-  avatar_url?: string | null;
+  fname?: string | null;
+  lname?: string | null;
+  profile_picture_url?: string | null;
 };
 
-type RosterItem = {
+type MembershipItem = {
   id: string;
   gym_id: string;
   user_id: string;
@@ -74,15 +67,15 @@ type RosterItem = {
   status: string;
   created_at: string;
   updated_at: string;
-  users: RosterUser | null;
+  users: AppUser | null;
 };
 
 type RequestsResponse = {
-  requests: RosterItem[];
+  requests: MembershipItem[];
 };
 
 type RosterResponse = {
-  roster: RosterItem[];
+  roster: MembershipItem[];
 };
 
 type QuickActionProps = {
@@ -119,6 +112,7 @@ async function parseJsonResponse<T>(res: Response): Promise<T> {
       typeof data === "object" && data && "message" in data
         ? (data as { message?: string }).message
         : undefined;
+
     throw new Error(message || `Request failed (${res.status})`);
   }
 
@@ -134,14 +128,38 @@ const CoachDashboard = () => {
 
   const [memberships, setMemberships] = useState<DashboardGymMembership[]>([]);
   const [selectedGymId, setSelectedGymId] = useState<string | null>(null);
-  const [roster, setRoster] = useState<RosterItem[]>([]);
-  const [requests, setRequests] = useState<RosterItem[]>([]);
+  const [roster, setRoster] = useState<MembershipItem[]>([]);
+  const [requests, setRequests] = useState<MembershipItem[]>([]);
 
   const selectedMembership = useMemo(() => {
     return memberships.find((m) => m.gym_id === selectedGymId) || null;
   }, [memberships, selectedGymId]);
 
   const selectedGym = selectedMembership?.gyms || null;
+
+  const loadGymDetails = useCallback(
+    async (gymId: string, token: string) => {
+      const [rosterRes, requestsRes] = await Promise.all([
+        fetch(`${API_URL}/coach/gyms/${gymId}/roster`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch(`${API_URL}/coach/gyms/${gymId}/requests`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ]);
+
+      const rosterData = await parseJsonResponse<RosterResponse>(rosterRes);
+      const requestsData = await parseJsonResponse<RequestsResponse>(requestsRes);
+
+      setRoster(Array.isArray(rosterData.roster) ? rosterData.roster : []);
+      setRequests(Array.isArray(requestsData.requests) ? requestsData.requests : []);
+    },
+    []
+  );
 
   const loadDashboard = useCallback(async () => {
     if (!userToken) {
@@ -157,8 +175,7 @@ const CoachDashboard = () => {
         },
       });
 
-      const dashboardData =
-        await parseJsonResponse<DashboardResponse>(dashboardRes);
+      const dashboardData = await parseJsonResponse<DashboardResponse>(dashboardRes);
       const gyms = Array.isArray(dashboardData.gyms) ? dashboardData.gyms : [];
 
       setMemberships(gyms);
@@ -176,27 +193,7 @@ const CoachDashboard = () => {
         return;
       }
 
-      const [rosterRes, requestsRes] = await Promise.all([
-        fetch(`${API_URL}/coach/gyms/${nextGymId}/roster`, {
-          headers: {
-            Authorization: `Bearer ${userToken}`,
-          },
-        }),
-        fetch(`${API_URL}/coach/gyms/${nextGymId}/requests`, {
-          headers: {
-            Authorization: `Bearer ${userToken}`,
-          },
-        }),
-      ]);
-
-      const rosterData = await parseJsonResponse<RosterResponse>(rosterRes);
-      const requestsData =
-        await parseJsonResponse<RequestsResponse>(requestsRes);
-
-      setRoster(Array.isArray(rosterData.roster) ? rosterData.roster : []);
-      setRequests(
-        Array.isArray(requestsData.requests) ? requestsData.requests : [],
-      );
+      await loadGymDetails(nextGymId, userToken);
     } catch (e: any) {
       console.log("Coach dashboard error:", e?.message || e);
       Alert.alert("Error", e?.message || "Failed to load coach dashboard.");
@@ -204,11 +201,18 @@ const CoachDashboard = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [API_URL, selectedGymId, userToken]);
+  }, [loadGymDetails, selectedGymId, userToken]);
 
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (!userToken || !selectedGymId || loading) return;
+    loadGymDetails(selectedGymId, userToken).catch((e: any) => {
+      console.log("Coach dashboard gym switch error:", e?.message || e);
+    });
+  }, [selectedGymId]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -264,11 +268,9 @@ const CoachDashboard = () => {
           </View>
 
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>
-              You have no active gym memberships.
-            </Text>
+            <Text style={styles.emptyTitle}>You have no active gym memberships.</Text>
             <Text style={styles.emptyText}>
-              Use gym setup to create a gym first. Until then, this dashboard
+              Use gym setup to create your gym first. Until then, this dashboard
               has nothing real to show.
             </Text>
 
@@ -307,15 +309,16 @@ const CoachDashboard = () => {
             <Text style={styles.brand}>Kavyx Coach</Text>
             <Text style={styles.headline}>Run your gym properly.</Text>
             <Text style={styles.subhead}>
-              Manage real roster data, real requests, and keep your gym
-              organized.
+              Manage real roster data, real requests, and keep your gym organized.
             </Text>
           </View>
 
           <TouchableOpacity
             style={styles.profilePill}
             activeOpacity={0.85}
-            onPress={() => navigation.navigate("CoachSetupScreen")}
+            onPress={() =>
+              navigation.navigate("CoachSetupScreen", { gymId: selectedGym.id })
+            }
           >
             <Text style={styles.profilePillText}>
               {(selectedMembership?.role || "coach").toUpperCase()}
@@ -368,18 +371,14 @@ const CoachDashboard = () => {
               "No gym bio yet. Update your gym details so people know this place is real."}
           </Text>
 
-          <Text style={styles.locationText}>
-            {gymLocation || "Location not set"}
-          </Text>
+          <Text style={styles.locationText}>{gymLocation || "Location not set"}</Text>
 
           <View style={styles.gymActions}>
             <TouchableOpacity
               style={styles.primaryBtn}
               activeOpacity={0.85}
               onPress={() =>
-                navigation.navigate("CoachSetupScreen", {
-                  gymId: selectedGym.id,
-                })
+                navigation.navigate("CoachSetupScreen", { gymId: selectedGym.id })
               }
             >
               <Text style={styles.primaryBtnText}>Manage Gym</Text>
@@ -396,16 +395,8 @@ const CoachDashboard = () => {
         </View>
 
         <View style={styles.statsRow}>
-          <StatCard
-            label="Roster"
-            value={rosterCount}
-            helper="Active members"
-          />
-          <StatCard
-            label="Requests"
-            value={pendingCount}
-            helper="Pending fighters"
-          />
+          <StatCard label="Roster" value={rosterCount} helper="Active members" />
+          <StatCard label="Requests" value={pendingCount} helper="Pending fighters" />
           <StatCard label="Gyms" value={gymsCount} helper="Managed gyms" />
         </View>
 
@@ -419,19 +410,17 @@ const CoachDashboard = () => {
               title="Manage gym"
               subtitle="Update your gym info and setup"
               onPress={() =>
-                navigation.navigate("CoachSetupScreen", {
-                  gymId: selectedGym.id,
-                })
+                navigation.navigate("CoachSetupScreen", { gymId: selectedGym.id })
               }
             />
             <QuickAction
-              title="View roster"
-              subtitle="Open active roster members"
+              title="Refresh roster"
+              subtitle="Pull latest active roster members"
               onPress={onRefresh}
             />
             <QuickAction
-              title="Review requests"
-              subtitle="Check pending join requests"
+              title="Refresh requests"
+              subtitle="Pull latest pending join requests"
               onPress={onRefresh}
             />
           </View>
@@ -444,14 +433,11 @@ const CoachDashboard = () => {
 
           <View style={styles.listCard}>
             {roster.length === 0 ? (
-              <Text style={styles.emptyText}>
-                No active roster members yet.
-              </Text>
+              <Text style={styles.emptyText}>No active roster members yet.</Text>
             ) : (
               roster.slice(0, 6).map((member, index) => {
                 const displayName =
-                  member.users?.full_name?.trim() ||
-                  member.users?.username?.trim() ||
+                  `${member.users?.fname || ""} ${member.users?.lname || ""}`.trim() ||
                   "Unknown user";
 
                 const metaParts = [
@@ -465,8 +451,7 @@ const CoachDashboard = () => {
                     key={member.id}
                     style={[
                       styles.rowWrap,
-                      index !== Math.min(roster.length, 6) - 1 &&
-                        styles.rowDivider,
+                      index !== Math.min(roster.length, 6) - 1 && styles.rowDivider,
                     ]}
                   >
                     <MemberRow
@@ -497,8 +482,7 @@ const CoachDashboard = () => {
             ) : (
               requests.slice(0, 6).map((request, index) => {
                 const displayName =
-                  request.users?.full_name?.trim() ||
-                  request.users?.username?.trim() ||
+                  `${request.users?.fname || ""} ${request.users?.lname || ""}`.trim() ||
                   "Unknown user";
 
                 const metaParts = [

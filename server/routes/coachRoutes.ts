@@ -684,4 +684,38 @@ router.delete(
   },
 );
 
+router.post(
+  "/onboarding/complete",
+  requireAuth,
+  async (req: Request, res: Response<{ ok: true } | { message: string }>) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      if (req.user.role !== "coach") {
+        return res
+          .status(403)
+          .json({ message: "Only coaches can complete this onboarding." });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("users")
+        .update({ coach_onboarded: true })
+        .eq("id", req.user.id);
+
+      if (error) {
+        return res.status(500).json({ message: error.message });
+      }
+
+      return res.status(200).json({ ok: true });
+    } catch (err: any) {
+      console.error("POST /coach/onboarding/complete error:", err);
+      return res.status(500).json({
+        message: err?.message || "Internal server error.",
+      });
+    }
+  },
+);
+
 export default router;

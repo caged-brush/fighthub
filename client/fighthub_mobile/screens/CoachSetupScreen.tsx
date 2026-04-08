@@ -90,7 +90,38 @@ const CoachSetupScreen = () => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const markCoachOnboardingComplete = async () => {
+    if (!userToken) {
+      throw new Error("No auth token");
+    }
+
+    const res = await fetch(`${API_URL}/coach/onboarding/complete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${userToken}`,
+      },
+    });
+
+    const text = await res.text();
+
+    let data: any = {};
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Server returned non-JSON response (${res.status})`);
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.message || "Failed to complete onboarding.");
+    }
+
+    return data;
+  };
+
   const finishFlow = async () => {
+    await markCoachOnboardingComplete();
+
     if (completeOnboarding) {
       await completeOnboarding();
     }
