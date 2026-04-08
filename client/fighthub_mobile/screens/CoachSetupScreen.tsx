@@ -135,7 +135,7 @@ const CoachSetupScreen = () => {
         website: form.website.trim() || null,
       };
 
-      const res = await fetch(`${API_URL}/coach/gym/setup`, {
+      const res = await fetch(`${API_URL}/coach/gyms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

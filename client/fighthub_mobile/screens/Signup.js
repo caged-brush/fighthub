@@ -140,17 +140,15 @@ const Signup = () => {
         await setUserRole(selectedRole);
       }
 
-      Alert.alert("Account created", "Continue setting up your profile.");
+      Alert.alert(
+        "Verify your email",
+        "We sent you a verification link. Open it, verify, then come back and log in.",
+      );
 
-      if (selectedRole === "coach") {
-        navigation.replace("CoachOnboarding");
-      } else if (selectedRole === "fighter") {
-        navigation.replace("FighterOnboarding");
-      } else if (selectedRole === "scout") {
-        navigation.replace("ScoutOnboarding");
-      } else {
-        navigation.replace("Login");
-      }
+      navigation.replace("Login", {
+        email,
+        role: selectedRole,
+      });
     } catch (e) {
       const msg = String(e?.message || "");
       const friendly =

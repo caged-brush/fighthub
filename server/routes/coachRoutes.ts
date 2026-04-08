@@ -337,7 +337,7 @@ router.get(
         return res.status(403).json({ message: "Not allowed." });
       }
 
-      const { data, error } = await supabaseAdmin
+      const { data: memberships, error: membershipsError } = await supabaseAdmin
         .from("gym_memberships")
         .select(
           `
@@ -347,14 +347,7 @@ router.get(
           role,
           status,
           created_at,
-          updated_at,
-          users (
-            id,
-            role,
-            username,
-            full_name,
-            avatar_url
-          )
+          updated_at
         `,
         )
         .eq("gym_id", gymId)
@@ -362,13 +355,47 @@ router.get(
         .eq("status", "pending")
         .order("created_at", { ascending: true });
 
-      if (error) {
-        return res.status(500).json({ message: error.message });
+      if (membershipsError) {
+        return res.status(500).json({ message: membershipsError.message });
       }
 
-      return res.status(200).json({
-        requests: data || [],
-      });
+      const rows = memberships || [];
+      const userIds = [
+        ...new Set(rows.map((row) => row.user_id).filter(Boolean)),
+      ];
+
+      let usersById = new Map<string, any>();
+
+      if (userIds.length > 0) {
+        const { data: users, error: usersError } = await supabaseAdmin
+          .from("users")
+          .select(
+            `
+            id,
+            role,
+            fname,
+            lname,
+            profile_picture_url,
+            username,
+            full_name,
+            avatar_url
+          `,
+          )
+          .in("id", userIds);
+
+        if (usersError) {
+          return res.status(500).json({ message: usersError.message });
+        }
+
+        usersById = new Map((users || []).map((user) => [user.id, user]));
+      }
+
+      const requests = rows.map((row) => ({
+        ...row,
+        users: usersById.get(row.user_id) || null,
+      }));
+
+      return res.status(200).json({ requests });
     } catch (err: any) {
       console.error("GET /coach/gyms/:id/requests error:", err);
       return res.status(500).json({
@@ -398,7 +425,7 @@ router.get(
         return res.status(403).json({ message: "Not allowed." });
       }
 
-      const { data, error } = await supabaseAdmin
+      const { data: memberships, error: membershipsError } = await supabaseAdmin
         .from("gym_memberships")
         .select(
           `
@@ -408,27 +435,54 @@ router.get(
           role,
           status,
           created_at,
-          updated_at,
-          users (
-            id,
-            role,
-            username,
-            full_name,
-            avatar_url
-          )
+          updated_at
         `,
         )
         .eq("gym_id", gymId)
         .eq("status", "active")
         .order("created_at", { ascending: false });
 
-      if (error) {
-        return res.status(500).json({ message: error.message });
+      if (membershipsError) {
+        return res.status(500).json({ message: membershipsError.message });
       }
 
-      return res.status(200).json({
-        roster: data || [],
-      });
+      const rows = memberships || [];
+      const userIds = [
+        ...new Set(rows.map((row) => row.user_id).filter(Boolean)),
+      ];
+
+      let usersById = new Map<string, any>();
+
+      if (userIds.length > 0) {
+        const { data: users, error: usersError } = await supabaseAdmin
+          .from("users")
+          .select(
+            `
+            id,
+            role,
+            fname,
+            lname,
+            profile_picture_url,
+            username,
+            full_name,
+            avatar_url
+          `,
+          )
+          .in("id", userIds);
+
+        if (usersError) {
+          return res.status(500).json({ message: usersError.message });
+        }
+
+        usersById = new Map((users || []).map((user) => [user.id, user]));
+      }
+
+      const roster = rows.map((row) => ({
+        ...row,
+        users: usersById.get(row.user_id) || null,
+      }));
+
+      return res.status(200).json({ roster });
     } catch (err: any) {
       console.error("GET /coach/gyms/:id/roster error:", err);
       return res.status(500).json({

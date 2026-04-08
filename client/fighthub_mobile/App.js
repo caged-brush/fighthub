@@ -27,7 +27,6 @@ import CoachOnboardingScreen from "./screens/CoachOnboardingScreen";
 import CoachSetupScreen from "./screens/CoachSetupScreen";
 import CoachDashboard from "./screens/CoachDashboard";
 
-
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
@@ -115,7 +114,7 @@ function AppNavigator() {
           ) : role === "coach" ? (
             <Stack.Screen
               name="CoachOnboarding"
-              component={CoachOnboarding}
+              component={CoachOnboardingScreen}
               options={{ headerShown: false }}
             />
           ) : (
