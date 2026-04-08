@@ -375,10 +375,7 @@ router.get(
             role,
             fname,
             lname,
-            profile_picture_url,
-            username,
-            full_name,
-            avatar_url
+            profile_picture_url
           `,
           )
           .in("id", userIds);
@@ -462,10 +459,7 @@ router.get(
             role,
             fname,
             lname,
-            profile_picture_url,
-            username,
-            full_name,
-            avatar_url
+            profile_picture_url
           `,
           )
           .in("id", userIds);

@@ -49,12 +49,18 @@ const Login = () => {
     const email = formData.email.trim().toLowerCase();
     const password = formData.password;
 
-    if (!email.includes("@"))
-      return Alert.alert("Invalid email", "Enter a valid email.");
-    if (!password)
-      return Alert.alert("Missing password", "Enter your password.");
+    if (!email.includes("@")) {
+      Alert.alert("Invalid email", "Enter a valid email.");
+      return;
+    }
+
+    if (!password) {
+      Alert.alert("Missing password", "Enter your password.");
+      return;
+    }
 
     setSubmitting(true);
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -76,19 +82,25 @@ const Login = () => {
 
       const me = await apiFetch("/auth/me", { token });
 
-      const { role, scout_onboarded, fighter_onboarded } = me.user;
+      const user = me?.user;
+      if (!user?.id || !user?.role) {
+        throw new Error("Invalid /auth/me response");
+      }
+
+      const { id, role, scout_onboarded, fighter_onboarded, coach_onboarded } =
+        user;
 
       let isOnboarded = false;
 
       if (role === "fighter") {
-        isOnboarded = fighter_onboarded;
+        isOnboarded = !!fighter_onboarded;
       } else if (role === "scout") {
-        isOnboarded = scout_onboarded;
+        isOnboarded = !!scout_onboarded;
+      } else if (role === "coach") {
+        isOnboarded = !!coach_onboarded;
       }
 
-      await login(token, me.user.id, role, isOnboarded);
-
-      // Persist token + role in your app state
+      await login(token, id, role, isOnboarded);
     } catch (e) {
       Alert.alert("Login failed", e?.message || "Please try again.");
     } finally {
