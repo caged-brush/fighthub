@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, useState } from "react";
+import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ type CoachProfile = {
 
 type RouteParams = {
   coachProfile?: CoachProfile;
+  gymId?: string;
 };
 
 type FormState = {
@@ -52,19 +53,79 @@ type ToggleBtnProps = {
   onPress: () => void;
 };
 
+type AuthContextShape = {
+  userToken: string | null;
+  completeOnboarding?: () => Promise<void>;
+};
+
+type GymResponse = {
+  gym: {
+    id: string;
+    name: string;
+    bio: string | null;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    website: string | null;
+    instagram: string | null;
+    logo_path: string | null;
+  };
+};
+
+type SaveGymResponse = {
+  ok: true;
+  gym: {
+    id: string;
+    name: string;
+    bio: string | null;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    website: string | null;
+    instagram: string | null;
+    logo_path: string | null;
+  };
+};
+
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  const text = await res.text();
+
+  let data: T | { message?: string };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Server returned non-JSON response (${res.status})`);
+  }
+
+  if (!res.ok) {
+    const message =
+      typeof data === "object" && data && "message" in data
+        ? (data as { message?: string }).message
+        : undefined;
+
+    throw new Error(message || `Request failed (${res.status})`);
+  }
+
+  return data as T;
+}
+
 const CoachSetupScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { userToken, completeOnboarding } = useContext(AuthContext) as {
-    userToken: string | null;
-    completeOnboarding?: () => Promise<void>;
-  };
+  const { userToken, completeOnboarding } = useContext(
+    AuthContext,
+  ) as AuthContextShape;
 
-  const coachProfile: CoachProfile | null =
-    (route.params as RouteParams | undefined)?.coachProfile || null;
+  const params = (route.params || {}) as RouteParams;
+  const coachProfile = params.coachProfile || null;
+  const gymId = params.gymId || null;
+  const isEditMode = !!gymId;
 
+  const [loadingGym, setLoadingGym] = useState<boolean>(!!gymId);
   const [submitting, setSubmitting] = useState(false);
-  const [mode, setMode] = useState<"create" | "later">("create");
+  const [mode, setMode] = useState<"create" | "later">(
+    gymId ? "create" : "create",
+  );
 
   const [form, setForm] = useState<FormState>({
     name: "",
@@ -77,18 +138,54 @@ const CoachSetupScreen = () => {
   });
 
   const isValid = useMemo(() => {
-    if (mode === "later") return true;
+    if (!isEditMode && mode === "later") return true;
 
     return (
       form.name.trim().length >= 2 &&
       form.city.trim().length >= 2 &&
       form.region.trim().length >= 2
     );
-  }, [form, mode]);
+  }, [form, mode, isEditMode]);
 
   const handleChange = (key: keyof FormState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  useEffect(() => {
+    const loadGym = async () => {
+      if (!gymId || !userToken) return;
+
+      try {
+        setLoadingGym(true);
+
+        const res = await fetch(`${API_URL}/coach/gyms/${gymId}`, {
+          headers: {
+            Authorization: `Bearer ${userToken}`,
+          },
+        });
+
+        const data = await parseJsonResponse<GymResponse>(res);
+        const gym = data.gym;
+
+        setForm({
+          name: gym.name || "",
+          city: gym.city || "",
+          region: gym.region || "",
+          country: gym.country || "Canada",
+          description: gym.bio || "",
+          instagram: gym.instagram || "",
+          website: gym.website || "",
+        });
+      } catch (e: any) {
+        console.log("Load gym error:", e?.message || e);
+        Alert.alert("Error", e?.message || "Failed to load gym.");
+      } finally {
+        setLoadingGym(false);
+      }
+    };
+
+    loadGym();
+  }, [gymId, userToken]);
 
   const markCoachOnboardingComplete = async () => {
     if (!userToken) {
@@ -103,23 +200,10 @@ const CoachSetupScreen = () => {
       },
     });
 
-    const text = await res.text();
-
-    let data: any = {};
-    try {
-      data = JSON.parse(text);
-    } catch {
-      throw new Error(`Server returned non-JSON response (${res.status})`);
-    }
-
-    if (!res.ok) {
-      throw new Error(data?.message || "Failed to complete onboarding.");
-    }
-
-    return data;
+    await parseJsonResponse<{ ok: true }>(res);
   };
 
-  const finishFlow = async () => {
+  const finishOnboardingFlow = async () => {
     await markCoachOnboardingComplete();
 
     if (completeOnboarding) {
@@ -151,23 +235,29 @@ const CoachSetupScreen = () => {
     setSubmitting(true);
 
     try {
-      if (mode === "later") {
-        await finishFlow();
+      if (!isEditMode && mode === "later") {
+        await finishOnboardingFlow();
         return;
       }
 
       const payload = {
         name: form.name.trim(),
-        city: form.city.trim(),
-        region: form.region.trim(),
-        country: form.country.trim(),
-        description: form.description.trim() || null,
-        instagram: form.instagram.trim() || null,
+        bio: form.description.trim() || null,
+        city: form.city.trim() || null,
+        region: form.region.trim() || null,
+        country: form.country.trim() || "Canada",
         website: form.website.trim() || null,
+        instagram: form.instagram.trim() || null,
       };
 
-      const res = await fetch(`${API_URL}/coach/gyms`, {
-        method: "POST",
+      const url = isEditMode
+        ? `${API_URL}/coach/gyms/${gymId}`
+        : `${API_URL}/coach/gyms`;
+
+      const method = isEditMode ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${userToken}`,
@@ -175,17 +265,18 @@ const CoachSetupScreen = () => {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      const data = await parseJsonResponse<SaveGymResponse>(res);
+      console.log(isEditMode ? "Gym updated:" : "Gym created:", data);
 
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to save gym.");
+      if (isEditMode) {
+        Alert.alert("Success", "Gym information updated.");
+        navigation.goBack();
+        return;
       }
 
-      console.log("Gym created:", data);
-
-      await finishFlow();
+      await finishOnboardingFlow();
     } catch (e: any) {
-      console.log("Setup error:", e?.message || e);
+      console.log("Coach setup error:", e?.message || e);
       Alert.alert("Error", e?.message || "Failed to save gym.");
     } finally {
       setSubmitting(false);
@@ -193,6 +284,11 @@ const CoachSetupScreen = () => {
   };
 
   const handleSkip = () => {
+    if (isEditMode) {
+      navigation.goBack();
+      return;
+    }
+
     Alert.alert("Skip gym setup?", "You can create your gym later.", [
       { text: "Cancel", style: "cancel" },
       {
@@ -200,8 +296,7 @@ const CoachSetupScreen = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            setMode("later");
-            await finishFlow();
+            await finishOnboardingFlow();
           } catch (e: any) {
             Alert.alert("Error", e?.message || "Failed to continue.");
           }
@@ -209,6 +304,17 @@ const CoachSetupScreen = () => {
       },
     ]);
   };
+
+  if (loadingGym) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator size="large" />
+          <Text style={styles.loadingText}>Loading gym info...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -218,10 +324,16 @@ const CoachSetupScreen = () => {
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView contentContainerStyle={styles.container}>
-            <Text style={styles.title}>Set up your gym</Text>
-            <Text style={styles.subtitle}>Give your fighters a real base.</Text>
+            <Text style={styles.title}>
+              {isEditMode ? "Manage your gym" : "Set up your gym"}
+            </Text>
+            <Text style={styles.subtitle}>
+              {isEditMode
+                ? "Update your gym information properly."
+                : "Give your fighters a real base."}
+            </Text>
 
-            {coachProfile && (
+            {!isEditMode && coachProfile && (
               <View style={styles.coachCard}>
                 <Text style={styles.coachName}>
                   {coachProfile.display_name || "Coach"}
@@ -232,62 +344,71 @@ const CoachSetupScreen = () => {
               </View>
             )}
 
-            <View style={styles.toggleRow}>
-              <ToggleBtn
-                text="Create gym"
-                active={mode === "create"}
-                onPress={() => setMode("create")}
-              />
-              <ToggleBtn
-                text="Later"
-                active={mode === "later"}
-                onPress={() => setMode("later")}
-              />
-            </View>
+            {!isEditMode && (
+              <View style={styles.toggleRow}>
+                <ToggleBtn
+                  text="Create gym"
+                  active={mode === "create"}
+                  onPress={() => setMode("create")}
+                />
+                <ToggleBtn
+                  text="Later"
+                  active={mode === "later"}
+                  onPress={() => setMode("later")}
+                />
+              </View>
+            )}
 
-            {mode === "create" && (
+            {(isEditMode || mode === "create") && (
               <View style={styles.card}>
                 <Input
                   label="Gym name"
                   value={form.name}
-                  onChange={(value: string) => handleChange("name", value)}
+                  onChange={(value) => handleChange("name", value)}
                 />
                 <Input
                   label="City"
                   value={form.city}
-                  onChange={(value: string) => handleChange("city", value)}
+                  onChange={(value) => handleChange("city", value)}
                 />
                 <Input
                   label="Region"
                   value={form.region}
-                  onChange={(value: string) => handleChange("region", value)}
+                  onChange={(value) => handleChange("region", value)}
                 />
                 <Input
                   label="Country"
                   value={form.country}
-                  onChange={(value: string) => handleChange("country", value)}
+                  onChange={(value) => handleChange("country", value)}
                 />
                 <Input
                   label="Description"
                   value={form.description}
-                  onChange={(value: string) =>
-                    handleChange("description", value)
-                  }
+                  onChange={(value) => handleChange("description", value)}
                   multiline
                 />
                 <Input
                   label="Instagram"
                   value={form.instagram}
-                  onChange={(value: string) => handleChange("instagram", value)}
+                  onChange={(value) => handleChange("instagram", value)}
                   autoCapitalize="none"
                 />
                 <Input
                   label="Website"
                   value={form.website}
-                  onChange={(value: string) => handleChange("website", value)}
+                  onChange={(value) => handleChange("website", value)}
                   keyboardType="url"
                   autoCapitalize="none"
                 />
+              </View>
+            )}
+
+            {!isEditMode && mode === "later" && (
+              <View style={styles.infoBox}>
+                <Text style={styles.infoTitle}>Skipping for now</Text>
+                <Text style={styles.infoText}>
+                  You can finish onboarding now and create your gym later.
+                </Text>
               </View>
             )}
 
@@ -297,14 +418,20 @@ const CoachSetupScreen = () => {
               disabled={submitting}
             >
               {submitting ? (
-                <ActivityIndicator />
+                <ActivityIndicator color="#0b0b0b" />
               ) : (
-                <Text style={styles.primaryText}>Continue</Text>
+                <Text style={styles.primaryText}>
+                  {isEditMode
+                    ? "Save changes"
+                    : mode === "create"
+                      ? "Create gym and continue"
+                      : "Continue"}
+                </Text>
               )}
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleSkip}>
-              <Text style={styles.skip}>Skip</Text>
+              <Text style={styles.skip}>{isEditMode ? "Cancel" : "Skip"}</Text>
             </TouchableOpacity>
           </ScrollView>
         </TouchableWithoutFeedback>
@@ -350,6 +477,8 @@ const ToggleBtn = ({ text, active, onPress }: ToggleBtnProps) => (
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#0b0b0b" },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { color: "#aaa", marginTop: 12 },
   container: { padding: 20 },
 
   title: { color: "#4da3ff", fontSize: 28, fontWeight: "900" },
@@ -389,6 +518,28 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     marginBottom: 16,
+  },
+
+  infoBox: {
+    backgroundColor: "rgba(77,163,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(77,163,255,0.22)",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 14,
+  },
+
+  infoTitle: {
+    color: "#4da3ff",
+    fontSize: 14,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+
+  infoText: {
+    color: "rgba(255,255,255,0.74)",
+    fontSize: 13,
+    lineHeight: 19,
   },
 
   label: { color: "#ccc", marginBottom: 6 },

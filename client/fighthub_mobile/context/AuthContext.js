@@ -18,7 +18,7 @@ const safeSetItem = async (key, v) => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [userToken, setUserToken] = useState(null);
   const [userId, setUserId] = useState(null);
   const [isOnBoarded, setIsOnBoarded] = useState(false);
@@ -57,9 +57,6 @@ export const AuthProvider = ({ children }) => {
       await safeSetItem("userId", id);
       await safeSetItem("role", initialRole);
       await AsyncStorage.setItem(onboardingKeyFor(initialRole), "false");
-    } catch (e) {
-      console.log("signup error:", e?.message || e);
-      throw e;
     } finally {
       setIsLoading(false);
     }
@@ -84,9 +81,6 @@ export const AuthProvider = ({ children }) => {
         onboardingKeyFor(incomingRole),
         incomingIsOnBoarded ? "true" : "false",
       );
-    } catch (e) {
-      console.log("login error:", e?.message || e);
-      throw e;
     } finally {
       setIsLoading(false);
     }
@@ -95,6 +89,8 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setIsLoading(true);
     try {
+      await supabase.auth.signOut();
+
       setUserToken(null);
       setUserId(null);
       setIsOnBoarded(false);
@@ -123,32 +119,26 @@ export const AuthProvider = ({ children }) => {
       setIsOnBoarded(true);
       await AsyncStorage.setItem(onboardingKeyFor(role), "true");
       await AsyncStorage.removeItem("onboardingStep");
-
-      console.log("Onboarding completed for role:", role);
     } catch (error) {
       console.log("Failed to complete onboarding:", error?.message || error);
     }
   };
 
-  const isLoggedIn = async () => {
-    setIsLoading(true);
+  const hydrateFromSession = async (session) => {
+    if (!session?.access_token) {
+      setUserToken(null);
+      setUserId(null);
+      setRole(null);
+      setIsOnBoarded(false);
+      setIsLoading(false);
+      return;
+    }
+
+    const token = session.access_token;
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.access_token) {
-        setUserToken(null);
-        setUserId(null);
-        setRole(null);
-        setIsOnBoarded(false);
-        return;
-      }
-
-      const token = session.access_token;
-
-      const user = await apiFetch("/auth/me", { token });
+      const me = await apiFetch("/auth/me", { token });
+      const user = me?.user;
 
       if (!user?.id || !user?.role) {
         throw new Error("Invalid /auth/me response");
@@ -170,12 +160,11 @@ export const AuthProvider = ({ children }) => {
         onboarded ? "true" : "false",
       );
     } catch (e) {
-      console.log("isLoggedIn error:", e?.message || e);
+      console.log("hydrateFromSession error:", e?.message || e);
 
-      setUserToken(null);
-      setUserId(null);
-      setRole(null);
-      setIsOnBoarded(false);
+      // do NOT instantly nuke everything on a transient bootstrap failure
+      // keep session token if Supabase has one
+      setUserToken(token);
     } finally {
       setIsLoading(false);
     }
@@ -185,8 +174,6 @@ export const AuthProvider = ({ children }) => {
     const key = onboardingKeyFor(r);
     const perRole = await AsyncStorage.getItem(key);
     const legacy = await AsyncStorage.getItem("isOnBoarded");
-
-    console.log("[OnboardingCheck]", { role: r, key, perRole, legacy });
 
     if (perRole === "true" || perRole === "false") {
       return perRole === "true";
@@ -202,7 +189,47 @@ export const AuthProvider = ({ children }) => {
   }
 
   useEffect(() => {
-    isLoggedIn();
+    let mounted = true;
+
+    const boot = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+      await hydrateFromSession(session);
+    };
+
+    boot();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("[AUTH EVENT]", event);
+
+      if (!mounted) return;
+
+      if (
+        event === "SIGNED_IN" ||
+        event === "TOKEN_REFRESHED" ||
+        event === "INITIAL_SESSION"
+      ) {
+        await hydrateFromSession(session);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setUserToken(null);
+        setUserId(null);
+        setRole(null);
+        setIsOnBoarded(false);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   return (
@@ -219,7 +246,6 @@ export const AuthProvider = ({ children }) => {
         setUserRole,
         completeOnboarding,
         getOnboardingStatusForRole,
-        isLoggedIn,
       }}
     >
       {children}

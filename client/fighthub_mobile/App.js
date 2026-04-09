@@ -26,6 +26,8 @@ import { supabase } from "./lib/supabase";
 import CoachOnboardingScreen from "./screens/CoachOnboardingScreen";
 import CoachSetupScreen from "./screens/CoachSetupScreen";
 import CoachDashboard from "./screens/CoachDashboard";
+import CoachRequestsScreen from "./screens/CoachRequestsScreen";
+import CoachRosterScreen from "./screens/CoachRosterScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -190,6 +192,16 @@ function AppNavigator() {
         <Stack.Screen
           name="CoachSetupScreen"
           component={CoachSetupScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CoachRequestsScreen"
+          component={CoachRequestsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CoachRosterScreen"
+          component={CoachRosterScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

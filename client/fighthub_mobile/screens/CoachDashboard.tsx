@@ -1,4 +1,10 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -11,7 +17,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 
@@ -137,29 +143,28 @@ const CoachDashboard = () => {
 
   const selectedGym = selectedMembership?.gyms || null;
 
-  const loadGymDetails = useCallback(
-    async (gymId: string, token: string) => {
-      const [rosterRes, requestsRes] = await Promise.all([
-        fetch(`${API_URL}/coach/gyms/${gymId}/roster`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-        fetch(`${API_URL}/coach/gyms/${gymId}/requests`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }),
-      ]);
+  const loadGymDetails = useCallback(async (gymId: string, token: string) => {
+    const [rosterRes, requestsRes] = await Promise.all([
+      fetch(`${API_URL}/coach/gyms/${gymId}/roster`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+      fetch(`${API_URL}/coach/gyms/${gymId}/requests`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }),
+    ]);
 
-      const rosterData = await parseJsonResponse<RosterResponse>(rosterRes);
-      const requestsData = await parseJsonResponse<RequestsResponse>(requestsRes);
+    const rosterData = await parseJsonResponse<RosterResponse>(rosterRes);
+    const requestsData = await parseJsonResponse<RequestsResponse>(requestsRes);
 
-      setRoster(Array.isArray(rosterData.roster) ? rosterData.roster : []);
-      setRequests(Array.isArray(requestsData.requests) ? requestsData.requests : []);
-    },
-    []
-  );
+    setRoster(Array.isArray(rosterData.roster) ? rosterData.roster : []);
+    setRequests(
+      Array.isArray(requestsData.requests) ? requestsData.requests : [],
+    );
+  }, []);
 
   const loadDashboard = useCallback(async () => {
     if (!userToken) {
@@ -175,7 +180,8 @@ const CoachDashboard = () => {
         },
       });
 
-      const dashboardData = await parseJsonResponse<DashboardResponse>(dashboardRes);
+      const dashboardData =
+        await parseJsonResponse<DashboardResponse>(dashboardRes);
       const gyms = Array.isArray(dashboardData.gyms) ? dashboardData.gyms : [];
 
       setMemberships(gyms);
@@ -207,12 +213,20 @@ const CoachDashboard = () => {
     loadDashboard();
   }, [loadDashboard]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!userToken) return;
+
+      loadDashboard();
+    }, [loadDashboard, userToken]),
+  );
+
   useEffect(() => {
     if (!userToken || !selectedGymId || loading) return;
     loadGymDetails(selectedGymId, userToken).catch((e: any) => {
       console.log("Coach dashboard gym switch error:", e?.message || e);
     });
-  }, [selectedGymId]);
+  }, [selectedGymId, loading, loadGymDetails, userToken]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -268,7 +282,9 @@ const CoachDashboard = () => {
           </View>
 
           <View style={styles.emptyCard}>
-            <Text style={styles.emptyTitle}>You have no active gym memberships.</Text>
+            <Text style={styles.emptyTitle}>
+              You have no active gym memberships.
+            </Text>
             <Text style={styles.emptyText}>
               Use gym setup to create your gym first. Until then, this dashboard
               has nothing real to show.
@@ -309,7 +325,8 @@ const CoachDashboard = () => {
             <Text style={styles.brand}>Kavyx Coach</Text>
             <Text style={styles.headline}>Run your gym properly.</Text>
             <Text style={styles.subhead}>
-              Manage real roster data, real requests, and keep your gym organized.
+              Manage real roster data, real requests, and keep your gym
+              organized.
             </Text>
           </View>
 
@@ -371,14 +388,18 @@ const CoachDashboard = () => {
               "No gym bio yet. Update your gym details so people know this place is real."}
           </Text>
 
-          <Text style={styles.locationText}>{gymLocation || "Location not set"}</Text>
+          <Text style={styles.locationText}>
+            {gymLocation || "Location not set"}
+          </Text>
 
           <View style={styles.gymActions}>
             <TouchableOpacity
               style={styles.primaryBtn}
               activeOpacity={0.85}
               onPress={() =>
-                navigation.navigate("CoachSetupScreen", { gymId: selectedGym.id })
+                navigation.navigate("CoachSetupScreen", {
+                  gymId: selectedGym.id,
+                })
               }
             >
               <Text style={styles.primaryBtnText}>Manage Gym</Text>
@@ -395,8 +416,16 @@ const CoachDashboard = () => {
         </View>
 
         <View style={styles.statsRow}>
-          <StatCard label="Roster" value={rosterCount} helper="Active members" />
-          <StatCard label="Requests" value={pendingCount} helper="Pending fighters" />
+          <StatCard
+            label="Roster"
+            value={rosterCount}
+            helper="Active members"
+          />
+          <StatCard
+            label="Requests"
+            value={pendingCount}
+            helper="Pending fighters"
+          />
           <StatCard label="Gyms" value={gymsCount} helper="Managed gyms" />
         </View>
 
@@ -410,18 +439,28 @@ const CoachDashboard = () => {
               title="Manage gym"
               subtitle="Update your gym info and setup"
               onPress={() =>
-                navigation.navigate("CoachSetupScreen", { gymId: selectedGym.id })
+                navigation.navigate("CoachSetupScreen", {
+                  gymId: selectedGym.id,
+                })
               }
             />
             <QuickAction
-              title="Refresh roster"
+              title="Manage roster"
               subtitle="Pull latest active roster members"
-              onPress={onRefresh}
+              onPress={() =>
+                navigation.navigate("CoachRosterScreen", {
+                  gymId: selectedGym.id,
+                })
+              }
             />
             <QuickAction
-              title="Refresh requests"
-              subtitle="Pull latest pending join requests"
-              onPress={onRefresh}
+              title="Review requests"
+              subtitle="Approve or reject pending fighter requests"
+              onPress={() =>
+                navigation.navigate("CoachRequestsScreen", {
+                  gymId: selectedGym.id,
+                })
+              }
             />
           </View>
         </View>
@@ -433,7 +472,9 @@ const CoachDashboard = () => {
 
           <View style={styles.listCard}>
             {roster.length === 0 ? (
-              <Text style={styles.emptyText}>No active roster members yet.</Text>
+              <Text style={styles.emptyText}>
+                No active roster members yet.
+              </Text>
             ) : (
               roster.slice(0, 6).map((member, index) => {
                 const displayName =
@@ -451,7 +492,8 @@ const CoachDashboard = () => {
                     key={member.id}
                     style={[
                       styles.rowWrap,
-                      index !== Math.min(roster.length, 6) - 1 && styles.rowDivider,
+                      index !== Math.min(roster.length, 6) - 1 &&
+                        styles.rowDivider,
                     ]}
                   >
                     <MemberRow
@@ -474,6 +516,16 @@ const CoachDashboard = () => {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Pending requests</Text>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() =>
+                navigation.navigate("CoachRequestsScreen", {
+                  gymId: selectedGym.id,
+                })
+              }
+            >
+              <Text style={styles.secondaryBtnText}>See all</Text>
+            </TouchableOpacity>
           </View>
 
           <View style={styles.listCard}>
@@ -505,8 +557,8 @@ const CoachDashboard = () => {
                       meta={metaParts.join(" • ")}
                       badge="Pending"
                       onPress={() =>
-                        navigation.navigate("UserProfile", {
-                          userId: request.user_id,
+                        navigation.navigate("CoachRequestsScreen", {
+                          gymId: selectedGym.id,
                         })
                       }
                     />

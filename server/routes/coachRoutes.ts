@@ -718,4 +718,49 @@ router.post(
   },
 );
 
+router.delete(
+  "/gyms/:id",
+  requireAuth,
+  async (
+    req: Request<{ id: string }, OkResponse | ErrorResponse>,
+    res: Response<OkResponse | ErrorResponse>,
+  ) => {
+    try {
+      const gymId = req.params.id;
+
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const access = await getGymManagementAccess(gymId, req.user.id);
+
+      if (!access) {
+        return res.status(403).json({ message: "Not allowed." });
+      }
+
+      if (access.role !== "owner") {
+        return res.status(403).json({
+          message: "Only the gym owner can delete this gym.",
+        });
+      }
+
+      const { error } = await supabaseAdmin
+        .from("gyms")
+        .delete()
+        .eq("id", gymId);
+
+      if (error) {
+        return res.status(500).json({ message: error.message });
+      }
+
+      return res.status(200).json({ ok: true });
+    } catch (err: any) {
+      console.error("DELETE /coach/gyms/:id error:", err);
+      return res.status(500).json({
+        message: err?.message || "Internal server error.",
+      });
+    }
+  },
+);
+
 export default router;
