@@ -216,6 +216,66 @@ const CoachSetupScreen = () => {
     });
   };
 
+  const handleDeleteGym = async () => {
+    if (!gymId) return;
+
+    if (!userToken) {
+      Alert.alert("Auth error", "You are not logged in.");
+      return;
+    }
+
+    Alert.alert(
+      "Delete gym?",
+      "This will permanently delete the gym and remove its memberships. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setSubmitting(true);
+
+              const res = await fetch(`${API_URL}/coach/gyms/${gymId}`, {
+                method: "DELETE",
+                headers: {
+                  Authorization: `Bearer ${userToken}`,
+                },
+              });
+
+              const text = await res.text();
+
+              let data: any = {};
+              try {
+                data = JSON.parse(text);
+              } catch {
+                throw new Error(
+                  `Server returned non-JSON response (${res.status})`,
+                );
+              }
+
+              if (!res.ok) {
+                throw new Error(data?.message || "Failed to delete gym.");
+              }
+
+              Alert.alert("Deleted", "Gym deleted successfully.");
+
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "CoachDashboard" }],
+              });
+            } catch (e: any) {
+              console.log("Delete gym error:", e?.message || e);
+              Alert.alert("Error", e?.message || "Failed to delete gym.");
+            } finally {
+              setSubmitting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleContinue = async () => {
     if (submitting) return;
 
@@ -429,6 +489,15 @@ const CoachSetupScreen = () => {
                 </Text>
               )}
             </TouchableOpacity>
+            {isEditMode && (
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={handleDeleteGym}
+                disabled={submitting}
+              >
+                <Text style={styles.deleteBtnText}>Delete Gym</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity onPress={handleSkip}>
               <Text style={styles.skip}>{isEditMode ? "Cancel" : "Skip"}</Text>
@@ -508,6 +577,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#4da3ff20",
     borderColor: "#4da3ff",
     borderWidth: 1,
+  },
+
+  deleteBtn: {
+    marginTop: 12,
+    backgroundColor: "#2a1111",
+    borderWidth: 1,
+    borderColor: "rgba(255,90,90,0.25)",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+
+  deleteBtnText: {
+    color: "#ffffff",
+    fontWeight: "900",
   },
 
   toggleText: { color: "#aaa" },

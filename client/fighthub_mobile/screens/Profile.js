@@ -85,7 +85,6 @@ export default function Profile() {
   const { logout, userId: authedUserId, userToken } = useContext(AuthContext);
   const navigation = useNavigation();
 
-  // Accept either param name from navigation
   const profileUserId =
     route.params?.profileUserId ?? route.params?.userId ?? authedUserId;
 
@@ -157,7 +156,6 @@ export default function Profile() {
         profileUrl: picUrl,
       });
 
-      // follower count
       try {
         const followerData = await apiPost(`${API_URL}/follower-count`, {
           userId: profileUserId,
@@ -167,7 +165,6 @@ export default function Profile() {
         setFollowerCount(0);
       }
 
-      // following count
       try {
         const followingData = await apiPost(`${API_URL}/following-count`, {
           userId: profileUserId,
@@ -177,7 +174,6 @@ export default function Profile() {
         setFollowingCount(0);
       }
 
-      // follow status (only if not own profile)
       if (!viewingOwnProfile) {
         try {
           const followData = await apiPost(`${API_URL}/is-following`, {
@@ -194,8 +190,6 @@ export default function Profile() {
     } catch (err) {
       const msg = err?.message || "Failed to load fighter profile.";
 
-      // If you really want 404 behavior, your backend should return a message/code.
-      // With fetch, you don’t get err.response.status unless you capture it manually.
       if (String(msg).toLowerCase().includes("not found")) {
         setProfileNotFound(true);
         return;
@@ -224,7 +218,6 @@ export default function Profile() {
     }
   }, [profileUserId, userToken]);
 
-  // Fetch likes when opening modal
   useEffect(() => {
     const fetchLikes = async () => {
       if (!selectedPost) return;
@@ -313,10 +306,6 @@ export default function Profile() {
     setRefreshing(false);
   }, [getUserProfile, getUserPost]);
 
-  const availabilityLabel = fighterInfo.is_available
-    ? "AVAILABLE"
-    : "NOT AVAILABLE";
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -346,7 +335,6 @@ export default function Profile() {
           </View>
         ) : (
           <>
-            {/* Header */}
             <View style={styles.headerCard}>
               <View style={styles.headerRow}>
                 <View style={styles.avatarWrap}>
@@ -391,7 +379,6 @@ export default function Profile() {
                 </View>
               </View>
 
-              {/* Record + Stats */}
               <View style={styles.statsRow}>
                 <Stat
                   label="Record"
@@ -401,7 +388,6 @@ export default function Profile() {
                 <Stat label="Following" value={String(followingCount)} />
               </View>
 
-              {/* Actions */}
               <View style={styles.actionRow}>
                 {!viewingOwnProfile ? (
                   <CustomButton
@@ -434,7 +420,54 @@ export default function Profile() {
               </View>
             </View>
 
-            {/* Bio */}
+            {viewingOwnProfile && (
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>Gym</Text>
+
+                <View style={styles.gymActionsCol}>
+                  <TouchableOpacity
+                    style={styles.gymActionBtn}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      navigation.navigate("FighterGymMembershipsScreen")
+                    }
+                  >
+                    <View>
+                      <Text style={styles.gymActionTitle}>My Gyms</Text>
+                      <Text style={styles.gymActionText}>
+                        View active memberships, pending requests, and history.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#ffd700"
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.gymActionBtn}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      navigation.navigate("FighterGymSearchScreen")
+                    }
+                  >
+                    <View>
+                      <Text style={styles.gymActionTitle}>Find Gyms</Text>
+                      <Text style={styles.gymActionText}>
+                        Search gyms and request to join.
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color="#ffd700"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             {!!fighterInfo.bio && (
               <View style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>Bio</Text>
@@ -442,7 +475,6 @@ export default function Profile() {
               </View>
             )}
 
-            {/* Details chips */}
             <View style={styles.sectionCard}>
               <Text style={styles.sectionTitle}>Details</Text>
 
@@ -467,7 +499,6 @@ export default function Profile() {
               </View>
             </View>
 
-            {/* Posts */}
             <View style={styles.postsHeader}>
               <Text style={styles.postsTitle}>Posts</Text>
               <Text style={styles.postsCount}>{userPosts.length}</Text>
@@ -527,7 +558,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#0b0b0b" },
   container: { flex: 1, backgroundColor: "#0b0b0b" },
 
-  /* Cards */
   headerCard: {
     margin: 18,
     padding: 16,
@@ -546,7 +576,6 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.08)",
   },
 
-  /* Header */
   headerRow: { flexDirection: "row", gap: 14, alignItems: "center" },
   avatarWrap: { width: 72, height: 72 },
   avatar: {
@@ -571,7 +600,7 @@ const styles = StyleSheet.create({
   name: {
     color: "#ffd700",
     fontSize: 22,
-    fontWeight: "950",
+    fontWeight: "900",
     marginBottom: 6,
   },
 
@@ -584,7 +613,6 @@ const styles = StyleSheet.create({
   },
   dot: { color: "rgba(255,255,255,0.35)", fontWeight: "900" },
 
-  /* Stats */
   statsRow: {
     marginTop: 14,
     paddingTop: 12,
@@ -594,22 +622,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
-  stat: { flex: 1, alignItems: "center" },
-  statLabel: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  statValue: { color: "#fff", fontSize: 14, fontWeight: "950", marginTop: 4 },
 
-  /* Actions */
   actionRow: { flexDirection: "row", gap: 10, marginTop: 14 },
 
-  /* Sections */
   sectionTitle: {
     color: "rgba(255,255,255,0.9)",
     fontSize: 14,
-    fontWeight: "950",
+    fontWeight: "900",
     letterSpacing: 0.8,
     textTransform: "uppercase",
     marginBottom: 10,
@@ -620,25 +639,34 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  /* Chips */
-  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  chip: {
-    flexGrow: 1,
-    flexBasis: "48%",
+  gymActionsCol: {
+    gap: 10,
+  },
+  gymActionBtn: {
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.10)",
     borderRadius: 14,
-    padding: 12,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
   },
-  chipLabel: {
-    color: "rgba(255,255,255,0.5)",
+  gymActionTitle: {
+    color: "#fff",
     fontWeight: "900",
-    fontSize: 12,
+    fontSize: 15,
+    marginBottom: 4,
   },
-  chipValue: { color: "#fff", fontWeight: "900", fontSize: 14, marginTop: 6 },
+  gymActionText: {
+    color: "rgba(255,255,255,0.62)",
+    lineHeight: 18,
+    maxWidth: 260,
+  },
 
-  /* Posts */
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+
   postsHeader: {
     marginTop: 18,
     marginHorizontal: 18,
@@ -646,7 +674,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  postsTitle: { color: "#ffd700", fontSize: 20, fontWeight: "950" },
+  postsTitle: { color: "#ffd700", fontSize: 20, fontWeight: "900" },
   postsCount: {
     color: "rgba(255,255,255,0.75)",
     fontWeight: "900",
@@ -687,7 +715,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
-  /* Empty + Not found */
   emptyCard: {
     marginHorizontal: 18,
     marginTop: 12,
@@ -700,7 +727,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: "#fff",
-    fontWeight: "950",
+    fontWeight: "900",
     fontSize: 16,
     marginBottom: 6,
   },
@@ -720,7 +747,7 @@ const styles = StyleSheet.create({
   },
   notFoundTitle: {
     color: "#fff",
-    fontWeight: "950",
+    fontWeight: "900",
     fontSize: 18,
     marginBottom: 8,
   },
