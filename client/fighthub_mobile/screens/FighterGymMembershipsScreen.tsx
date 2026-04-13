@@ -1,4 +1,10 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -62,6 +68,7 @@ type SectionCardProps = {
 type MembershipCardProps = {
   item: FighterGymMembershipRow;
   onBrowseGyms: () => void;
+  onOpenGym: () => void;
 };
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
@@ -96,19 +103,20 @@ const FighterGymMembershipsScreen = () => {
 
   const activeMemberships = useMemo(
     () => memberships.filter((m) => m.status === "active"),
-    [memberships]
+    [memberships],
   );
 
   const pendingMemberships = useMemo(
     () => memberships.filter((m) => m.status === "pending"),
-    [memberships]
+    [memberships],
   );
 
   const historyMemberships = useMemo(
-    () => memberships.filter(
-      (m) => m.status === "rejected" || m.status === "revoked"
-    ),
-    [memberships]
+    () =>
+      memberships.filter(
+        (m) => m.status === "rejected" || m.status === "revoked",
+      ),
+    [memberships],
   );
 
   const loadMemberships = useCallback(async () => {
@@ -207,7 +215,15 @@ const FighterGymMembershipsScreen = () => {
               <MembershipCard
                 key={item.id}
                 item={item}
-                onBrowseGyms={() => navigation.navigate("FighterGymSearchScreen")}
+                onBrowseGyms={() =>
+                  navigation.navigate("FighterGymSearchScreen")
+                }
+                onOpenGym={() =>
+                  navigation.navigate("GymDetailScreen", {
+                    gym: item.gyms,
+                    gymId: item.gym_id,
+                  })
+                }
               />
             ))
           )}
@@ -224,7 +240,15 @@ const FighterGymMembershipsScreen = () => {
               <MembershipCard
                 key={item.id}
                 item={item}
-                onBrowseGyms={() => navigation.navigate("FighterGymSearchScreen")}
+                onBrowseGyms={() =>
+                  navigation.navigate("FighterGymSearchScreen")
+                }
+                onOpenGym={() =>
+                  navigation.navigate("GymDetailScreen", {
+                    gym: item.gyms,
+                    gymId: item.gym_id,
+                  })
+                }
               />
             ))
           )}
@@ -241,7 +265,15 @@ const FighterGymMembershipsScreen = () => {
               <MembershipCard
                 key={item.id}
                 item={item}
-                onBrowseGyms={() => navigation.navigate("FighterGymSearchScreen")}
+                onBrowseGyms={() =>
+                  navigation.navigate("FighterGymSearchScreen")
+                }
+                onOpenGym={() =>
+                  navigation.navigate("GymDetailScreen", {
+                    gym: item.gyms,
+                    gymId: item.gym_id,
+                  })
+                }
               />
             ))
           )}
@@ -261,7 +293,11 @@ function SectionCard({ title, subtitle, children }: SectionCardProps) {
   );
 }
 
-function MembershipCard({ item, onBrowseGyms }: MembershipCardProps) {
+function MembershipCard({
+  item,
+  onBrowseGyms,
+  onOpenGym,
+}: MembershipCardProps) {
   const gym = item.gyms;
   const location = [gym?.city, gym?.region, gym?.country]
     .filter(Boolean)
@@ -271,29 +307,35 @@ function MembershipCard({ item, onBrowseGyms }: MembershipCardProps) {
     item.status === "active"
       ? "Active"
       : item.status === "pending"
-      ? "Pending"
-      : item.status === "rejected"
-      ? "Rejected"
-      : "Revoked";
+        ? "Pending"
+        : item.status === "rejected"
+          ? "Rejected"
+          : "Revoked";
 
   return (
-    <View style={styles.membershipCard}>
+    <TouchableOpacity
+      style={styles.membershipCard}
+      activeOpacity={0.85}
+      onPress={onOpenGym}
+    >
       <View style={styles.membershipHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.gymName}>{gym?.name || "Unknown Gym"}</Text>
           <Text style={styles.gymMeta}>{location || "Location not set"}</Text>
         </View>
 
-        <View
-          style={[
-            styles.statusBadge,
-            item.status === "active" && styles.statusBadgeActive,
-            item.status === "pending" && styles.statusBadgePending,
-            item.status === "rejected" && styles.statusBadgeRejected,
-            item.status === "revoked" && styles.statusBadgeRevoked,
-          ]}
-        >
-          <Text style={styles.statusBadgeText}>{statusLabel}</Text>
+        <View style={{ alignItems: "flex-end", gap: 8 }}>
+          <View
+            style={[
+              styles.statusBadge,
+              item.status === "active" && styles.statusBadgeActive,
+              item.status === "pending" && styles.statusBadgePending,
+              item.status === "rejected" && styles.statusBadgeRejected,
+              item.status === "revoked" && styles.statusBadgeRevoked,
+            ]}
+          >
+            <Text style={styles.statusBadgeText}>{statusLabel}</Text>
+          </View>
         </View>
       </View>
 
@@ -304,11 +346,19 @@ function MembershipCard({ item, onBrowseGyms }: MembershipCardProps) {
       <View style={styles.footerRow}>
         <Text style={styles.roleText}>Role: {item.role}</Text>
 
-        <TouchableOpacity activeOpacity={0.85} onPress={onBrowseGyms}>
-          <Text style={styles.linkText}>Browse more gyms</Text>
-        </TouchableOpacity>
+        <View style={styles.footerActions}>
+          <TouchableOpacity activeOpacity={0.85} onPress={onBrowseGyms}>
+            <Text style={styles.linkText}>Browse more gyms</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.linkDivider}>•</Text>
+
+          <TouchableOpacity activeOpacity={0.85} onPress={onOpenGym}>
+            <Text style={styles.linkText}>Open gym</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -395,6 +445,17 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  footerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  linkDivider: {
+    color: "rgba(255,255,255,0.35)",
+    fontWeight: "900",
   },
 
   statLabel: {

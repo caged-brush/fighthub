@@ -30,6 +30,8 @@ import CoachRequestsScreen from "./screens/CoachRequestsScreen";
 import CoachRosterScreen from "./screens/CoachRosterScreen";
 import FighterGymSearchScreen from "./screens/FighterGymSearchScreen";
 import FighterGymMembershipsScreen from "./screens/FighterGymMembershipsScreen";
+import GymDetailScreen from "./screens/GymDetailScreen";
+
 
 const Stack = createNativeStackNavigator();
 
@@ -215,6 +217,11 @@ function AppNavigator() {
         <Stack.Screen
           name="FighterGymSearchScreen"
           component={FighterGymSearchScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="GymDetailScreen"
+          component={GymDetailScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

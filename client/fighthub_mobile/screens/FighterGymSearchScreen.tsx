@@ -21,6 +21,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
+import { Ionicons } from "@expo/vector-icons";
 
 type RootNav = {
   navigate: (screen: string, params?: Record<string, unknown>) => void;
@@ -71,6 +72,7 @@ type GymCardProps = {
   busy: boolean;
   onJoin: () => void;
   onCancel: () => void;
+  onOpen: () => void;
 };
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
@@ -349,6 +351,9 @@ const FighterGymSearchScreen = () => {
               busy={actioningGymId === gym.id}
               onJoin={() => handleJoin(gym)}
               onCancel={() => handleCancel(gym)}
+              onOpen={() =>
+                navigation.navigate("GymDetailScreen", { gym, gymId: gym.id })
+              }
             />
           ))
         )}
@@ -357,7 +362,14 @@ const FighterGymSearchScreen = () => {
   );
 };
 
-function GymCard({ gym, membership, busy, onJoin, onCancel }: GymCardProps) {
+function GymCard({
+  gym,
+  membership,
+  busy,
+  onJoin,
+  onCancel,
+  onOpen,
+}: GymCardProps) {
   const location = [gym.city, gym.region, gym.country]
     .filter(Boolean)
     .join(", ");
@@ -374,18 +386,25 @@ function GymCard({ gym, membership, busy, onJoin, onCancel }: GymCardProps) {
             : null;
 
   return (
-    <View style={styles.gymCard}>
+    <TouchableOpacity
+      style={styles.gymCard}
+      activeOpacity={0.85}
+      onPress={onOpen}
+    >
       <View style={styles.gymTopRow}>
         <View style={{ flex: 1 }}>
           <Text style={styles.gymName}>{gym.name}</Text>
           <Text style={styles.gymMeta}>{location || "Location not set"}</Text>
         </View>
 
-        {!!statusText && (
-          <View style={styles.statusBadge}>
-            <Text style={styles.statusBadgeText}>{statusText}</Text>
-          </View>
-        )}
+        <View style={{ alignItems: "flex-end", gap: 8 }}>
+          {!!statusText && (
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>{statusText}</Text>
+            </View>
+          )}
+          <Ionicons name="chevron-forward" size={18} color="#ffd700" />
+        </View>
       </View>
 
       <Text style={styles.gymBio}>
@@ -425,7 +444,7 @@ function GymCard({ gym, membership, busy, onJoin, onCancel }: GymCardProps) {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
