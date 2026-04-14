@@ -216,6 +216,33 @@ interface ScoutApplicationsResponse {
     status: string;
     created_at?: string | null;
 
+    note?: string | null;
+    highlight_video_url?: string | null;
+    viewed_at?: string | null;
+    scout_note?: string | null;
+    scout_score?: number | null;
+
+    endorsement_status?: string | null;
+    endorsement_note?: string | null;
+    endorsed_by_coach_user_id?: string | null;
+
+    shortlisted_at?: string | null;
+    shortlisted_by?: string | null;
+
+    reviewed_at?: string | null;
+    reviewed_by?: string | null;
+
+    rejected_at?: string | null;
+    rejected_by?: string | null;
+    rejection_reason?: string | null;
+
+    booked_at?: string | null;
+    booked_by?: string | null;
+
+    endorsed_coach_first_name?: string | null;
+    endorsed_coach_last_name?: string | null;
+    endorsed_coach_name?: string | null;
+
     fighter_first_name?: string | null;
     fighter_last_name?: string | null;
     fighter_name?: string | null;
@@ -239,6 +266,39 @@ interface ScoutApplicationsResponse {
     discipline?: string | null;
     weight_class?: string | null;
   }>;
+}
+
+interface ApplicationActionParams extends ParamsDictionary {
+  id: string;
+}
+
+interface EndorseApplicationBody {
+  endorsement_note?: string;
+}
+
+interface RejectApplicationBody {
+  rejection_reason?: string;
+}
+
+interface OkApplicationResponse {
+  ok: true;
+  application: {
+    id: string;
+    status: string;
+    endorsement_status?: string | null;
+    endorsed_by_coach_user_id?: string | null;
+    endorsement_note?: string | null;
+    shortlisted_at?: string | null;
+    shortlisted_by?: string | null;
+    reviewed_at?: string | null;
+    reviewed_by?: string | null;
+    rejected_at?: string | null;
+    rejected_by?: string | null;
+    rejection_reason?: string | null;
+    booked_at?: string | null;
+    booked_by?: string | null;
+    updated_at?: string | null;
+  };
 }
 
 function supaErr(err: SupabaseErrorLike | null | undefined): ErrorResponse {
@@ -975,12 +1035,29 @@ router.get(
         .from("fight_applications")
         .select(
           `
-          id,
-          fight_slot_id,
-          fighter_id,
-          status,
-          created_at
-        `,
+    id,
+    fight_slot_id,
+    fighter_id,
+    status,
+    note,
+    highlight_video_url,
+    viewed_at,
+    scout_note,
+    scout_score,
+    endorsement_status,
+    endorsement_note,
+    endorsed_by_coach_user_id,
+    shortlisted_at,
+    shortlisted_by,
+    reviewed_at,
+    reviewed_by,
+    rejected_at,
+    rejected_by,
+    rejection_reason,
+    booked_at,
+    booked_by,
+    created_at
+  `,
         )
         .eq("poster_id", viewerId)
         .order("created_at", { ascending: false });
@@ -1006,6 +1083,29 @@ router.get(
           fight_slot_id: string;
           fighter_id: string;
           status: string;
+          note?: string | null;
+          highlight_video_url?: string | null;
+          viewed_at?: string | null;
+          scout_note?: string | null;
+          scout_score?: number | null;
+
+          endorsement_status?: string | null;
+          endorsement_note?: string | null;
+          endorsed_by_coach_user_id?: string | null;
+
+          shortlisted_at?: string | null;
+          shortlisted_by?: string | null;
+
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+
+          rejected_at?: string | null;
+          rejected_by?: string | null;
+          rejection_reason?: string | null;
+
+          booked_at?: string | null;
+          booked_by?: string | null;
+
           created_at?: string | null;
         }> | null) ?? [];
 
@@ -1015,6 +1115,13 @@ router.get(
 
       const slotIds = [...new Set(typedApps.map((a) => a.fight_slot_id))];
       const fighterIds = [...new Set(typedApps.map((a) => a.fighter_id))];
+      const endorsedCoachIds = [
+        ...new Set(
+          typedApps
+            .map((a) => a.endorsed_by_coach_user_id)
+            .filter(Boolean) as string[],
+        ),
+      ];
 
       const { data: slots, error: slotErr } = await supabaseAdmin
         .from("fight_slots")
@@ -1080,18 +1187,20 @@ router.get(
         });
       }
 
+      const userIdsToLoad = [...new Set([...fighterIds, ...endorsedCoachIds])];
+
       const { data: usersData, error: usersErr } = await supabaseAdmin
         .from("users")
         .select(
           `
-          id,
-          fname,
-          lname,
-          region,
-          profile_picture_url
-        `,
+    id,
+    fname,
+    lname,
+    region,
+    profile_picture_url
+  `,
         )
-        .in("id", fighterIds);
+        .in("id", userIdsToLoad);
 
       if (usersErr) {
         return res.status(500).json({
@@ -1134,6 +1243,9 @@ router.get(
         const event = slot ? eventMap[slot.event_id] : null;
         const fighter = fighterMap[app.fighter_id];
         const user = userMap[app.fighter_id];
+        const endorsedCoach = app.endorsed_by_coach_user_id
+          ? userMap[app.endorsed_by_coach_user_id]
+          : null;
 
         const wins = fighter?.wins ?? 0;
         const losses = fighter?.losses ?? 0;
@@ -1145,6 +1257,36 @@ router.get(
           fighter_id: app.fighter_id,
           status: app.status,
           created_at: app.created_at ?? null,
+
+          note: app.note ?? null,
+          highlight_video_url: app.highlight_video_url ?? null,
+          viewed_at: app.viewed_at ?? null,
+          scout_note: app.scout_note ?? null,
+          scout_score: app.scout_score ?? null,
+
+          endorsement_status: app.endorsement_status ?? "none",
+          endorsement_note: app.endorsement_note ?? null,
+          endorsed_by_coach_user_id: app.endorsed_by_coach_user_id ?? null,
+
+          shortlisted_at: app.shortlisted_at ?? null,
+          shortlisted_by: app.shortlisted_by ?? null,
+
+          reviewed_at: app.reviewed_at ?? null,
+          reviewed_by: app.reviewed_by ?? null,
+
+          rejected_at: app.rejected_at ?? null,
+          rejected_by: app.rejected_by ?? null,
+          rejection_reason: app.rejection_reason ?? null,
+
+          booked_at: app.booked_at ?? null,
+          booked_by: app.booked_by ?? null,
+
+          endorsed_coach_first_name: endorsedCoach?.fname ?? null,
+          endorsed_coach_last_name: endorsedCoach?.lname ?? null,
+          endorsed_coach_name:
+            [endorsedCoach?.fname, endorsedCoach?.lname]
+              .filter(Boolean)
+              .join(" ") || null,
 
           fighter_first_name: user?.fname ?? null,
           fighter_last_name: user?.lname ?? null,
@@ -1177,6 +1319,394 @@ router.get(
       return res.status(500).json({
         message: getErrorMessage(e),
       });
+    }
+  },
+);
+
+router.post(
+  "/applications/:id/endorse",
+  requireAuth,
+  async (
+    req: Request<
+      ApplicationActionParams,
+      OkApplicationResponse | ErrorResponse,
+      EndorseApplicationBody
+    >,
+    res: Response<OkApplicationResponse | ErrorResponse>,
+  ) => {
+    try {
+      const applicationId = req.params.id;
+      const coachUserId = req.supabaseUser?.id;
+
+      if (!coachUserId) {
+        return res.status(401).json({ message: "Not authenticated." });
+      }
+
+      if (req.user?.role !== "coach") {
+        return res
+          .status(403)
+          .json({ message: "Only coaches can endorse applications." });
+      }
+
+      const { data: app, error: appErr } = await supabaseAdmin
+        .from("fight_applications")
+        .select("id, fighter_id, fight_slot_id, status")
+        .eq("id", applicationId)
+        .maybeSingle();
+
+      if (appErr) {
+        return res.status(500).json({ message: appErr.message });
+      }
+
+      if (!app) {
+        return res.status(404).json({ message: "Application not found." });
+      }
+
+      if (app.status !== "submitted" && app.status !== "shortlisted") {
+        return res.status(409).json({
+          message:
+            "Only submitted or shortlisted applications can be endorsed.",
+        });
+      }
+
+      const { data: coachMemberships, error: coachMembershipErr } =
+        await supabaseAdmin
+          .from("gym_memberships")
+          .select("gym_id, status, role")
+          .eq("user_id", coachUserId)
+          .in("role", ["owner", "coach", "staff"])
+          .eq("status", "active");
+
+      if (coachMembershipErr) {
+        return res.status(500).json({ message: coachMembershipErr.message });
+      }
+
+      const gymIds = (coachMemberships || []).map((m: any) => m.gym_id);
+
+      if (!gymIds.length) {
+        return res.status(403).json({
+          message: "Coach is not attached to any active gym.",
+        });
+      }
+
+      const { data: fighterMembership, error: fighterMembershipErr } =
+        await supabaseAdmin
+          .from("gym_memberships")
+          .select("id, gym_id, user_id, status, role")
+          .eq("user_id", app.fighter_id)
+          .eq("role", "fighter")
+          .eq("status", "active")
+          .in("gym_id", gymIds)
+          .maybeSingle();
+
+      if (fighterMembershipErr) {
+        return res.status(500).json({ message: fighterMembershipErr.message });
+      }
+
+      if (!fighterMembership) {
+        return res.status(403).json({
+          message: "Coach can only endorse fighters linked to their gym.",
+        });
+      }
+
+      const { data: updated, error: updateErr } = await supabaseAdmin
+        .from("fight_applications")
+        .update({
+          endorsement_status: "endorsed",
+          endorsed_by_coach_user_id: coachUserId,
+          endorsement_note: req.body?.endorsement_note?.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", applicationId)
+        .select(
+          `
+          id,
+          status,
+          endorsement_status,
+          endorsed_by_coach_user_id,
+          endorsement_note,
+          updated_at
+        `,
+        )
+        .single();
+
+      if (updateErr) {
+        return res.status(500).json({ message: updateErr.message });
+      }
+
+      return res.json({
+        ok: true,
+        application: updated,
+      });
+    } catch (e) {
+      return res.status(500).json({ message: getErrorMessage(e) });
+    }
+  },
+);
+
+router.post(
+  "/applications/:id/shortlist",
+  requireAuth,
+  async (
+    req: Request<
+      ApplicationActionParams,
+      OkApplicationResponse | ErrorResponse
+    >,
+    res: Response<OkApplicationResponse | ErrorResponse>,
+  ) => {
+    try {
+      const applicationId = req.params.id;
+      const scoutId = req.supabaseUser?.id;
+
+      if (!scoutId) {
+        return res.status(401).json({ message: "Not authenticated." });
+      }
+
+      if (req.user?.role !== "scout") {
+        return res
+          .status(403)
+          .json({ message: "Only scouts can shortlist applications." });
+      }
+
+      const { data: app, error: appErr } = await supabaseAdmin
+        .from("fight_applications")
+        .select("id, poster_id, status")
+        .eq("id", applicationId)
+        .maybeSingle();
+
+      if (appErr) {
+        return res.status(500).json({ message: appErr.message });
+      }
+
+      if (!app) {
+        return res.status(404).json({ message: "Application not found." });
+      }
+
+      if (app.poster_id !== scoutId) {
+        return res.status(403).json({ message: "Not allowed." });
+      }
+
+      if (app.status !== "submitted") {
+        return res.status(409).json({
+          message: "Only submitted applications can be shortlisted.",
+        });
+      }
+
+      const now = new Date().toISOString();
+
+      const { data: updated, error: updateErr } = await supabaseAdmin
+        .from("fight_applications")
+        .update({
+          status: "shortlisted",
+          shortlisted_at: now,
+          shortlisted_by: scoutId,
+          reviewed_at: now,
+          reviewed_by: scoutId,
+          updated_at: now,
+        })
+        .eq("id", applicationId)
+        .select(
+          `
+          id,
+          status,
+          shortlisted_at,
+          shortlisted_by,
+          reviewed_at,
+          reviewed_by,
+          updated_at
+        `,
+        )
+        .single();
+
+      if (updateErr) {
+        return res.status(500).json({ message: updateErr.message });
+      }
+
+      return res.json({
+        ok: true,
+        application: updated,
+      });
+    } catch (e) {
+      return res.status(500).json({ message: getErrorMessage(e) });
+    }
+  },
+);
+
+router.post(
+  "/applications/:id/reject",
+  requireAuth,
+  async (
+    req: Request<
+      ApplicationActionParams,
+      OkApplicationResponse | ErrorResponse,
+      RejectApplicationBody
+    >,
+    res: Response<OkApplicationResponse | ErrorResponse>,
+  ) => {
+    try {
+      const applicationId = req.params.id;
+      const scoutId = req.supabaseUser?.id;
+
+      if (!scoutId) {
+        return res.status(401).json({ message: "Not authenticated." });
+      }
+
+      if (req.user?.role !== "scout") {
+        return res
+          .status(403)
+          .json({ message: "Only scouts can reject applications." });
+      }
+
+      const { data: app, error: appErr } = await supabaseAdmin
+        .from("fight_applications")
+        .select("id, poster_id, status")
+        .eq("id", applicationId)
+        .maybeSingle();
+
+      if (appErr) {
+        return res.status(500).json({ message: appErr.message });
+      }
+
+      if (!app) {
+        return res.status(404).json({ message: "Application not found." });
+      }
+
+      if (app.poster_id !== scoutId) {
+        return res.status(403).json({ message: "Not allowed." });
+      }
+
+      if (app.status === "booked" || app.status === "rejected") {
+        return res.status(409).json({
+          message: "Application is already finalized.",
+        });
+      }
+
+      const now = new Date().toISOString();
+
+      const { data: updated, error: updateErr } = await supabaseAdmin
+        .from("fight_applications")
+        .update({
+          status: "rejected",
+          rejected_at: now,
+          rejected_by: scoutId,
+          rejection_reason: req.body?.rejection_reason?.trim() || null,
+          reviewed_at: now,
+          reviewed_by: scoutId,
+          updated_at: now,
+        })
+        .eq("id", applicationId)
+        .select(
+          `
+          id,
+          status,
+          rejected_at,
+          rejected_by,
+          rejection_reason,
+          reviewed_at,
+          reviewed_by,
+          updated_at
+        `,
+        )
+        .single();
+
+      if (updateErr) {
+        return res.status(500).json({ message: updateErr.message });
+      }
+
+      return res.json({
+        ok: true,
+        application: updated,
+      });
+    } catch (e) {
+      return res.status(500).json({ message: getErrorMessage(e) });
+    }
+  },
+);
+
+router.post(
+  "/applications/:id/book",
+  requireAuth,
+  async (
+    req: Request<
+      ApplicationActionParams,
+      OkApplicationResponse | ErrorResponse
+    >,
+    res: Response<OkApplicationResponse | ErrorResponse>,
+  ) => {
+    try {
+      const applicationId = req.params.id;
+      const scoutId = req.supabaseUser?.id;
+
+      if (!scoutId) {
+        return res.status(401).json({ message: "Not authenticated." });
+      }
+
+      if (req.user?.role !== "scout") {
+        return res
+          .status(403)
+          .json({ message: "Only scouts can book applications." });
+      }
+
+      const { data: app, error: appErr } = await supabaseAdmin
+        .from("fight_applications")
+        .select("id, poster_id, status")
+        .eq("id", applicationId)
+        .maybeSingle();
+
+      if (appErr) {
+        return res.status(500).json({ message: appErr.message });
+      }
+
+      if (!app) {
+        return res.status(404).json({ message: "Application not found." });
+      }
+
+      if (app.poster_id !== scoutId) {
+        return res.status(403).json({ message: "Not allowed." });
+      }
+
+      if (!["submitted", "shortlisted"].includes(app.status)) {
+        return res.status(409).json({
+          message: "Only submitted or shortlisted applications can be booked.",
+        });
+      }
+
+      const now = new Date().toISOString();
+
+      const { data: updated, error: updateErr } = await supabaseAdmin
+        .from("fight_applications")
+        .update({
+          status: "booked",
+          booked_at: now,
+          booked_by: scoutId,
+          reviewed_at: now,
+          reviewed_by: scoutId,
+          updated_at: now,
+        })
+        .eq("id", applicationId)
+        .select(
+          `
+          id,
+          status,
+          booked_at,
+          booked_by,
+          reviewed_at,
+          reviewed_by,
+          updated_at
+        `,
+        )
+        .single();
+
+      if (updateErr) {
+        return res.status(500).json({ message: updateErr.message });
+      }
+
+      return res.json({
+        ok: true,
+        application: updated,
+      });
+    } catch (e) {
+      return res.status(500).json({ message: getErrorMessage(e) });
     }
   },
 );
