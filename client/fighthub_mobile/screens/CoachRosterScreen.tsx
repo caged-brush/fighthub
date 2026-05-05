@@ -82,6 +82,7 @@ type MemberCardProps = {
   busy: boolean;
   onOpenProfile: () => void;
   onRemove: () => void;
+  onEndorse: () => void;
 };
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
@@ -160,7 +161,7 @@ const CoachRosterScreen = () => {
       const data = await parseJsonResponse<RosterResponse>(res);
       const rosterRows = Array.isArray(data.roster) ? data.roster : [];
 
-      const filtered = rosterRows.filter((item) => item.role !== "owner");
+      const filtered = rosterRows.filter((item) => item.role === "fighter");
       setRoster(filtered);
     },
     [userToken],
@@ -209,11 +210,6 @@ const CoachRosterScreen = () => {
   }, [loadAll]);
 
   const confirmRemove = (item: MembershipItem) => {
-    if (item.role === "owner") {
-      Alert.alert("Blocked", "Owner membership cannot be removed here.");
-      return;
-    }
-
     const displayName =
       `${item.users?.fname || ""} ${item.users?.lname || ""}`.trim() ||
       "this member";
@@ -264,6 +260,23 @@ const CoachRosterScreen = () => {
     } finally {
       setActioningId(null);
     }
+  };
+
+  const openEndorseFlow = (item: MembershipItem) => {
+    if (!selectedGymId) {
+      Alert.alert("Error", "No gym selected.");
+      return;
+    }
+
+    const fighterName =
+      `${item.users?.fname || ""} ${item.users?.lname || ""}`.trim() ||
+      "Unknown fighter";
+
+    navigation.navigate("CoachEndorseApplicationsScreen", {
+      fighterId: item.user_id,
+      fighterName,
+      gymId: selectedGymId,
+    });
   };
 
   if (loading) {
@@ -323,7 +336,7 @@ const CoachRosterScreen = () => {
         <Text style={styles.brand}>Kavyx Coach</Text>
         <Text style={styles.headline}>Manage your roster.</Text>
         <Text style={styles.subhead}>
-          Keep the roster clean. Remove weak entries. Open real profiles.
+          Review fighters, remove weak entries, and endorse strong applications.
         </Text>
 
         {memberships.length > 1 && (
@@ -382,6 +395,7 @@ const CoachRosterScreen = () => {
                 navigation.navigate("UserProfile", { userId: item.user_id })
               }
               onRemove={() => confirmRemove(item)}
+              onEndorse={() => openEndorseFlow(item)}
             />
           ))
         )}
@@ -404,7 +418,13 @@ function GymChip({ name, active, onPress }: GymChipProps) {
   );
 }
 
-function MemberCard({ item, busy, onOpenProfile, onRemove }: MemberCardProps) {
+function MemberCard({
+  item,
+  busy,
+  onOpenProfile,
+  onRemove,
+  onEndorse,
+}: MemberCardProps) {
   const displayName =
     `${item.users?.fname || ""} ${item.users?.lname || ""}`.trim() ||
     "Unknown member";
@@ -428,6 +448,15 @@ function MemberCard({ item, busy, onOpenProfile, onRemove }: MemberCardProps) {
           disabled={busy}
         >
           <Text style={styles.profileBtnText}>Open Profile</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.endorseBtn}
+          activeOpacity={0.85}
+          onPress={onEndorse}
+          disabled={busy}
+        >
+          <Text style={styles.endorseBtnText}>Endorse</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -625,6 +654,22 @@ const styles = StyleSheet.create({
   profileBtnText: {
     color: "#ffffff",
     fontWeight: "800",
+    fontSize: 14,
+  },
+
+  endorseBtn: {
+    flex: 1,
+    backgroundColor: "#4da3ff",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 46,
+  },
+
+  endorseBtnText: {
+    color: "#0b0b0b",
+    fontWeight: "900",
     fontSize: 14,
   },
 

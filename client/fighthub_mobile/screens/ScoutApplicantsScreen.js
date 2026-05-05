@@ -18,8 +18,17 @@ import { apiFetch } from "../lib/apiFetch";
 const STATUS_COLORS = {
   submitted: "#8B5CF6",
   viewed: "#3B82F6",
+  shortlisted: "#F59E0B",
   accepted: "#16A34A",
+  booked: "#16A34A",
   rejected: "#DC2626",
+  withdrawn: "#6B7280",
+};
+
+const ENDORSEMENT_COLORS = {
+  endorsed: "#22C55E",
+  retracted: "#F97316",
+  none: "#444",
 };
 
 export default function ScoutApplicantsScreen({ navigation, route }) {
@@ -80,49 +89,103 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
     setSelectedApplicant(null);
   };
 
-  const acceptApplicant = async (applicationId) => {
+  const syncUpdatedApplication = (applicationId, patch) => {
+    setApplications((prev) =>
+      prev.map((item) =>
+        item.id === applicationId ? { ...item, ...patch } : item,
+      ),
+    );
+
+    setSelectedApplicant((prev) =>
+      prev && prev.id === applicationId ? { ...prev, ...patch } : prev,
+    );
+  };
+
+  const runApplicationAction = async ({
+    applicationId,
+    endpoint,
+    successMessage,
+    patch,
+  }) => {
     try {
       setActingId(applicationId);
 
-      await apiFetch(`/fights/applications/${applicationId}/accept`, {
+      await apiFetch(`/fights/applications/${applicationId}/${endpoint}`, {
         method: "POST",
         token: userToken,
       });
 
-      setApplications((prev) =>
-        prev.map((item) =>
-          item.id === applicationId ? { ...item, status: "accepted" } : item,
-        ),
-      );
+      syncUpdatedApplication(applicationId, patch);
 
-      if (selectedApplicant?.id === applicationId) {
-        setSelectedApplicant((prev) =>
-          prev ? { ...prev, status: "accepted" } : prev,
-        );
-      }
-
-      Alert.alert("Success", "Application accepted.");
+      Alert.alert("Success", successMessage);
       fetchApplicants(true);
     } catch (e) {
       const msg =
         e?.response?.data?.message ||
         e?.message ||
-        "Failed to accept application.";
+        "Application action failed.";
       Alert.alert("Error", msg);
     } finally {
       setActingId(null);
     }
   };
 
-  const confirmAccept = (applicationId, fighterName) => {
+  const confirmShortlist = (applicationId, fighterName) => {
     Alert.alert(
-      "Accept applicant",
-      `Accept ${fighterName || "this fighter"} for this fight?`,
+      "Shortlist applicant",
+      `Shortlist ${fighterName || "this fighter"} for this fight?`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Accept",
-          onPress: () => acceptApplicant(applicationId),
+          text: "Shortlist",
+          onPress: () =>
+            runApplicationAction({
+              applicationId,
+              endpoint: "shortlist",
+              successMessage: "Application shortlisted.",
+              patch: { status: "shortlisted" },
+            }),
+        },
+      ],
+    );
+  };
+
+  const confirmBook = (applicationId, fighterName) => {
+    Alert.alert(
+      "Book applicant",
+      `Book ${fighterName || "this fighter"} for this fight?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Book",
+          onPress: () =>
+            runApplicationAction({
+              applicationId,
+              endpoint: "book",
+              successMessage: "Application booked.",
+              patch: { status: "booked" },
+            }),
+        },
+      ],
+    );
+  };
+
+  const confirmReject = (applicationId, fighterName) => {
+    Alert.alert(
+      "Reject applicant",
+      `Reject ${fighterName || "this fighter"} for this fight?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: () =>
+            runApplicationAction({
+              applicationId,
+              endpoint: "reject",
+              successMessage: "Application rejected.",
+              patch: { status: "rejected" },
+            }),
         },
       ],
     );
@@ -174,6 +237,35 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
     );
   };
 
+  const renderEndorsementPill = (status) => {
+    const normalized = status || "none";
+    const bg = ENDORSEMENT_COLORS[normalized] || "#444";
+
+    return (
+      <View
+        style={{
+          backgroundColor: bg,
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          borderRadius: 999,
+          alignSelf: "flex-start",
+          marginTop: 10,
+        }}
+      >
+        <Text
+          style={{
+            color: "white",
+            fontSize: 12,
+            fontWeight: "700",
+            textTransform: "capitalize",
+          }}
+        >
+          {normalized === "none" ? "Not Endorsed" : normalized}
+        </Text>
+      </View>
+    );
+  };
+
   const renderItem = ({ item }) => {
     const fighterName =
       item?.fighter_name ||
@@ -189,9 +281,10 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
       ? new Date(item.created_at).toLocaleDateString()
       : "Unknown date";
 
-    const isAccepted = item?.status === "accepted";
-    const isRejected = item?.status === "rejected";
     const busy = actingId === item.id;
+    const isBooked = item?.status === "booked" || item?.status === "accepted";
+    const isRejected = item?.status === "rejected";
+    const isShortlisted = item?.status === "shortlisted";
 
     return (
       <View
@@ -232,7 +325,16 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
           </Text>
         ) : null}
 
-        {renderStatusPill(item?.status)}
+        {item?.endorsed_coach_name ? (
+          <Text style={{ color: "#777", marginTop: 4 }}>
+            Endorsed by: {item.endorsed_coach_name}
+          </Text>
+        ) : null}
+
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+          {renderStatusPill(item?.status)}
+          {renderEndorsementPill(item?.endorsement_status)}
+        </View>
 
         <View
           style={{
@@ -275,19 +377,56 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => confirmAccept(item.id, fighterName)}
-            disabled={busy || isAccepted || isRejected}
+            onPress={() => confirmShortlist(item.id, fighterName)}
+            disabled={busy || isShortlisted || isBooked || isRejected}
             style={{
               backgroundColor:
-                busy || isAccepted || isRejected ? "#333" : "#16A34A",
+                busy || isShortlisted || isBooked || isRejected
+                  ? "#333"
+                  : "#F59E0B",
               paddingHorizontal: 14,
               paddingVertical: 10,
               borderRadius: 12,
-              opacity: busy || isAccepted || isRejected ? 0.6 : 1,
+              opacity:
+                busy || isShortlisted || isBooked || isRejected ? 0.6 : 1,
             }}
           >
             <Text style={{ color: "white", fontWeight: "700" }}>
-              {busy ? "Accepting..." : isAccepted ? "Accepted" : "Accept"}
+              {isShortlisted ? "Shortlisted" : "Shortlist"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => confirmBook(item.id, fighterName)}
+            disabled={busy || isBooked || isRejected}
+            style={{
+              backgroundColor:
+                busy || isBooked || isRejected ? "#333" : "#16A34A",
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 12,
+              opacity: busy || isBooked || isRejected ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ color: "white", fontWeight: "700" }}>
+              {busy ? "Working..." : isBooked ? "Booked" : "Book"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => confirmReject(item.id, fighterName)}
+            disabled={busy || isBooked || isRejected}
+            style={{
+              backgroundColor:
+                busy || isBooked || isRejected ? "#333" : "#DC2626",
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 12,
+              opacity: busy || isBooked || isRejected ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ color: "white", fontWeight: "700" }}>
+              {isRejected ? "Rejected" : "Reject"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -334,6 +473,12 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
       .filter(Boolean)
       .join(" ") ||
     "Unknown Fighter";
+
+  const previewBooked =
+    selectedApplicant?.status === "booked" ||
+    selectedApplicant?.status === "accepted";
+  const previewRejected = selectedApplicant?.status === "rejected";
+  const previewShortlisted = selectedApplicant?.status === "shortlisted";
 
   return (
     <View style={{ flex: 1, backgroundColor: "black", padding: 16 }}>
@@ -422,6 +567,27 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
               <Text style={{ color: "white", fontSize: 22, fontWeight: "800" }}>
                 {previewName}
               </Text>
+
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                {selectedApplicant
+                  ? renderStatusPill(selectedApplicant.status)
+                  : null}
+                {selectedApplicant
+                  ? renderEndorsementPill(selectedApplicant.endorsement_status)
+                  : null}
+              </View>
+
+              {selectedApplicant?.endorsed_coach_name ? (
+                <Text style={{ color: "#aaa", marginTop: 10 }}>
+                  Endorsed by coach: {selectedApplicant.endorsed_coach_name}
+                </Text>
+              ) : null}
+
+              {selectedApplicant?.endorsement_note ? (
+                <Text style={{ color: "#aaa", marginTop: 8 }}>
+                  Endorsement note: {selectedApplicant.endorsement_note}
+                </Text>
+              ) : null}
 
               {selectedApplicant?.fighter_record ? (
                 <Text style={{ color: "#aaa", marginTop: 10 }}>
@@ -513,9 +679,23 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
                 • {selectedApplicant?.weight_class || "N/A"}
               </Text>
 
-              {selectedApplicant
-                ? renderStatusPill(selectedApplicant.status)
-                : null}
+              {selectedApplicant?.scout_score != null ? (
+                <Text style={{ color: "#aaa", marginTop: 8 }}>
+                  Scout score: {selectedApplicant.scout_score}
+                </Text>
+              ) : null}
+
+              {selectedApplicant?.scout_note ? (
+                <Text style={{ color: "#aaa", marginTop: 8 }}>
+                  Scout note: {selectedApplicant.scout_note}
+                </Text>
+              ) : null}
+
+              {selectedApplicant?.rejection_reason ? (
+                <Text style={{ color: "#f87171", marginTop: 8 }}>
+                  Rejection reason: {selectedApplicant.rejection_reason}
+                </Text>
+              ) : null}
 
               <View style={{ marginTop: 22, gap: 12 }}>
                 <TouchableOpacity
@@ -557,20 +737,62 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
                   onPress={() => {
                     if (!selectedApplicant) return;
                     closeApplicantPreview();
-                    confirmAccept(selectedApplicant.id, previewName);
+                    confirmShortlist(selectedApplicant.id, previewName);
                   }}
                   disabled={
                     !selectedApplicant ||
                     actingId === selectedApplicant.id ||
-                    selectedApplicant.status === "accepted" ||
-                    selectedApplicant.status === "rejected"
+                    previewShortlisted ||
+                    previewBooked ||
+                    previewRejected
                   }
                   style={{
                     backgroundColor:
                       !selectedApplicant ||
                       actingId === selectedApplicant?.id ||
-                      selectedApplicant?.status === "accepted" ||
-                      selectedApplicant?.status === "rejected"
+                      previewShortlisted ||
+                      previewBooked ||
+                      previewRejected
+                        ? "#333"
+                        : "#F59E0B",
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    opacity:
+                      !selectedApplicant ||
+                      actingId === selectedApplicant?.id ||
+                      previewShortlisted ||
+                      previewBooked ||
+                      previewRejected
+                        ? 0.6
+                        : 1,
+                  }}
+                >
+                  <Text style={{ color: "white", fontWeight: "700" }}>
+                    {previewShortlisted
+                      ? "Already Shortlisted"
+                      : "Shortlist Fighter"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!selectedApplicant) return;
+                    closeApplicantPreview();
+                    confirmBook(selectedApplicant.id, previewName);
+                  }}
+                  disabled={
+                    !selectedApplicant ||
+                    actingId === selectedApplicant.id ||
+                    previewBooked ||
+                    previewRejected
+                  }
+                  style={{
+                    backgroundColor:
+                      !selectedApplicant ||
+                      actingId === selectedApplicant?.id ||
+                      previewBooked ||
+                      previewRejected
                         ? "#333"
                         : "#16A34A",
                     paddingVertical: 14,
@@ -579,18 +801,51 @@ export default function ScoutApplicantsScreen({ navigation, route }) {
                     opacity:
                       !selectedApplicant ||
                       actingId === selectedApplicant?.id ||
-                      selectedApplicant?.status === "accepted" ||
-                      selectedApplicant?.status === "rejected"
+                      previewBooked ||
+                      previewRejected
                         ? 0.6
                         : 1,
                   }}
                 >
                   <Text style={{ color: "white", fontWeight: "700" }}>
-                    {actingId === selectedApplicant?.id
-                      ? "Accepting..."
-                      : selectedApplicant?.status === "accepted"
-                        ? "Already Accepted"
-                        : "Accept Fighter"}
+                    {previewBooked ? "Already Booked" : "Book Fighter"}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!selectedApplicant) return;
+                    closeApplicantPreview();
+                    confirmReject(selectedApplicant.id, previewName);
+                  }}
+                  disabled={
+                    !selectedApplicant ||
+                    actingId === selectedApplicant.id ||
+                    previewBooked ||
+                    previewRejected
+                  }
+                  style={{
+                    backgroundColor:
+                      !selectedApplicant ||
+                      actingId === selectedApplicant?.id ||
+                      previewBooked ||
+                      previewRejected
+                        ? "#333"
+                        : "#DC2626",
+                    paddingVertical: 14,
+                    borderRadius: 14,
+                    alignItems: "center",
+                    opacity:
+                      !selectedApplicant ||
+                      actingId === selectedApplicant?.id ||
+                      previewBooked ||
+                      previewRejected
+                        ? 0.6
+                        : 1,
+                  }}
+                >
+                  <Text style={{ color: "white", fontWeight: "700" }}>
+                    {previewRejected ? "Already Rejected" : "Reject Fighter"}
                   </Text>
                 </TouchableOpacity>
 
