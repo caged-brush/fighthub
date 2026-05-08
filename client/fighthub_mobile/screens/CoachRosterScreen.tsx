@@ -82,7 +82,7 @@ type MemberCardProps = {
   busy: boolean;
   onOpenProfile: () => void;
   onRemove: () => void;
-  onEndorse: () => void;
+  onSubmitToFight: () => void;
 };
 
 async function parseJsonResponse<T>(res: Response): Promise<T> {
@@ -262,7 +262,7 @@ const CoachRosterScreen = () => {
     }
   };
 
-  const openEndorseFlow = (item: MembershipItem) => {
+  const openSubmitToFightFlow = (item: MembershipItem) => {
     if (!selectedGymId) {
       Alert.alert("Error", "No gym selected.");
       return;
@@ -272,13 +272,12 @@ const CoachRosterScreen = () => {
       `${item.users?.fname || ""} ${item.users?.lname || ""}`.trim() ||
       "Unknown fighter";
 
-    navigation.navigate("CoachEndorseApplicationsScreen", {
+    navigation.navigate("CoachSubmitToFightScreen", {
       fighterId: item.user_id,
       fighterName,
       gymId: selectedGymId,
     });
   };
-
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -395,7 +394,7 @@ const CoachRosterScreen = () => {
                 navigation.navigate("UserProfile", { userId: item.user_id })
               }
               onRemove={() => confirmRemove(item)}
-              onEndorse={() => openEndorseFlow(item)}
+              onSubmitToFight={() => openSubmitToFightFlow(item)}
             />
           ))
         )}
@@ -423,7 +422,7 @@ function MemberCard({
   busy,
   onOpenProfile,
   onRemove,
-  onEndorse,
+  onSubmitToFight,
 }: MemberCardProps) {
   const displayName =
     `${item.users?.fname || ""} ${item.users?.lname || ""}`.trim() ||
@@ -451,12 +450,12 @@ function MemberCard({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.endorseBtn}
+          style={styles.submitFightBtn}
           activeOpacity={0.85}
-          onPress={onEndorse}
+          onPress={onSubmitToFight}
           disabled={busy}
         >
-          <Text style={styles.endorseBtnText}>Endorse</Text>
+          <Text style={styles.submitFightBtnText}>Submit</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -657,7 +656,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  endorseBtn: {
+  submitFightBtn: {
     flex: 1,
     backgroundColor: "#4da3ff",
     paddingVertical: 12,
@@ -667,7 +666,7 @@ const styles = StyleSheet.create({
     minHeight: 46,
   },
 
-  endorseBtnText: {
+  submitFightBtnText: {
     color: "#0b0b0b",
     fontWeight: "900",
     fontSize: 14,

@@ -24,6 +24,31 @@ interface ErrorResponse {
   error?: string | null;
 }
 
+interface SubmitByCoachParams extends ParamsDictionary {
+  id: string;
+}
+
+interface SubmitByCoachBody {
+  fighter_id?: string;
+  gym_id?: string;
+  endorsement_note?: string | null;
+}
+
+interface SubmitByCoachResponse {
+  ok: true;
+  application: {
+    id: string;
+    fight_slot_id: string;
+    fighter_id: string;
+    poster_id: string;
+    status: string;
+    endorsement_status: string;
+    endorsed_by_coach_user_id: string;
+    endorsement_note?: string | null;
+    created_at?: string | null;
+  };
+}
+
 interface AcceptApplicationParams {
   id: string;
 }
@@ -1710,5 +1735,220 @@ router.post(
     }
   },
 );
+
+router.post<
+  SubmitByCoachParams,
+  SubmitByCoachResponse | ErrorResponse,
+  SubmitByCoachBody
+>("/slots/:id/submit-by-coach", requireAuth, async (req, res) => {
+  try {
+    const slotId = req.params.id;
+    const coachUserId = req.supabaseUser?.id;
+    const { fighter_id, gym_id, endorsement_note } = req.body || {};
+
+    if (!coachUserId) {
+      return res.status(401).json({
+        message: "Not authenticated.",
+      });
+    }
+
+    if (req.user?.role !== "coach") {
+      return res.status(403).json({
+        message: "Only coaches can submit fighters.",
+      });
+    }
+
+    if (!fighter_id || typeof fighter_id !== "string") {
+      return res.status(400).json({
+        message: "fighter_id is required.",
+      });
+    }
+
+    if (!gym_id || typeof gym_id !== "string") {
+      return res.status(400).json({
+        message: "gym_id is required.",
+      });
+    }
+
+    // 1. Verify coach manages this gym
+    const { data: coachMembership, error: coachMembershipErr } =
+      await supabaseAdmin
+        .from("gym_memberships")
+        .select("id, gym_id, user_id, role, status")
+        .eq("gym_id", gym_id)
+        .eq("user_id", coachUserId)
+        .in("role", ["owner", "coach", "staff"])
+        .eq("status", "active")
+        .maybeSingle();
+
+    if (coachMembershipErr) {
+      return res.status(500).json({
+        message: coachMembershipErr.message,
+      });
+    }
+
+    if (!coachMembership) {
+      return res.status(403).json({
+        message: "Coach does not manage this gym.",
+      });
+    }
+
+    // 2. Verify fighter belongs to this gym
+    const { data: fighterMembership, error: fighterMembershipErr } =
+      await supabaseAdmin
+        .from("gym_memberships")
+        .select("id, gym_id, user_id, role, status")
+        .eq("gym_id", gym_id)
+        .eq("user_id", fighter_id)
+        .eq("role", "fighter")
+        .eq("status", "active")
+        .maybeSingle();
+
+    if (fighterMembershipErr) {
+      return res.status(500).json({
+        message: fighterMembershipErr.message,
+      });
+    }
+
+    if (!fighterMembership) {
+      return res.status(403).json({
+        message: "Fighter is not an active member of this gym.",
+      });
+    }
+
+    // 3. Verify slot exists and is open
+    const { data: slot, error: slotErr } = await supabaseAdmin
+      .from("fight_slots")
+      .select("id, event_id, status, allow_applications, application_deadline")
+      .eq("id", slotId)
+      .maybeSingle();
+
+    if (slotErr) {
+      return res.status(500).json({
+        message: slotErr.message,
+      });
+    }
+
+    if (!slot) {
+      return res.status(404).json({
+        message: "Slot not found.",
+      });
+    }
+
+    if (slot.status !== "open") {
+      return res.status(409).json({
+        message: "This slot is not open.",
+      });
+    }
+
+    if (!slot.allow_applications) {
+      return res.status(409).json({
+        message: "Applications are closed for this slot.",
+      });
+    }
+
+    if (slot.application_deadline) {
+      const deadline = new Date(slot.application_deadline).getTime();
+
+      if (Number.isFinite(deadline) && Date.now() > deadline) {
+        return res.status(409).json({
+          message: "Application deadline has passed.",
+        });
+      }
+    }
+
+    // 4. Get event owner/poster
+    const { data: event, error: eventErr } = await supabaseAdmin
+      .from("events")
+      .select("id, created_by")
+      .eq("id", slot.event_id)
+      .maybeSingle();
+
+    if (eventErr) {
+      return res.status(500).json({
+        message: eventErr.message,
+      });
+    }
+
+    if (!event?.created_by) {
+      return res.status(404).json({
+        message: "Parent event or event owner not found.",
+      });
+    }
+
+    // 5. Prevent duplicate application
+    const { data: existing, error: existingErr } = await supabaseAdmin
+      .from("fight_applications")
+      .select("id, status, endorsement_status")
+      .eq("fight_slot_id", slotId)
+      .eq("fighter_id", fighter_id)
+      .maybeSingle();
+
+    if (existingErr) {
+      return res.status(500).json({
+        message: existingErr.message,
+      });
+    }
+
+    if (existing) {
+      return res.status(409).json({
+        message: "This fighter already has an application for this slot.",
+      });
+    }
+
+    // 6. Create submitted + endorsed application
+    const { data: created, error: createErr } = await supabaseAdmin
+      .from("fight_applications")
+      .insert({
+        fight_slot_id: slotId,
+        fighter_id,
+        poster_id: event.created_by,
+        status: "submitted",
+        endorsement_status: "endorsed",
+        endorsed_by_coach_user_id: coachUserId,
+        endorsement_note:
+          typeof endorsement_note === "string" && endorsement_note.trim()
+            ? endorsement_note.trim()
+            : null,
+      })
+      .select(
+        `
+          id,
+          fight_slot_id,
+          fighter_id,
+          poster_id,
+          status,
+          endorsement_status,
+          endorsed_by_coach_user_id,
+          endorsement_note,
+          created_at
+        `,
+      )
+      .single();
+
+    if (createErr) {
+      console.error("submit-by-coach create error:", createErr);
+
+      const msg = createErr.message || "Failed to submit fighter.";
+      const lower = msg.toLowerCase();
+      const isDup = lower.includes("duplicate") || lower.includes("unique");
+
+      return res.status(isDup ? 409 : 500).json({
+        message: msg,
+      });
+    }
+
+    return res.status(201).json({
+      ok: true,
+      application: created,
+    });
+  } catch (e) {
+    console.error("POST /fights/slots/:id/submit-by-coach error:", e);
+
+    return res.status(500).json({
+      message: getErrorMessage(e),
+    });
+  }
+});
 
 export default router;
