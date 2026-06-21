@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "kavyx",
+    "name": "Kavyx",
     "slug": "kavyx",
     "scheme": "kavyx",
     "version": "1.0.0",
@@ -15,31 +15,23 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.fighthub-mobile",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "bundleIdentifier": "com.suleimanjibril.kavyx",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "com.suleimanjibril.kavyx",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      },
-      "package": "com.anonymous.fighthub_mobile",
-      "googleServicesFile": "./google-services.json"
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      [
-        "@react-native-google-signin/google-signin",
-        {
-          "iosUrlScheme": "com.googleusercontent.apps.523642193245-qm8lur23n8h5fvrfdhp30s37ekoc3mbq"
-        }
-      ],
       "expo-build-properties",
-      "@react-native-firebase/app",
-      "@react-native-firebase/auth",
-      "expo-video",
       [
         "expo-video",
         {
@@ -47,12 +39,15 @@
           "supportsPictureInPicture": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "eas": {
-        "projectId": "b6c40cf3-9312-4614-8f9b-ca6fdc41a779"
+        "projectId": "fc8ea099-7a13-4561-85ed-af06002867c1"
       }
-    }
+    },
+    "owner": "suleimanjb"
   }
 }
