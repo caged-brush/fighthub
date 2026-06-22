@@ -18,13 +18,13 @@ import CustomButton from "../component/CustomButton";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { CLIENT_ID_ANDROID, CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
-import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
-import * as Google from "expo-auth-session/providers/google";
-import { auth } from "../firebaseConfig";
+//import { CLIENT_ID_ANDROID, CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
+//import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+//import * as Google from "expo-auth-session/providers/google";
+//import { auth } from "../firebaseConfig";
 import { supabase } from "../lib/supabase";
 
-const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
+//const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 const VALID_ROLES = ["fighter", "scout", "coach"];
 
 const Signup = () => {
@@ -62,13 +62,13 @@ const Signup = () => {
     return "Create your account";
   }, [selectedRole]);
 
-  const [, , promptAsync] = Google.useAuthRequest({
-    iosClientId: CLIENT_ID_IOS,
-    androidClientId: CLIENT_ID_ANDROID,
-    webClientId: CLIENT_ID_WEB,
-    scopes: ["profile", "email"],
-    redirectUri,
-  });
+  // const [, , promptAsync] = Google.useAuthRequest({
+  //   iosClientId: CLIENT_ID_IOS,
+  //   androidClientId: CLIENT_ID_ANDROID,
+  //   webClientId: CLIENT_ID_WEB,
+  //   scopes: ["profile", "email"],
+  //   redirectUri,
+  // });
 
   const handleChange = (name, value) => {
     if (name === "email") value = value.trim().toLowerCase();
@@ -166,22 +166,22 @@ const Signup = () => {
 
   const handleLogin = () => navigation.navigate("Login");
 
-  const signIn = async () => {
-    if (submitting) return;
+  // const signIn = async () => {
+  //   if (submitting) return;
 
-    const result = await promptAsync();
-    if (result?.type === "success") {
-      const { idToken, accessToken } = result.authentication || {};
-      const credential = GoogleAuthProvider.credential(idToken, accessToken);
+  //   const result = await promptAsync();
+  //   if (result?.type === "success") {
+  //     const { idToken, accessToken } = result.authentication || {};
+  //     const credential = GoogleAuthProvider.credential(idToken, accessToken);
 
-      signInWithCredential(auth, credential)
-        .then((userCredential) => {
-          console.log("User signed in:", userCredential.user);
-          Alert.alert("Google Sign-in", "Now connect this to your backend.");
-        })
-        .catch((error) => console.log("Error signing in:", error));
-    }
-  };
+  //     signInWithCredential(auth, credential)
+  //       .then((userCredential) => {
+  //         console.log("User signed in:", userCredential.user);
+  //         Alert.alert("Google Sign-in", "Now connect this to your backend.");
+  //       })
+  //       .catch((error) => console.log("Error signing in:", error));
+  //   }
+  // };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -275,7 +275,6 @@ const Signup = () => {
               <CustomButton
                 variant="outline"
                 disabled={submitting}
-                onPress={signIn}
                 style={styles.fullWidth}
               >
                 <View style={styles.googleRow}>
