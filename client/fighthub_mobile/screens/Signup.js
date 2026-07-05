@@ -27,6 +27,29 @@ import { supabase } from "../lib/supabase";
 //const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 const VALID_ROLES = ["fighter", "scout", "coach"];
 
+// Same corner-accent system as the Welcome screen, so the visual language
+// (letter badge + corner color + corner label) carries through the flow.
+const ROLE_ACCENTS = {
+  fighter: {
+    solid: "#D6473F",
+    wash: "rgba(214,71,63,0.08)",
+    letter: "F",
+    corner: "RED CORNER",
+  },
+  scout: {
+    solid: "#D9A441",
+    wash: "rgba(217,164,65,0.08)",
+    letter: "S",
+    corner: "GOLD CORNER",
+  },
+  coach: {
+    solid: "#4A7FA7",
+    wash: "rgba(74,127,167,0.08)",
+    letter: "C",
+    corner: "BLUE CORNER",
+  },
+};
+
 const Signup = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -48,12 +71,12 @@ const Signup = () => {
 
   console.log("Selected role:", selectedRole);
 
-  const roleLabel = useMemo(() => {
-    if (selectedRole === "fighter") return "FIGHTER";
-    if (selectedRole === "scout") return "SCOUT";
-    if (selectedRole === "coach") return "COACH";
-    return null;
-  }, [selectedRole]);
+  const accent = ROLE_ACCENTS[selectedRole] || {
+    solid: "#E8B84B",
+    wash: "rgba(232,184,75,0.08)",
+    letter: "K",
+    corner: "KAVYX",
+  };
 
   const titleText = useMemo(() => {
     if (selectedRole === "fighter") return "Create your fighter account";
@@ -196,21 +219,29 @@ const Signup = () => {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
-              <Text style={styles.brand}>Kavyx</Text>
+              <Text style={styles.brand}>KAVYX</Text>
 
-              {roleLabel && (
-                <View style={styles.rolePill}>
-                  <Text style={styles.rolePillText}>{roleLabel}</Text>
+              <View style={styles.cornerTagRow}>
+                <View
+                  style={[
+                    styles.letterBadge,
+                    { backgroundColor: accent.solid },
+                  ]}
+                >
+                  <Text style={styles.letterBadgeText}>{accent.letter}</Text>
                 </View>
-              )}
+                <Text style={[styles.cornerLabel, { color: accent.solid }]}>
+                  {accent.corner}
+                </Text>
+              </View>
 
               <Text style={styles.title}>{titleText}</Text>
               <Text style={styles.subtitle}>
-                Use a real email — you’ll need it to verify your account.
+                Use a real email — you'll need it to verify your account.
               </Text>
             </View>
 
-            <View style={styles.card}>
+            <View style={[styles.card, { backgroundColor: accent.wash }]}>
               <Field
                 label="First name"
                 value={formData.fname}
@@ -243,6 +274,7 @@ const Signup = () => {
                 placeholder="At least 8 characters"
                 show={showPassword}
                 setShow={setShowPassword}
+                accentColor={accent.solid}
               />
 
               <PasswordField
@@ -252,6 +284,7 @@ const Signup = () => {
                 placeholder="Repeat password"
                 show={showConfirmPassword}
                 setShow={setShowConfirmPassword}
+                accentColor={accent.solid}
               />
             </View>
 
@@ -264,7 +297,7 @@ const Signup = () => {
               >
                 {submitting ? (
                   <View style={styles.loadingRow}>
-                    <ActivityIndicator color="#fff" />
+                    <ActivityIndicator color="#0B0B0C" />
                     <Text style={styles.loadingText}>Creating account...</Text>
                   </View>
                 ) : (
@@ -278,8 +311,10 @@ const Signup = () => {
                 style={styles.fullWidth}
               >
                 <View style={styles.googleRow}>
-                  <Ionicons name="logo-google" size={18} color="#ffd700" />
-                  <Text style={styles.googleText}>Continue with Google</Text>
+                  <Ionicons name="logo-google" size={18} color={accent.solid} />
+                  <Text style={[styles.googleText, { color: accent.solid }]}>
+                    Continue with Google
+                  </Text>
                 </View>
               </CustomButton>
 
@@ -321,7 +356,7 @@ function Field({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="rgba(255,255,255,0.35)"
+        placeholderTextColor="rgba(245,241,232,0.32)"
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
       />
@@ -336,6 +371,7 @@ function PasswordField({
   placeholder,
   show,
   setShow,
+  accentColor,
 }) {
   return (
     <View style={styles.field}>
@@ -346,7 +382,7 @@ function PasswordField({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="rgba(255,255,255,0.35)"
+          placeholderTextColor="rgba(245,241,232,0.32)"
           secureTextEntry={!show}
           autoCapitalize="none"
         />
@@ -355,7 +391,11 @@ function PasswordField({
           activeOpacity={0.7}
           style={styles.eyeBtn}
         >
-          <Ionicons name={show ? "eye-off" : "eye"} size={22} color="#ffd700" />
+          <Ionicons
+            name={show ? "eye-off" : "eye"}
+            size={22}
+            color={accentColor}
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -363,7 +403,7 @@ function PasswordField({
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#0b0b0b" },
+  safeArea: { flex: 1, backgroundColor: "#0B0B0C" },
 
   container: {
     flexGrow: 1,
@@ -379,70 +419,79 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   brand: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 16,
+    color: "#F5F1E8",
+    fontSize: 15,
     fontWeight: "900",
-    letterSpacing: 1.6,
-    marginBottom: 10,
+    letterSpacing: 4,
+    marginBottom: 16,
+    opacity: 0.9,
   },
-  rolePill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.45)",
-    backgroundColor: "rgba(255,215,0,0.08)",
-    marginBottom: 12,
+  cornerTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  rolePillText: {
-    color: "#ffd700",
+  letterBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 9,
+  },
+  letterBadgeText: {
+    color: "#0B0B0C",
+    fontSize: 13,
     fontWeight: "900",
-    letterSpacing: 1.2,
+  },
+  cornerLabel: {
     fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 1.6,
   },
   title: {
-    color: "#ffd700",
-    fontSize: 30,
+    color: "#E8B84B",
+    fontSize: 28,
     fontWeight: "900",
-    lineHeight: 34,
+    lineHeight: 32,
     marginBottom: 8,
+    letterSpacing: -0.4,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.7)",
+    color: "rgba(245,241,232,0.60)",
     fontSize: 14,
     lineHeight: 20,
     maxWidth: 340,
   },
 
   card: {
-    backgroundColor: "#121212",
-    borderRadius: 18,
+    backgroundColor: "#151515",
+    borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(245,241,232,0.07)",
   },
 
   field: { marginBottom: 12 },
   label: {
-    color: "rgba(255,255,255,0.72)",
-    fontSize: 13,
+    color: "rgba(245,241,232,0.55)",
+    fontSize: 12,
     fontWeight: "800",
     marginBottom: 8,
-    letterSpacing: 0.4,
+    letterSpacing: 1,
     textTransform: "uppercase",
   },
 
   inputWrap: { position: "relative" },
   input: {
-    backgroundColor: "#0f0f0f",
-    borderRadius: 14,
+    backgroundColor: "#0F0F0F",
+    borderRadius: 10,
     height: 52,
     paddingHorizontal: 14,
     fontSize: 16,
-    color: "#fff",
+    color: "#F5F1E8",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(245,241,232,0.10)",
   },
   eyeBtn: {
     position: "absolute",
@@ -460,7 +509,7 @@ const styles = StyleSheet.create({
   },
   fullWidth: {
     width: "100%",
-    borderRadius: 14,
+    borderRadius: 12,
   },
 
   loadingRow: {
@@ -469,7 +518,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   loadingText: {
-    color: "#fff",
+    color: "#0B0B0C",
     fontWeight: "800",
     fontSize: 16,
     letterSpacing: 0.6,
@@ -481,7 +530,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   googleText: {
-    color: "#ffd700",
     fontWeight: "900",
     fontSize: 16,
     letterSpacing: 0.6,
@@ -492,11 +540,11 @@ const styles = StyleSheet.create({
     paddingTop: 6,
   },
   loginText: {
-    color: "rgba(255,255,255,0.65)",
+    color: "rgba(245,241,232,0.55)",
     fontSize: 14,
   },
   loginLink: {
-    color: "rgba(255,255,255,0.92)",
+    color: "#F5F1E8",
     fontWeight: "900",
     textDecorationLine: "underline",
   },
@@ -504,7 +552,7 @@ const styles = StyleSheet.create({
   footer: {
     textAlign: "center",
     marginTop: 10,
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(245,241,232,0.28)",
     fontSize: 12,
     lineHeight: 16,
   },
