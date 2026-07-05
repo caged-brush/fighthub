@@ -93,6 +93,21 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
     }
 
     try {
+      const { data: existsData, error: existsError } =
+        await supabaseAdmin.storage
+          .from("fight_clips")
+          .createSignedUrl(storage_path, 60);
+
+      if (existsError) {
+        console.error("Uploaded object missing before DB insert:", {
+          message: existsError.message,
+          storage_path,
+        });
+
+        return res.status(400).json({
+          message: "Upload did not finish correctly. Please try again.",
+        });
+      }
       const { data, error } = await supabaseAdmin
         .from("fight_clips")
         .insert([
