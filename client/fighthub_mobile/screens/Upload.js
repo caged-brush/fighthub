@@ -23,6 +23,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { API_URL } from "../Constants";
+import { supabase } from "../lib/supabase";
+import { decode } from "base64-arraybuffer";
 
 /** ---------------- helpers ---------------- **/
 
@@ -119,22 +121,8 @@ async function normalizePickedVideo({ uri, assetId, fileName }) {
 
 // Upload using signedUrl from backend.
 // iOS: force FOREGROUND to avoid BackgroundUploadTask flakiness.
-async function uploadToSignedUrl({ signedUrl, fileUri, mimeType, userToken }) {
-  const opts = {
-    httpMethod: "POST",
-    headers: {
-      "Content-Type": mimeType,
-      Authorization: `Bearer ${userToken}`,
-    },
-    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-  };
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (Platform.OS === "ios") {
-    opts.sessionType = FileSystem.FileSystemSessionType.FOREGROUND;
-  }
-
-  return await FileSystem.uploadAsync(signedUrl, fileUri, opts);
-}
 const RESULTS = [
   { key: "win", label: "WIN" },
   { key: "loss", label: "LOSS" },
@@ -354,9 +342,9 @@ export default function UploadFightClipScreen() {
       if (!info.exists) throw new Error("Video file missing at upload time.");
 
       const size = info.size ?? video.size ?? null;
-      const MAX = 150 * 1024 * 1024;
+      const MAX = 100 * 1024 * 1024;
       if (size && size > MAX) {
-        Alert.alert("Too large", "Max 150MB per clip for now.");
+        Alert.alert("Too large", "Max 100MB per clip for now.");
         return;
       }
 
@@ -377,25 +365,29 @@ export default function UploadFightClipScreen() {
         throw new Error(signData?.message || "Failed to sign upload");
       }
 
-      const { storagePath, signedUrl } = signData || {};
-      if (!storagePath || !signedUrl) {
-        throw new Error("Sign response missing storagePath/signedUrl");
+      const { storagePath, token, path } = signData || {};
+      const finalStoragePath = path || storagePath;
+
+      if (!finalStoragePath || !token) {
+        throw new Error("Sign response missing storage path/token");
       }
 
-      // 2) Upload to signed URL (this is NOT your API; it's storage)
-      // IMPORTANT: do NOT send your Bearer token here.
       setStage("uploading");
-      const up = await uploadToSignedUrl({
-        signedUrl,
-        fileUri: video.uri,
-        mimeType,
-        userToken,
+
+      const base64 = await FileSystem.readAsStringAsync(video.uri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
 
-      if (up.status < 200 || up.status >= 300) {
-        throw new Error(
-          `Upload failed (status ${up.status}): ${up.body || ""}`,
-        );
+      const arrayBuffer = decode(base64);
+
+      const { error: uploadError } = await supabase.storage
+        .from("fight_clips")
+        .uploadToSignedUrl(finalStoragePath, token, arrayBuffer, {
+          contentType: mimeType,
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || "Upload failed");
       }
 
       // 3) Create clip record in your DB
@@ -409,7 +401,7 @@ export default function UploadFightClipScreen() {
           promotion: promotion || null,
           result,
           notes: notes || null,
-          storage_path: storagePath,
+          storage_path: finalStoragePath,
           mime_type: mimeType,
           file_size: size,
         }),

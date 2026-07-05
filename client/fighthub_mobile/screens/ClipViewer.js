@@ -6,11 +6,11 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Linking,
+  Alert,
 } from "react-native";
-import { Video } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { WebView } from "react-native-webview";
-
 import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 
@@ -105,6 +105,21 @@ function YouTubeBlock({ youtubeId, youtubeUrl }) {
         </Text>
       </TouchableOpacity>
     </>
+  );
+}
+
+function UploadedClipPlayer({ url }) {
+  const player = useVideoPlayer(url, (player) => {
+    player.loop = true;
+  });
+
+  return (
+    <VideoView
+      player={player}
+      nativeControls
+      contentFit="contain"
+      style={{ width: "100%", height: 320, backgroundColor: "#000" }}
+    />
   );
 }
 
@@ -237,13 +252,7 @@ export default function ClipViewer({ route, navigation }) {
         ) : loading ? (
           <ActivityIndicator size="large" color="#ffd700" />
         ) : url ? (
-          <Video
-            source={{ uri: url }}
-            style={{ width: "100%", height: 320, backgroundColor: "#000" }}
-            useNativeControls
-            resizeMode="contain"
-            isLooping
-          />
+          <UploadedClipPlayer url={url} />
         ) : (
           <Text style={{ color: "#bbb", textAlign: "center" }}>
             Clip unavailable.
