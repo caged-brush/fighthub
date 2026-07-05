@@ -184,6 +184,7 @@ export default function ClipViewer({ route, navigation }) {
         setUrl(data?.url || null);
       } catch (e) {
         console.log("PLAY URL ERROR:", e?.message);
+        Alert.alert("Play URL error", e?.message || "Could not load clip");
         setUrl(null);
       } finally {
         setLoading(false);

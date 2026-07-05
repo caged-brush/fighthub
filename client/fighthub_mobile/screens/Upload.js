@@ -19,6 +19,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as MediaLibrary from "expo-media-library";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { API_URL } from "../Constants";
@@ -56,6 +57,11 @@ const isIcloudOffloadError = (err) => {
   return msg.includes("PHPhotosErrorDomain") && msg.includes("3164");
 };
 
+const isPermissionError = (err) => {
+  const msg = String(err?.message || "").toLowerCase();
+  return msg.includes("permission") || msg.includes("denied");
+};
+
 const extractYouTubeId = (url) => {
   if (!url) return null;
   const s = String(url).trim();
@@ -76,6 +82,18 @@ async function normalizePickedVideo({ uri, assetId, fileName }) {
   if (!uri) throw new Error("Picker returned no uri");
 
   if (Platform.OS === "ios" && assetId) {
+    // BUG FIX: ImagePicker's media-library permission and expo-media-library's
+    // own permission are separate grants. getAssetInfoAsync requires the
+    // latter — without requesting it, this call can throw and get swallowed
+    // as a generic "Picker error", which is what was surfacing as an upload
+    // failure on real devices.
+    const mediaPerm = await MediaLibrary.requestPermissionsAsync();
+    if (!mediaPerm.granted) {
+      throw new Error(
+        "Photo library access is needed to read this video. Enable it in Settings, or use the Files picker instead.",
+      );
+    }
+
     const info = await MediaLibrary.getAssetInfoAsync(assetId);
     const local = info?.localUri || info?.uri;
     if (!local) {
@@ -101,12 +119,13 @@ async function normalizePickedVideo({ uri, assetId, fileName }) {
 
 // Upload using signedUrl from backend.
 // iOS: force FOREGROUND to avoid BackgroundUploadTask flakiness.
-async function uploadToSignedUrl({ signedUrl, fileUri, mimeType }) {
-  const headers = { "Content-Type": mimeType };
-
+async function uploadToSignedUrl({ signedUrl, fileUri, mimeType, userToken }) {
   const opts = {
-    httpMethod: "PUT",
-    headers,
+    httpMethod: "POST",
+    headers: {
+      "Content-Type": mimeType,
+      Authorization: `Bearer ${userToken}`,
+    },
     uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
   };
 
@@ -116,6 +135,12 @@ async function uploadToSignedUrl({ signedUrl, fileUri, mimeType }) {
 
   return await FileSystem.uploadAsync(signedUrl, fileUri, opts);
 }
+const RESULTS = [
+  { key: "win", label: "WIN" },
+  { key: "loss", label: "LOSS" },
+  { key: "draw", label: "DRAW" },
+  { key: "nc", label: "NC" },
+];
 
 /** ---------------- component ---------------- **/
 
@@ -130,7 +155,10 @@ export default function UploadFightClipScreen() {
   const [clipMode, setClipMode] = useState("upload");
   const [youtubeUrl, setYoutubeUrl] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  // Stage-aware loading so the user knows what's actually happening
+  // during a multi-step upload instead of a single opaque spinner.
+  const [stage, setStage] = useState(null); // null | "signing" | "uploading" | "saving"
+  const loading = stage !== null;
 
   const [fightDateObj, setFightDateObj] = useState(null);
   const [fightDate, setFightDate] = useState("");
@@ -141,6 +169,13 @@ export default function UploadFightClipScreen() {
     if (video?.size == null) return null;
     return `${(video.size / (1024 * 1024)).toFixed(1)} MB`;
   }, [video?.size]);
+
+  const stageLabel = useMemo(() => {
+    if (stage === "signing") return "Preparing upload...";
+    if (stage === "uploading") return "Uploading video...";
+    if (stage === "saving") return "Saving details...";
+    return "Saving...";
+  }, [stage]);
 
   const openDatePicker = () => {
     setTempDate(fightDateObj || new Date());
@@ -205,8 +240,12 @@ export default function UploadFightClipScreen() {
       if (isIcloudOffloadError(err)) {
         Alert.alert(
           "Video is in iCloud",
-          "That video isn’t downloaded. Download it in Photos, or use Files picker.",
+          "That video isn't downloaded. Download it in Photos, or use Files picker.",
         );
+        return;
+      }
+      if (isPermissionError(err)) {
+        Alert.alert("Permission needed", String(err?.message || err));
         return;
       }
       Alert.alert("Picker error", String(err?.message || err));
@@ -269,7 +308,7 @@ export default function UploadFightClipScreen() {
       const id = extractYouTubeId(youtubeUrl);
       if (!id) return Alert.alert("Invalid", "Paste a valid YouTube URL.");
 
-      setLoading(true);
+      setStage("saving");
       try {
         const res = await fetch(`${API_URL}/fight-clips/create-youtube`, {
           method: "POST",
@@ -302,7 +341,7 @@ export default function UploadFightClipScreen() {
       } catch (e) {
         Alert.alert("Error", e?.message || "Failed to add YouTube clip");
       } finally {
-        setLoading(false);
+        setStage(null);
       }
       return;
     }
@@ -310,7 +349,6 @@ export default function UploadFightClipScreen() {
     // Upload mode
     if (!video?.uri) return Alert.alert("Missing", "Pick a video first.");
 
-    setLoading(true);
     try {
       const info = await FileSystem.getInfoAsync(video.uri, { size: true });
       if (!info.exists) throw new Error("Video file missing at upload time.");
@@ -326,6 +364,7 @@ export default function UploadFightClipScreen() {
       const mimeType = guessMime(ext);
 
       // 1) Sign upload
+      setStage("signing");
       const signRes = await fetch(`${API_URL}/fight-clips/sign-upload`, {
         method: "POST",
         headers: authHeaders,
@@ -343,19 +382,24 @@ export default function UploadFightClipScreen() {
         throw new Error("Sign response missing storagePath/signedUrl");
       }
 
-      // 2) Upload to signed URL (this is NOT your API; it’s storage)
+      // 2) Upload to signed URL (this is NOT your API; it's storage)
       // IMPORTANT: do NOT send your Bearer token here.
+      setStage("uploading");
       const up = await uploadToSignedUrl({
         signedUrl,
         fileUri: video.uri,
         mimeType,
+        userToken,
       });
 
       if (up.status < 200 || up.status >= 300) {
-        throw new Error(`Upload failed (status ${up.status})`);
+        throw new Error(
+          `Upload failed (status ${up.status}): ${up.body || ""}`,
+        );
       }
 
       // 3) Create clip record in your DB
+      setStage("saving");
       const createRes = await fetch(`${API_URL}/fight-clips/create`, {
         method: "POST",
         headers: authHeaders,
@@ -390,7 +434,7 @@ export default function UploadFightClipScreen() {
     } catch (e) {
       Alert.alert("Error", e?.message || "Upload failed");
     } finally {
-      setLoading(false);
+      setStage(null);
     }
   };
 
@@ -407,7 +451,10 @@ export default function UploadFightClipScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.brand}>Kavyx</Text>
+          <View style={styles.eyebrowRow}>
+            <View style={styles.eyebrowDot} />
+            <Text style={styles.eyebrow}>CONTENT</Text>
+          </View>
           <Text style={styles.title}>Add a fight clip</Text>
           <Text style={styles.subtitle}>
             Upload a video or link a YouTube fight. Keep it clean and accurate.
@@ -457,17 +504,42 @@ export default function UploadFightClipScreen() {
 
           {clipMode === "upload" ? (
             <>
-              <View style={styles.mediaRow}>
-                <View style={styles.mediaBadge}>
-                  <Text style={styles.mediaBadgeText}>
-                    {video?.uri ? "SELECTED" : "NONE"}
-                  </Text>
+              {video?.uri ? (
+                <View style={styles.selectedMediaBox}>
+                  <View style={styles.selectedMediaIcon}>
+                    <Ionicons name="videocam" size={20} color="#0B0B0C" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fileName} numberOfLines={1}>
+                      {video.fileName || "Video selected"}
+                    </Text>
+                    {!!sizeLabel && (
+                      <Text style={styles.sizeText}>{sizeLabel}</Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={clearMedia}
+                    activeOpacity={0.7}
+                    disabled={loading}
+                    style={styles.removeBtn}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={16}
+                      color="rgba(245,241,232,0.6)"
+                    />
+                  </TouchableOpacity>
                 </View>
-
-                {!!sizeLabel && (
-                  <Text style={styles.sizeText}>{sizeLabel}</Text>
-                )}
-              </View>
+              ) : (
+                <View style={styles.emptyMediaBox}>
+                  <Ionicons
+                    name="videocam-outline"
+                    size={24}
+                    color="rgba(245,241,232,0.3)"
+                  />
+                  <Text style={styles.emptyMediaText}>No video selected</Text>
+                </View>
+              )}
 
               <View style={styles.mediaButtons}>
                 <CustomButton
@@ -476,7 +548,7 @@ export default function UploadFightClipScreen() {
                   disabled={loading}
                   style={{ flex: 1 }}
                 >
-                  Pick Photos
+                  Photos library
                 </CustomButton>
 
                 <CustomButton
@@ -485,26 +557,9 @@ export default function UploadFightClipScreen() {
                   disabled={loading}
                   style={{ flex: 1 }}
                 >
-                  Pick Files
+                  Files
                 </CustomButton>
               </View>
-
-              {video?.fileName ? (
-                <Text style={styles.fileName} numberOfLines={1}>
-                  {video.fileName}
-                </Text>
-              ) : null}
-
-              {video?.uri ? (
-                <TouchableOpacity
-                  onPress={clearMedia}
-                  activeOpacity={0.8}
-                  style={styles.clearLink}
-                  disabled={loading}
-                >
-                  <Text style={styles.clearText}>Remove selection</Text>
-                </TouchableOpacity>
-              ) : null}
             </>
           ) : (
             <>
@@ -512,7 +567,7 @@ export default function UploadFightClipScreen() {
                 value={youtubeUrl}
                 onChangeText={setYoutubeUrl}
                 placeholder="Paste YouTube URL"
-                placeholderTextColor="rgba(255,255,255,0.35)"
+                placeholderTextColor="rgba(245,241,232,0.32)"
                 style={styles.input}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -542,6 +597,12 @@ export default function UploadFightClipScreen() {
             disabled={loading}
             style={styles.selectField}
           >
+            <Ionicons
+              name="calendar-outline"
+              size={16}
+              color="rgba(245,241,232,0.45)"
+              style={{ marginRight: 8 }}
+            />
             <Text
               style={[
                 styles.selectText,
@@ -556,7 +617,7 @@ export default function UploadFightClipScreen() {
             value={opponent}
             onChangeText={setOpponent}
             placeholder="Opponent (optional)"
-            placeholderTextColor="rgba(255,255,255,0.35)"
+            placeholderTextColor="rgba(245,241,232,0.32)"
             editable={!loading}
             style={styles.input}
             autoCapitalize="words"
@@ -566,7 +627,7 @@ export default function UploadFightClipScreen() {
             value={promotion}
             onChangeText={setPromotion}
             placeholder="Promotion (optional)"
-            placeholderTextColor="rgba(255,255,255,0.35)"
+            placeholderTextColor="rgba(245,241,232,0.32)"
             editable={!loading}
             style={styles.input}
             autoCapitalize="words"
@@ -575,12 +636,12 @@ export default function UploadFightClipScreen() {
           {/* Result pills */}
           <Text style={styles.fieldLabel}>Result</Text>
           <View style={styles.resultRow}>
-            {["win", "loss", "draw", "nc"].map((r) => {
-              const active = result === r;
+            {RESULTS.map(({ key, label }) => {
+              const active = result === key;
               return (
                 <TouchableOpacity
-                  key={r}
-                  onPress={() => setResult(r)}
+                  key={key}
+                  onPress={() => setResult(key)}
                   activeOpacity={0.85}
                   disabled={loading}
                   style={[styles.resultPill, active && styles.resultPillActive]}
@@ -591,7 +652,7 @@ export default function UploadFightClipScreen() {
                       active && styles.resultTextActive,
                     ]}
                   >
-                    {r.toUpperCase()}
+                    {label}
                   </Text>
                 </TouchableOpacity>
               );
@@ -602,7 +663,7 @@ export default function UploadFightClipScreen() {
             value={notes}
             onChangeText={setNotes}
             placeholder="Notes (optional)"
-            placeholderTextColor="rgba(255,255,255,0.35)"
+            placeholderTextColor="rgba(245,241,232,0.32)"
             editable={!loading}
             style={[styles.input, styles.textArea]}
             multiline
@@ -622,10 +683,8 @@ export default function UploadFightClipScreen() {
         >
           {loading ? (
             <View style={styles.loadingRow}>
-              <ActivityIndicator color="#fff" />
-              <Text style={styles.loadingText}>
-                {clipMode === "youtube" ? "Saving…" : "Uploading…"}
-              </Text>
+              <ActivityIndicator color="#0B0B0C" />
+              <Text style={styles.loadingText}>{stageLabel}</Text>
             </View>
           ) : clipMode === "youtube" ? (
             "Add YouTube clip"
@@ -684,7 +743,7 @@ export default function UploadFightClipScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0b0b0b" },
+  safe: { flex: 1, backgroundColor: "#0B0B0C" },
   container: {
     paddingHorizontal: 18,
     paddingTop: Platform.OS === "android" ? 14 : 8,
@@ -692,23 +751,35 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  header: { marginBottom: 6 },
-  brand: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 16,
-    fontWeight: "900",
-    letterSpacing: 1.6,
+  header: { marginBottom: 4 },
+  eyebrowRow: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
   },
+  eyebrowDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#D6473F",
+    marginRight: 8,
+  },
+  eyebrow: {
+    color: "rgba(245,241,232,0.45)",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 2.2,
+  },
   title: {
-    color: "#ffd700",
-    fontSize: 30,
-    fontWeight: "950",
-    lineHeight: 34,
+    color: "#E8B84B",
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 32,
     marginBottom: 8,
+    letterSpacing: -0.4,
   },
   subtitle: {
-    color: "rgba(255,255,255,0.65)",
+    color: "rgba(245,241,232,0.55)",
     fontSize: 14,
     lineHeight: 20,
     maxWidth: 360,
@@ -721,151 +792,183 @@ const styles = StyleSheet.create({
   tab: {
     flex: 1,
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 12,
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "#151515",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(245,241,232,0.08)",
   },
   tabActive: {
-    backgroundColor: "rgba(255,215,0,0.12)",
-    borderColor: "rgba(255,215,0,0.35)",
+    backgroundColor: "rgba(232,184,75,0.12)",
+    borderColor: "rgba(232,184,75,0.4)",
   },
   tabText: {
-    color: "rgba(255,255,255,0.65)",
-    fontWeight: "900",
+    color: "rgba(245,241,232,0.55)",
+    fontWeight: "800",
     letterSpacing: 0.8,
   },
   tabTextActive: {
-    color: "#ffd700",
+    color: "#E8B84B",
   },
 
   card: {
-    backgroundColor: "#121212",
-    borderRadius: 18,
+    backgroundColor: "#151515",
+    borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(245,241,232,0.07)",
   },
 
   sectionTitle: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 13,
-    fontWeight: "950",
-    letterSpacing: 0.8,
+    color: "rgba(245,241,232,0.45)",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.4,
     textTransform: "uppercase",
+    marginBottom: 14,
+  },
+
+  emptyMediaBox: {
+    height: 96,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(245,241,232,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
     marginBottom: 12,
   },
+  emptyMediaText: {
+    color: "rgba(245,241,232,0.35)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
 
-  mediaRow: {
+  selectedMediaBox: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  mediaBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    gap: 12,
+    backgroundColor: "#0F0F0F",
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(232,184,75,0.25)",
+    padding: 12,
+    marginBottom: 12,
   },
-  mediaBadgeText: {
-    color: "rgba(255,255,255,0.75)",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 0.6,
+  selectedMediaIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#E8B84B",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  sizeText: { color: "rgba(255,255,255,0.55)", fontWeight: "800" },
+  removeBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(245,241,232,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
-  mediaButtons: { flexDirection: "row", gap: 10, marginTop: 12 },
+  mediaButtons: { flexDirection: "row", gap: 10 },
 
   fileName: {
-    marginTop: 10,
-    color: "rgba(255,255,255,0.75)",
+    color: "#F5F1E8",
     fontWeight: "700",
+    fontSize: 14,
+  },
+  sizeText: {
+    color: "rgba(245,241,232,0.45)",
+    fontWeight: "600",
+    fontSize: 12,
+    marginTop: 2,
   },
 
   clearLink: { marginTop: 10, alignSelf: "flex-start" },
   clearText: {
-    color: "rgba(255,215,0,0.9)",
-    fontWeight: "900",
+    color: "#E8B84B",
+    fontWeight: "800",
     textDecorationLine: "underline",
   },
 
   input: {
     marginTop: 10,
-    backgroundColor: "#0f0f0f",
-    borderRadius: 14,
-    height: 52,
+    backgroundColor: "#0F0F0F",
+    borderRadius: 10,
+    height: 50,
     paddingHorizontal: 14,
-    fontSize: 16,
-    color: "#fff",
+    fontSize: 15,
+    color: "#F5F1E8",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(245,241,232,0.10)",
   },
 
   selectField: {
-    backgroundColor: "#0f0f0f",
-    borderRadius: 14,
-    height: 52,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0F0F0F",
+    borderRadius: 10,
+    height: 50,
     paddingHorizontal: 14,
-    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(245,241,232,0.10)",
   },
-  selectText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-  selectPlaceholder: { color: "rgba(255,255,255,0.35)", fontWeight: "700" },
+  selectText: { color: "#F5F1E8", fontSize: 15, fontWeight: "600" },
+  selectPlaceholder: { color: "rgba(245,241,232,0.32)", fontWeight: "600" },
 
   fieldLabel: {
-    marginTop: 12,
-    color: "rgba(255,255,255,0.55)",
-    fontWeight: "900",
-    letterSpacing: 0.6,
+    marginTop: 14,
+    color: "rgba(245,241,232,0.45)",
+    fontWeight: "800",
+    letterSpacing: 1,
     textTransform: "uppercase",
+    fontSize: 11,
+  },
+
+  resultRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  resultPill: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: "#0F0F0F",
+    borderWidth: 1,
+    borderColor: "rgba(245,241,232,0.10)",
+  },
+  resultPillActive: {
+    backgroundColor: "rgba(232,184,75,0.12)",
+    borderColor: "rgba(232,184,75,0.4)",
+  },
+  resultText: { color: "rgba(245,241,232,0.55)", fontWeight: "800" },
+  resultTextActive: { color: "#E8B84B" },
+
+  textArea: { height: 110, paddingTop: 14, paddingBottom: 14 },
+  charCount: {
+    color: "rgba(245,241,232,0.3)",
+    marginTop: 6,
+    textAlign: "right",
     fontSize: 12,
   },
 
-  resultRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
-  resultPill: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-  },
-  resultPillActive: {
-    backgroundColor: "rgba(255,215,0,0.14)",
-    borderColor: "rgba(255,215,0,0.40)",
-  },
-  resultText: { color: "rgba(255,255,255,0.7)", fontWeight: "900" },
-  resultTextActive: { color: "#ffd700" },
-
-  textArea: { height: 120, paddingTop: 14, paddingBottom: 14 },
-  charCount: {
-    color: "rgba(255,255,255,0.35)",
-    marginTop: 8,
-    textAlign: "right",
-  },
-
   loadingRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  loadingText: { color: "#fff", fontWeight: "900", fontSize: 16 },
+  loadingText: { color: "#0B0B0C", fontWeight: "800", fontSize: 16 },
 
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)" },
   modalSheet: {
-    backgroundColor: "#121212",
+    backgroundColor: "#151515",
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingTop: 12,
     paddingBottom: 18,
     paddingHorizontal: 14,
     borderTopWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(245,241,232,0.08)",
   },
   modalTitle: {
-    color: "#ffd700",
-    fontWeight: "950",
+    color: "#E8B84B",
+    fontWeight: "900",
     fontSize: 16,
     marginBottom: 10,
   },
@@ -878,17 +981,17 @@ const styles = StyleSheet.create({
   modalBtnGhost: {
     paddingVertical: 10,
     paddingHorizontal: 14,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 10,
+    backgroundColor: "rgba(245,241,232,0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(245,241,232,0.12)",
   },
-  modalBtnGhostText: { color: "#fff", fontWeight: "800" },
+  modalBtnGhostText: { color: "#F5F1E8", fontWeight: "700" },
   modalBtnPrimary: {
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: "#ffd700",
+    borderRadius: 10,
+    backgroundColor: "#E8B84B",
   },
-  modalBtnPrimaryText: { color: "#0b0b0b", fontWeight: "950" },
+  modalBtnPrimaryText: { color: "#0B0B0C", fontWeight: "900" },
 });

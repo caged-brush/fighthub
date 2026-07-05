@@ -281,11 +281,28 @@ export default function fightClipsRoutes(supabase, supabaseAdmin, requireAuth) {
         return res.status(403).json({ message: "Not allowed" });
       }
 
+      console.log("Signing clip storage path:", {
+        clipId,
+        storage_path: clip.storage_path,
+      });
+
       const { data, error } = await supabaseAdmin.storage
         .from("fight_clips")
         .createSignedUrl(clip.storage_path, 60 * 10);
 
-      if (error) throw error;
+      if (error) {
+        console.error("createSignedUrl error:", {
+          message: error.message,
+          name: error.name,
+          status: error.status,
+          storage_path: clip.storage_path,
+          clipId,
+        });
+
+        return res.status(500).json({
+          message: error.message || "Failed to create play url",
+        });
+      }
 
       return res.json({ url: data.signedUrl });
     } catch (err) {

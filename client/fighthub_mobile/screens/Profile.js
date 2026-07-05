@@ -312,7 +312,11 @@ export default function Profile() {
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 28 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#F5F1E8"
+          />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -320,7 +324,7 @@ export default function Profile() {
           <View style={styles.notFoundCard}>
             <Text style={styles.notFoundTitle}>Profile not found</Text>
             <Text style={styles.notFoundText}>
-              This user hasn’t completed fighter onboarding yet.
+              This user hasn't completed fighter onboarding yet.
             </Text>
 
             {viewingOwnProfile ? (
@@ -345,7 +349,7 @@ export default function Profile() {
                     />
                   ) : (
                     <View style={styles.avatarFallback}>
-                      <Ionicons name="person" size={34} color="#ffd700" />
+                      <Ionicons name="person" size={34} color="#E8B84B" />
                     </View>
                   )}
                 </View>
@@ -371,7 +375,7 @@ export default function Profile() {
                     <Text style={styles.smallMeta}>
                       {fighterInfo.weight_class || "—"}
                     </Text>
-                    <Text style={styles.dot}>•</Text>
+                    <Text style={styles.dot}>·</Text>
                     <Text style={styles.smallMeta}>
                       {fighterInfo.fight_style || "—"}
                     </Text>
@@ -441,7 +445,7 @@ export default function Profile() {
                     <Ionicons
                       name="chevron-forward"
                       size={18}
-                      color="#ffd700"
+                      color="#E8B84B"
                     />
                   </TouchableOpacity>
 
@@ -461,7 +465,7 @@ export default function Profile() {
                     <Ionicons
                       name="chevron-forward"
                       size={18}
-                      color="#ffd700"
+                      color="#E8B84B"
                     />
                   </TouchableOpacity>
                 </View>
@@ -539,7 +543,7 @@ export default function Profile() {
                       />
                     ) : (
                       <View style={styles.videoThumb}>
-                        <Ionicons name="play" size={28} color="#fff" />
+                        <Ionicons name="play" size={28} color="#F5F1E8" />
                         <Text style={styles.videoLabel}>Video</Text>
                       </View>
                     )}
@@ -555,25 +559,25 @@ export default function Profile() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#0b0b0b" },
-  container: { flex: 1, backgroundColor: "#0b0b0b" },
+  safeArea: { flex: 1, backgroundColor: "#0B0B0C" },
+  container: { flex: 1, backgroundColor: "#0B0B0C" },
 
   headerCard: {
     margin: 18,
     padding: 16,
-    borderRadius: 18,
-    backgroundColor: "#121212",
+    borderRadius: 14,
+    backgroundColor: "#151515",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(245,241,232,0.07)",
   },
   sectionCard: {
     marginHorizontal: 18,
     marginTop: 12,
     padding: 16,
-    borderRadius: 18,
-    backgroundColor: "#121212",
+    borderRadius: 14,
+    backgroundColor: "#151515",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(245,241,232,0.07)",
   },
 
   headerRow: { flexDirection: "row", gap: 14, alignItems: "center" },
@@ -582,42 +586,43 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#1f1f1f",
+    backgroundColor: "#1c1c1c",
     borderWidth: 2,
-    borderColor: "rgba(255,215,0,0.6)",
+    borderColor: "rgba(232,184,75,0.55)",
   },
   avatarFallback: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: "#1f1f1f",
+    backgroundColor: "#1c1c1c",
     borderWidth: 2,
-    borderColor: "rgba(255,215,0,0.6)",
+    borderColor: "rgba(232,184,75,0.55)",
     alignItems: "center",
     justifyContent: "center",
   },
 
   name: {
-    color: "#ffd700",
+    color: "#F5F1E8",
     fontSize: 22,
     fontWeight: "900",
     marginBottom: 6,
+    letterSpacing: -0.3,
   },
 
   metaRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 6 },
   smallMetaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   smallMeta: {
-    color: "rgba(255,255,255,0.78)",
-    fontWeight: "800",
+    color: "rgba(245,241,232,0.68)",
+    fontWeight: "700",
     fontSize: 13,
   },
-  dot: { color: "rgba(255,255,255,0.35)", fontWeight: "900" },
+  dot: { color: "rgba(245,241,232,0.30)", fontWeight: "900" },
 
   statsRow: {
     marginTop: 14,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
+    borderTopColor: "rgba(245,241,232,0.08)",
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 10,
@@ -626,27 +631,27 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: "row", gap: 10, marginTop: 14 },
 
   sectionTitle: {
-    color: "rgba(255,255,255,0.9)",
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: 0.8,
+    color: "rgba(245,241,232,0.5)",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.6,
     textTransform: "uppercase",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   bioText: {
-    color: "rgba(255,255,255,0.78)",
+    color: "rgba(245,241,232,0.75)",
     lineHeight: 20,
-    fontWeight: "600",
+    fontWeight: "500",
   },
 
   gymActionsCol: {
     gap: 10,
   },
   gymActionBtn: {
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(245,241,232,0.04)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    borderRadius: 14,
+    borderColor: "rgba(245,241,232,0.08)",
+    borderRadius: 12,
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
@@ -654,13 +659,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   gymActionTitle: {
-    color: "#fff",
-    fontWeight: "900",
+    color: "#F5F1E8",
+    fontWeight: "800",
     fontSize: 15,
     marginBottom: 4,
   },
   gymActionText: {
-    color: "rgba(255,255,255,0.62)",
+    color: "rgba(245,241,232,0.5)",
     lineHeight: 18,
     maxWidth: 260,
   },
@@ -674,13 +679,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  postsTitle: { color: "#ffd700", fontSize: 20, fontWeight: "900" },
-  postsCount: {
-    color: "rgba(255,255,255,0.75)",
+  postsTitle: {
+    color: "#F5F1E8",
+    fontSize: 20,
     fontWeight: "900",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    letterSpacing: -0.3,
+  },
+  postsCount: {
+    color: "rgba(245,241,232,0.65)",
+    fontWeight: "800",
+    backgroundColor: "rgba(245,241,232,0.05)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(245,241,232,0.08)",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
@@ -696,22 +706,22 @@ const styles = StyleSheet.create({
   gridItem: {
     width: "48%",
     aspectRatio: 1,
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: "hidden",
-    backgroundColor: "#121212",
+    backgroundColor: "#151515",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(245,241,232,0.07)",
   },
   gridMedia: { width: "100%", height: "100%" },
   videoThumb: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(245,241,232,0.04)",
   },
   videoLabel: {
-    color: "rgba(255,255,255,0.8)",
-    fontWeight: "900",
+    color: "rgba(245,241,232,0.7)",
+    fontWeight: "800",
     marginTop: 8,
   },
 
@@ -719,20 +729,20 @@ const styles = StyleSheet.create({
     marginHorizontal: 18,
     marginTop: 12,
     padding: 16,
-    borderRadius: 18,
-    backgroundColor: "#121212",
+    borderRadius: 14,
+    backgroundColor: "#151515",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(245,241,232,0.07)",
     alignItems: "center",
   },
   emptyTitle: {
-    color: "#fff",
-    fontWeight: "900",
+    color: "#F5F1E8",
+    fontWeight: "800",
     fontSize: 16,
     marginBottom: 6,
   },
   emptyText: {
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(245,241,232,0.5)",
     textAlign: "center",
     lineHeight: 18,
   },
@@ -740,16 +750,16 @@ const styles = StyleSheet.create({
   notFoundCard: {
     margin: 18,
     padding: 16,
-    borderRadius: 18,
-    backgroundColor: "#121212",
+    borderRadius: 14,
+    backgroundColor: "#151515",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(245,241,232,0.07)",
   },
   notFoundTitle: {
-    color: "#fff",
-    fontWeight: "900",
+    color: "#F5F1E8",
+    fontWeight: "800",
     fontSize: 18,
     marginBottom: 8,
   },
-  notFoundText: { color: "rgba(255,255,255,0.65)", lineHeight: 18 },
+  notFoundText: { color: "rgba(245,241,232,0.55)", lineHeight: 18 },
 });

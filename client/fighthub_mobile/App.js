@@ -10,11 +10,15 @@ import { useFonts } from "expo-font";
 import Signup from "./screens/Signup";
 import Login from "./screens/Login";
 import Welcome from "./screens/Welcome";
-
+import EditProfile from "./screens/EditProfile";
 import Dashboard from "./screens/App2";
 import FighterOnboarding from "./screens/FighterOnboarding";
 import ScoutOnboarding from "./screens/ScoutOnboarding";
-
+import ChangePassword from "./screens/ChangePassword";
+import Verification from "./screens/Verification";
+import Help from "./screens/Help";
+import Terms from "./screens/Terms";
+import ContactSupport from "./screens/ContactSupport";
 import ScoutTabs from "./screens/ScoutTabs";
 
 import ChatScreen from "./screens/ChatScreen";
@@ -233,6 +237,40 @@ function AppNavigator() {
         <Stack.Screen
           name="CoachSubmitToFightScreen"
           component={CoachSubmitToFightScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="ChangePassword"
+          component={ChangePassword}
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="Verification"
+          component={Verification}
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="Help"
+          component={Help}
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="Terms"
+          component={Terms}
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="ContactSupport"
+          component={ContactSupport}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="EditProfile"
+          component={EditProfile}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
