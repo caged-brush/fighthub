@@ -24,6 +24,7 @@ import { Ionicons } from "@expo/vector-icons";
 //import { auth } from "../firebaseConfig";
 import { supabase } from "../lib/supabase";
 import * as AppleAuthentication from "expo-apple-authentication";
+import { API_URL } from "../Constants";
 
 //const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 const VALID_ROLES = ["fighter", "scout", "coach"];
@@ -223,7 +224,7 @@ const Signup = () => {
         throw new Error("No Supabase session returned");
       }
 
-      const res = await fetch(`${YOUR_API_URL}/auth/set-role`, {
+      const res = await fetch(`${API_URL}/auth/set-role`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
