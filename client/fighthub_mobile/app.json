@@ -16,9 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.suleimanjibril.kavyx",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "plugins": ["expo-apple-authentication"]
     },
     "android": {
       "package": "com.suleimanjibril.kavyx",

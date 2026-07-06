@@ -23,6 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 //import * as Google from "expo-auth-session/providers/google";
 //import { auth } from "../firebaseConfig";
 import { supabase } from "../lib/supabase";
+import * as AppleAuthentication from "expo-apple-authentication";
 
 //const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 const VALID_ROLES = ["fighter", "scout", "coach"];
@@ -187,6 +188,63 @@ const Signup = () => {
     }
   };
 
+  const handleAppleSignup = async () => {
+    if (submitting) return;
+
+    if (!selectedRole || !VALID_ROLES.includes(selectedRole)) {
+      Alert.alert("Choose a role", "Please select a valid role.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error("Apple did not return an identity token");
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken,
+      });
+
+      if (error) throw error;
+
+      const accessToken = data.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("No Supabase session returned");
+      }
+
+      const res = await fetch(`${YOUR_API_URL}/auth/set-role`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ role: selectedRole }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.message || "Failed to set role");
+      }
+
+      navigation.replace("Login");
+    } catch (e) {
+      Alert.alert("Apple Sign Up failed", e?.message || "Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const handleLogin = () => navigation.navigate("Login");
 
   // const signIn = async () => {
@@ -305,18 +363,17 @@ const Signup = () => {
                 )}
               </CustomButton>
 
-              <CustomButton
-                variant="outline"
-                disabled={submitting}
-                style={styles.fullWidth}
-              >
-                <View style={styles.googleRow}>
-                  <Ionicons name="logo-google" size={18} color={accent.solid} />
-                  <Text style={[styles.googleText, { color: accent.solid }]}>
-                    Continue with Google
-                  </Text>
-                </View>
-              </CustomButton>
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={
+                  AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
+                }
+                buttonStyle={
+                  AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                }
+                cornerRadius={12}
+                style={{ width: "100%", height: 52 }}
+                onPress={handleAppleSignup}
+              />
 
               <TouchableOpacity
                 onPress={handleLogin}

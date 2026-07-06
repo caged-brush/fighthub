@@ -20,6 +20,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { API_URL } from "../Constants";
 import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/apiFetch";
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as Crypto from "expo-crypto";
 
 const Login = () => {
   const navigation = useNavigation();
@@ -103,6 +105,100 @@ const Login = () => {
       await login(token, id, role, isOnboarded);
     } catch (e) {
       Alert.alert("Login failed", e?.message || "Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    if (submitting) return;
+
+    if (Platform.OS !== "ios") {
+      Alert.alert("Apple Sign In", "Apple Sign In is only available on iOS.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+
+      if (!isAvailable) {
+        Alert.alert("Apple Sign In", "Apple Sign In is not available.");
+        return;
+      }
+
+      const nonce = Crypto.randomUUID();
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+        nonce,
+      });
+
+      if (!credential.identityToken) {
+        throw new Error("Apple did not return an identity token.");
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken,
+        nonce,
+      });
+
+      if (error) throw error;
+
+      const session = data?.session;
+      if (!session?.access_token) {
+        throw new Error("No session returned.");
+      }
+
+      if (credential.fullName) {
+        const fullName = [
+          credential.fullName.givenName,
+          credential.fullName.familyName,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        if (fullName) {
+          await supabase.auth.updateUser({
+            data: {
+              full_name: fullName,
+              given_name: credential.fullName.givenName,
+              family_name: credential.fullName.familyName,
+            },
+          });
+        }
+      }
+
+      const token = session.access_token;
+      const me = await apiFetch("/auth/me", { token });
+
+      const user = me?.user;
+      if (!user?.id || !user?.role) {
+        throw new Error("Invalid /auth/me response");
+      }
+
+      const { id, role, scout_onboarded, fighter_onboarded, coach_onboarded } =
+        user;
+
+      let isOnboarded = false;
+
+      if (role === "fighter") {
+        isOnboarded = !!fighter_onboarded;
+      } else if (role === "scout") {
+        isOnboarded = !!scout_onboarded;
+      } else if (role === "coach") {
+        isOnboarded = !!coach_onboarded;
+      }
+
+      await login(token, id, role, isOnboarded);
+    } catch (e) {
+      if (e?.code === "ERR_REQUEST_CANCELED") return;
+      Alert.alert("Apple Sign In failed", e?.message || "Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -202,6 +298,20 @@ const Login = () => {
                   "Log in"
                 )}
               </CustomButton>
+
+              {Platform.OS === "ios" && (
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={
+                    AppleAuthentication.AppleAuthenticationButtonType.CONTINUE
+                  }
+                  buttonStyle={
+                    AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                  }
+                  cornerRadius={14}
+                  style={styles.appleButton}
+                  onPress={handleAppleLogin}
+                />
+              )}
 
               <CustomButton
                 variant="ghost"
@@ -322,6 +432,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     marginTop: 6,
+  },
+  appleButton: {
+    width: "100%",
+    height: 52,
   },
 });
 
