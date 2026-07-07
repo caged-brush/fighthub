@@ -189,6 +189,20 @@ const Signup = () => {
     }
   };
 
+  const sendDebugLog = async (payload) => {
+    try {
+      await fetch(`${API_URL}/debug`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      console.log("Failed to send debug log:", e?.message);
+    }
+  };
+
   const handleAppleSignup = async () => {
     if (submitting) return;
 
@@ -200,11 +214,26 @@ const Signup = () => {
     setSubmitting(true);
 
     try {
+      await sendDebugLog({
+        stage: "apple-signup-start",
+        selectedRole,
+        timestamp: new Date().toISOString(),
+      });
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+      });
+
+      await sendDebugLog({
+        stage: "apple-credential-received",
+        hasIdentityToken: !!credential.identityToken,
+        user: credential.user,
+        email: credential.email,
+        fullName: credential.fullName,
+        realUserStatus: credential.realUserStatus,
       });
 
       if (!credential.identityToken) {
@@ -216,6 +245,20 @@ const Signup = () => {
         token: credential.identityToken,
       });
 
+      await sendDebugLog({
+        stage: "supabase-apple-result",
+        hasSession: !!data?.session,
+        userId: data?.user?.id,
+        error: error
+          ? {
+              message: error.message,
+              code: error.code,
+              status: error.status,
+              name: error.name,
+            }
+          : null,
+      });
+
       if (error) throw error;
 
       const accessToken = data.session?.access_token;
@@ -224,7 +267,7 @@ const Signup = () => {
         throw new Error("No Supabase session returned");
       }
 
-      const res = await fetch(`${API_URL}/auth/set-role`, {
+      const roleRes = await fetch(`${API_URL}/auth/set-role`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -233,15 +276,41 @@ const Signup = () => {
         body: JSON.stringify({ role: selectedRole }),
       });
 
-      const json = await res.json();
+      const roleJson = await roleRes.json();
 
-      if (!res.ok) {
-        throw new Error(json.message || "Failed to set role");
+      await sendDebugLog({
+        stage: "set-role-result",
+        ok: roleRes.ok,
+        status: roleRes.status,
+        response: roleJson,
+      });
+
+      if (!roleRes.ok) {
+        throw new Error(roleJson.message || "Failed to set role");
       }
 
-      navigation.replace("Login");
+      if (selectedRole && setUserRole) {
+        await setUserRole(selectedRole);
+      }
+
+      navigation.replace("Login", {
+        role: selectedRole,
+      });
     } catch (e) {
-      Alert.alert("Apple Sign Up failed", e?.message || "Something went wrong");
+      await sendDebugLog({
+        stage: "apple-signup-catch",
+        error: {
+          message: e?.message,
+          code: e?.code,
+          status: e?.status,
+          name: e?.name,
+        },
+      });
+
+      Alert.alert(
+        "Apple Sign Up failed",
+        e?.message || "Something went wrong. Please try again.",
+      );
     } finally {
       setSubmitting(false);
     }
