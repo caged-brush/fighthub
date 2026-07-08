@@ -1,6 +1,7 @@
 import express, { Request, Response, Router, RequestHandler } from "express";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ParamsDictionary } from "express-serve-static-core";
+import { sendPushNotification } from "../utils/sendPushNotification.js";
 
 interface ErrorResponse {
   message: string;
@@ -476,6 +477,48 @@ export default function inboxRoutes(
             last_message_at: created.timestamp || now,
           })
           .eq("id", threadId);
+
+        try {
+          const { data: sender } = await supabase
+            .from("users")
+            .select("fname, lname")
+            .eq("id", myId)
+            .maybeSingle();
+
+          const { data: recipient, error: recipientErr } = await supabase
+            .from("users")
+            .select("expo_push_token")
+            .eq("id", recipientId)
+            .maybeSingle();
+
+          if (recipientErr) throw recipientErr;
+
+          const senderName =
+            [sender?.fname, sender?.lname].filter(Boolean).join(" ") ||
+            "Someone";
+
+          if (recipient?.expo_push_token) {
+            await sendPushNotification(
+              recipient.expo_push_token,
+              senderName,
+              bodyMessage.length > 80
+                ? `${bodyMessage.slice(0, 80)}...`
+                : bodyMessage,
+              {
+                type: "message",
+                threadId,
+                senderId: myId,
+                recipientId,
+                messageId: created.id,
+              },
+            );
+          }
+        } catch (pushErr) {
+          console.error(
+            "[push] message notification failed:",
+            getErrorMessage(pushErr),
+          );
+        }
 
         return res.status(201).json({
           ok: true,
