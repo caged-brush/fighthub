@@ -18,15 +18,10 @@ import CustomButton from "../component/CustomButton";
 import { AuthContext } from "../context/AuthContext";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-//import { CLIENT_ID_ANDROID, CLIENT_ID_IOS, CLIENT_ID_WEB } from "../keys/keys";
-//import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
-//import * as Google from "expo-auth-session/providers/google";
-//import { auth } from "../firebaseConfig";
 import { supabase } from "../lib/supabase";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { API_URL } from "../Constants";
 
-//const redirectUri = "https://auth.expo.io/@suleimanjb/fighthub_mobile";
 const VALID_ROLES = ["fighter", "scout", "coach"];
 
 // Same corner-accent system as the Welcome screen, so the visual language
@@ -59,10 +54,12 @@ const Signup = () => {
 
   const { setUserRole } = useContext(AuthContext);
   const [submitting, setSubmitting] = useState(false);
+  const [showEmailForm, setShowEmailForm] = useState(false);
 
+  // Apple handles identity + name. For email signup, first/last name are
+  // no longer collected here — they're captured during onboarding instead,
+  // so both paths converge on the same "who are you" step right after auth.
   const [formData, setFormData] = useState({
-    fname: "",
-    lname: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -70,8 +67,6 @@ const Signup = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-  console.log("Selected role:", selectedRole);
 
   const accent = ROLE_ACCENTS[selectedRole] || {
     solid: "#E8B84B",
@@ -87,29 +82,16 @@ const Signup = () => {
     return "Create your account";
   }, [selectedRole]);
 
-  // const [, , promptAsync] = Google.useAuthRequest({
-  //   iosClientId: CLIENT_ID_IOS,
-  //   androidClientId: CLIENT_ID_ANDROID,
-  //   webClientId: CLIENT_ID_WEB,
-  //   scopes: ["profile", "email"],
-  //   redirectUri,
-  // });
-
   const handleChange = (name, value) => {
     if (name === "email") value = value.trim().toLowerCase();
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const validate = () => {
-    const { fname, lname, email, password, confirmPassword } = formData;
+    const { email, password, confirmPassword } = formData;
 
     if (!selectedRole || !VALID_ROLES.includes(selectedRole)) {
       Alert.alert("Choose a role", "Please select a valid role.");
-      return false;
-    }
-
-    if (!fname.trim() || !lname.trim()) {
-      Alert.alert("Missing name", "Enter your first and last name.");
       return false;
     }
 
@@ -147,8 +129,6 @@ const Signup = () => {
         options: {
           data: {
             role: selectedRole,
-            fname: formData.fname?.trim(),
-            lname: formData.lname?.trim(),
           },
           emailRedirectTo: "https://kavyx.tech/verify",
         },
@@ -304,7 +284,10 @@ const Signup = () => {
         await setUserRole(selectedRole);
       }
 
-      navigation.replace("Login", {
+      // Apple gives us an identity, not necessarily a name Kavyx trusts as
+      // final — onboarding is where fname/lname actually get collected
+      // and confirmed, for both Apple and email signups alike.
+      navigation.replace("Onboarding", {
         role: selectedRole,
       });
     } catch (e) {
@@ -326,24 +309,8 @@ const Signup = () => {
       setSubmitting(false);
     }
   };
+
   const handleLogin = () => navigation.navigate("Login");
-
-  // const signIn = async () => {
-  //   if (submitting) return;
-
-  //   const result = await promptAsync();
-  //   if (result?.type === "success") {
-  //     const { idToken, accessToken } = result.authentication || {};
-  //     const credential = GoogleAuthProvider.credential(idToken, accessToken);
-
-  //     signInWithCredential(auth, credential)
-  //       .then((userCredential) => {
-  //         console.log("User signed in:", userCredential.user);
-  //         Alert.alert("Google Sign-in", "Now connect this to your backend.");
-  //       })
-  //       .catch((error) => console.log("Error signing in:", error));
-  //   }
-  // };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -376,97 +343,107 @@ const Signup = () => {
 
               <Text style={styles.title}>{titleText}</Text>
               <Text style={styles.subtitle}>
-                Use a real email — you'll need it to verify your account.
+                Fastest way in — we'll get your name and details set up right
+                after.
               </Text>
             </View>
 
-            <View style={[styles.card, { backgroundColor: accent.wash }]}>
-              <Field
-                label="First name"
-                value={formData.fname}
-                onChangeText={(v) => handleChange("fname", v)}
-                placeholder="John"
-                autoCapitalize="words"
-              />
+            {/* Apple is the primary path */}
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={
+                AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
+              }
+              buttonStyle={
+                AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+              }
+              cornerRadius={12}
+              style={styles.appleBtn}
+              onPress={handleAppleSignup}
+            />
 
-              <Field
-                label="Last name"
-                value={formData.lname}
-                onChangeText={(v) => handleChange("lname", v)}
-                placeholder="Doe"
-                autoCapitalize="words"
-              />
-
-              <Field
-                label="Email"
-                value={formData.email}
-                onChangeText={(v) => handleChange("email", v)}
-                placeholder="you@email.com"
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-
-              <PasswordField
-                label="Password"
-                value={formData.password}
-                onChangeText={(v) => handleChange("password", v)}
-                placeholder="At least 8 characters"
-                show={showPassword}
-                setShow={setShowPassword}
-                accentColor={accent.solid}
-              />
-
-              <PasswordField
-                label="Confirm password"
-                value={formData.confirmPassword}
-                onChangeText={(v) => handleChange("confirmPassword", v)}
-                placeholder="Repeat password"
-                show={showConfirmPassword}
-                setShow={setShowConfirmPassword}
-                accentColor={accent.solid}
-              />
-            </View>
-
-            <View style={styles.actions}>
-              <CustomButton
-                variant="primary"
-                disabled={submitting}
-                onPress={handleUserSignup}
-                style={styles.fullWidth}
-              >
-                {submitting ? (
-                  <View style={styles.loadingRow}>
-                    <ActivityIndicator color="#0B0B0C" />
-                    <Text style={styles.loadingText}>Creating account...</Text>
-                  </View>
-                ) : (
-                  "Create account"
-                )}
-              </CustomButton>
-
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={
-                  AppleAuthentication.AppleAuthenticationButtonType.SIGN_UP
-                }
-                buttonStyle={
-                  AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-                }
-                cornerRadius={12}
-                style={{ width: "100%", height: 52 }}
-                onPress={handleAppleSignup}
-              />
-
+            {!showEmailForm ? (
               <TouchableOpacity
-                onPress={handleLogin}
-                activeOpacity={0.8}
-                style={styles.loginWrap}
+                onPress={() => setShowEmailForm(true)}
+                activeOpacity={0.7}
+                style={styles.emailToggle}
+                disabled={submitting}
               >
-                <Text style={styles.loginText}>
-                  Already have an account?{" "}
-                  <Text style={styles.loginLink}>Log in</Text>
+                <View style={styles.dividerLine} />
+                <Text style={styles.emailToggleText}>
+                  or sign up with email
                 </Text>
+                <View style={styles.dividerLine} />
               </TouchableOpacity>
-            </View>
+            ) : (
+              <>
+                <View style={styles.emailToggle}>
+                  <View style={styles.dividerLine} />
+                  <Text style={styles.emailToggleText}>sign up with email</Text>
+                  <View style={styles.dividerLine} />
+                </View>
+
+                <View style={[styles.card, { backgroundColor: accent.wash }]}>
+                  <Field
+                    label="Email"
+                    value={formData.email}
+                    onChangeText={(v) => handleChange("email", v)}
+                    placeholder="you@email.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+
+                  <PasswordField
+                    label="Password"
+                    value={formData.password}
+                    onChangeText={(v) => handleChange("password", v)}
+                    placeholder="At least 8 characters"
+                    show={showPassword}
+                    setShow={setShowPassword}
+                    accentColor={accent.solid}
+                  />
+
+                  <PasswordField
+                    label="Confirm password"
+                    value={formData.confirmPassword}
+                    onChangeText={(v) => handleChange("confirmPassword", v)}
+                    placeholder="Repeat password"
+                    show={showConfirmPassword}
+                    setShow={setShowConfirmPassword}
+                    accentColor={accent.solid}
+                    last
+                  />
+                </View>
+
+                <CustomButton
+                  variant="primary"
+                  disabled={submitting}
+                  onPress={handleUserSignup}
+                  style={styles.fullWidth}
+                >
+                  {submitting ? (
+                    <View style={styles.loadingRow}>
+                      <ActivityIndicator color="#0B0B0C" />
+                      <Text style={styles.loadingText}>
+                        Creating account...
+                      </Text>
+                    </View>
+                  ) : (
+                    "Create account"
+                  )}
+                </CustomButton>
+              </>
+            )}
+
+            <TouchableOpacity
+              onPress={handleLogin}
+              activeOpacity={0.8}
+              style={styles.loginWrap}
+            >
+              <Text style={styles.loginText}>
+                Already have an account?{" "}
+                <Text style={styles.loginLink}>Log in</Text>
+              </Text>
+            </TouchableOpacity>
 
             <Text style={styles.footer}>
               By continuing, you agree to respectful conduct on Kavyx.
@@ -510,9 +487,10 @@ function PasswordField({
   show,
   setShow,
   accentColor,
+  last,
 }) {
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, last && { marginBottom: 0 }]}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputWrap}>
         <TextInput
@@ -602,6 +580,29 @@ const styles = StyleSheet.create({
     maxWidth: 340,
   },
 
+  appleBtn: {
+    width: "100%",
+    height: 52,
+  },
+
+  emailToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(245,241,232,0.10)",
+  },
+  emailToggleText: {
+    color: "rgba(245,241,232,0.4)",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
+
   card: {
     backgroundColor: "#151515",
     borderRadius: 14,
@@ -641,10 +642,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  actions: {
-    gap: 10,
-    marginTop: 6,
-  },
   fullWidth: {
     width: "100%",
     borderRadius: 12,
@@ -658,17 +655,6 @@ const styles = StyleSheet.create({
   loadingText: {
     color: "#0B0B0C",
     fontWeight: "800",
-    fontSize: 16,
-    letterSpacing: 0.6,
-  },
-
-  googleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  googleText: {
-    fontWeight: "900",
     fontSize: 16,
     letterSpacing: 0.6,
   },
