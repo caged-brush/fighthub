@@ -19,8 +19,7 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "plugins": ["expo-apple-authentication"]
+      }
     },
     "android": {
       "package": "com.suleimanjibril.kavyx",
@@ -43,7 +42,8 @@
       ],
       "expo-font",
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-apple-authentication"
     ],
     "extra": {
       "eas": {

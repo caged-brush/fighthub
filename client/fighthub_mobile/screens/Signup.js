@@ -220,6 +220,17 @@ const Signup = () => {
         timestamp: new Date().toISOString(),
       });
 
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+
+      await sendDebugLog({
+        stage: "apple-availability",
+        isAvailable,
+      });
+
+      if (!isAvailable) {
+        throw new Error("Apple Sign In is not available on this device.");
+      }
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
