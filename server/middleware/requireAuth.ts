@@ -57,13 +57,31 @@ const requireAuth: RequestHandler = async (req, res, next) => {
     } satisfies ErrorResponse);
   }
 
-  if (!profile) {
-    console.log("[AUTH] no app user row for auth user", data.user.id);
+  if (!profile || !profile.role) {
+    console.log(
+      "[AUTH] missing/incomplete app user row for auth user",
+      data.user.id,
+    );
+
+    if (req.originalUrl.includes("/auth/set-role")) {
+      req.user = {
+        id: data.user.id,
+        role: "fighter",
+        fighter_onboarded: false,
+        scout_onboarded: false,
+        coach_onboarded: false,
+      } as AuthUser;
+
+      req.accessToken = token;
+      req.supabaseUser = data.user;
+
+      return next();
+    }
+
     return res.status(404).json({
       message: "User profile not found",
     } satisfies ErrorResponse);
   }
-
   console.log("[AUTH] profile ok", profile.id, profile.role);
 
   req.user = profile;

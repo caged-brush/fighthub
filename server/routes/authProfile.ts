@@ -43,13 +43,13 @@ router.post(
 
     const userId = req.user.id;
 
-    const { error: updateError } = await supabaseAdmin
-      .from("users")
-      .update({ role })
-      .eq("id", userId);
+    const { error: upsertError } = await supabaseAdmin.from("users").upsert({
+      id: userId,
+      role,
+    });
 
-    if (updateError) {
-      return res.status(400).json({ message: updateError.message });
+    if (upsertError) {
+      return res.status(400).json({ message: upsertError.message });
     }
 
     if (role === "fighter") {
