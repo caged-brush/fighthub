@@ -65,7 +65,10 @@ interface SetRoleResponse {
   message: string;
 }
 
-export default function usersRoute(supabase: SupabaseClient): Router {
+export default function usersRoute(
+  supabase: SupabaseClient,
+  requireAuth: express.RequestHandler,
+): Router {
   const router = express.Router();
 
   /**
@@ -302,6 +305,47 @@ export default function usersRoute(supabase: SupabaseClient): Router {
       } catch (err) {
         console.error("Set role error:", err);
         return res.status(500).json({ message: "Server error" });
+      }
+    },
+  );
+
+  router.put(
+    "/users/push-token",
+    requireAuth,
+    async (
+      req: Request<
+        unknown,
+        { ok: true } | ErrorResponse,
+        { expo_push_token?: string }
+      >,
+      res: Response<{ ok: true } | ErrorResponse>,
+    ) => {
+      const userId = req.user?.id;
+      const { expo_push_token } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      if (!expo_push_token || typeof expo_push_token !== "string") {
+        return res.status(400).json({ message: "Invalid push token" });
+      }
+
+      try {
+        const { error } = await supabaseAdmin
+          .from("users")
+          .update({
+            expo_push_token,
+            push_token_updated_at: new Date().toISOString(),
+          })
+          .eq("id", userId);
+
+        if (error) throw error;
+
+        return res.status(200).json({ ok: true });
+      } catch (err) {
+        console.error("PUT /users/push-token error:", err);
+        return res.status(500).json({ message: "Failed to save push token" });
       }
     },
   );

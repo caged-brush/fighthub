@@ -166,7 +166,7 @@ function validateUserInput(req, res, next) {
 app.use(postsRoute(supabase, upload, uploadDir));
 app.use(followersRoute(supabase));
 app.use(likesRoute(supabase));
-app.use(usersRoute(supabase));
+app.use("/", usersRoute(supabase, requireAuth));
 //app.use(authRoutes(supabase, createToken, validateUserInput));
 app.use(profileRoutes(supabase, upload, requireAuth));
 app.use("/fighters", fightersRoute(supabase, requireAuth));

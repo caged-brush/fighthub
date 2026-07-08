@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/apiFetch";
-
+import { registerForPushNotificationsAsync } from "../lib/notifications";
 export const AuthContext = createContext();
 
 const mustString = (key, v) => {
@@ -85,6 +85,16 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!userToken) return;
+
+    registerForPushNotificationsAsync(userToken)
+      .then((token) => console.log("Expo push token:", token))
+      .catch((err) =>
+        console.log("Push notification setup failed:", err.message),
+      );
+  }, [userToken]);
 
   const logout = async () => {
     setIsLoading(true);
