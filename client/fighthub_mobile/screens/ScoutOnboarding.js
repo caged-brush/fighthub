@@ -15,6 +15,7 @@ import { AuthContext } from "../context/AuthContext";
 import { API_URL } from "../Constants";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Picker } from "@react-native-picker/picker";
+import NameFields from "../component/NameFields";
 
 const REGIONS = [
   { label: "British Columbia (BC)", value: "BC" },
@@ -43,9 +44,11 @@ export default function ScoutOnboarding() {
   const { completeOnboarding, userToken } = useContext(AuthContext);
 
   const [form, setForm] = useState({
+    fname: "",
+    lname: "",
     date_of_birth: "",
     organization: "",
-    region: "BC", // default; set to "" if you want "Select..."
+    region: "BC",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -54,6 +57,8 @@ export default function ScoutOnboarding() {
 
   const canSubmit = useMemo(() => {
     return (
+      form.fname.trim().length >= 2 &&
+      form.lname.trim().length >= 2 &&
       form.date_of_birth.trim().length === 10 &&
       form.organization.trim().length > 1 &&
       String(form.region || "").trim().length > 0 &&
@@ -81,7 +86,8 @@ export default function ScoutOnboarding() {
       );
       return;
     }
-
+    const fname = form.fname.trim();
+    const lname = form.lname.trim();
     const dob = form.date_of_birth.trim();
     const org = form.organization.trim();
     const region = String(form.region || "")
@@ -90,6 +96,11 @@ export default function ScoutOnboarding() {
 
     if (!dob) {
       Alert.alert("Missing info", "Please select your date of birth.");
+      return;
+    }
+
+    if (fname.length < 2 || lname.length < 2) {
+      Alert.alert("Missing info", "First name and last name are required.");
       return;
     }
 
@@ -111,6 +122,8 @@ export default function ScoutOnboarding() {
 
     try {
       const payload = {
+        fname,
+        lname,
         date_of_birth: dob,
         organization: org,
         region,
@@ -161,6 +174,13 @@ export default function ScoutOnboarding() {
             This helps fighters know who you are and helps us personalize
             discovery.
           </Text>
+
+          <NameFields
+            fname={form.fname}
+            lname={form.lname}
+            setFname={(v) => handleChange("fname", v)}
+            setLname={(v) => handleChange("lname", v)}
+          />
 
           <Text style={styles.label}>Date of birth</Text>
 

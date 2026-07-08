@@ -20,6 +20,8 @@ interface ScoutRow {
 }
 
 interface ScoutUpdateBody {
+  fname?: string;
+  lname?: string;
   organization?: string;
   region?: string;
   date_of_birth?: string;
@@ -118,11 +120,25 @@ export default function scoutsRoutes(
         return res.status(403).json({ message: "Only scouts allowed" });
       }
 
-      const { organization, region, date_of_birth } = req.body;
+      const { fname, lname, organization, region, date_of_birth } = req.body;
 
-      if (!date_of_birth || !organization || !region) {
+      const fnameClean = typeof fname === "string" ? fname.trim() : "";
+      const lnameClean = typeof lname === "string" ? lname.trim() : "";
+      const organizationClean =
+        typeof organization === "string" ? organization.trim() : "";
+      const regionClean =
+        typeof region === "string" ? region.trim().toUpperCase() : "";
+
+      if (
+        fnameClean.length < 2 ||
+        lnameClean.length < 2 ||
+        !date_of_birth ||
+        !organizationClean ||
+        !regionClean
+      ) {
         return res.status(400).json({
-          message: "date_of_birth, organization, and region are required",
+          message:
+            "fname, lname, date_of_birth, organization, and region are required",
         });
       }
 
@@ -130,8 +146,10 @@ export default function scoutsRoutes(
         const { error: usersErr } = await supabase
           .from("users")
           .update({
+            fname: fnameClean,
+            lname: lnameClean,
             date_of_birth,
-            region,
+            region: regionClean,
             scout_onboarded: true,
           })
           .eq("id", userId);
@@ -143,12 +161,15 @@ export default function scoutsRoutes(
         const { data: scout, error: scoutErr } = await supabase
           .from("scouts")
           .upsert(
-            { user_id: userId, organization, region },
+            {
+              user_id: userId,
+              organization: organizationClean,
+              region: regionClean,
+            },
             { onConflict: "user_id" },
           )
           .select()
           .single();
-
         if (scoutErr) {
           throw scoutErr;
         }

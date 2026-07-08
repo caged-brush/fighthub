@@ -47,6 +47,8 @@ interface SearchUserIdRow {
 }
 
 interface FighterUpdateBody {
+  fname?: string;
+  lname?: string;
   weight_class?: string;
   date_of_birth?: string;
   region?: string;
@@ -70,6 +72,8 @@ interface FighterUpdateResponse {
 interface UserUpdatePayload {
   fighter_onboarded: boolean;
   region: string;
+  fname?: string;
+  lname?: string;
   date_of_birth?: string;
 }
 
@@ -305,6 +309,8 @@ export default function fightersRoutes(
       }
 
       const {
+        fname,
+        lname,
         weight_class,
         date_of_birth,
         region,
@@ -318,6 +324,15 @@ export default function fightersRoutes(
         bio,
         is_available,
       } = req.body;
+
+      const fnameClean = typeof fname === "string" ? fname.trim() : "";
+      const lnameClean = typeof lname === "string" ? lname.trim() : "";
+
+      if (fnameClean.length < 2 || lnameClean.length < 2) {
+        return res.status(400).json({
+          message: "First name and last name are required.",
+        });
+      }
 
       const ALLOWED_REGIONS = new Set([
         "BC",
@@ -398,13 +413,15 @@ export default function fightersRoutes(
         const userUpdate: UserUpdatePayload = {
           fighter_onboarded: true,
           region: regionClean,
+          fname: fnameClean,
+          lname: lnameClean,
         };
 
         if (date_of_birth) {
           userUpdate.date_of_birth = date_of_birth;
         }
 
-        const { error: userErr } = await supabase
+        const { error: userErr } = await supabaseAdmin
           .from("users")
           .update(userUpdate)
           .eq("id", userId);

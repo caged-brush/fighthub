@@ -18,6 +18,7 @@ import { AuthContext } from "../context/AuthContext";
 import CustomButton from "../component/CustomButton";
 import { API_URL } from "../Constants";
 import { Picker } from "@react-native-picker/picker";
+import NameFields from "../component/NameFields";
 
 const WEIGHT_CLASSES = [
   "Flyweight",
@@ -94,7 +95,8 @@ export default function FighterOnboarding() {
 
   const [heightCm, setHeightCm] = useState("");
   const [weightLbs, setWeightLbs] = useState("");
-
+  const [fname, setFname] = useState("");
+  const [lname, setLname] = useState("");
   const [fightStyle, setFightStyle] = useState("");
 
   // ✅ NEW FIELDS
@@ -106,6 +108,8 @@ export default function FighterOnboarding() {
     if (!dateOfBirth || dateOfBirth.length !== 10) return false;
     if (!weightClass) return false;
     if (!fightStyle) return false;
+    if (fname.trim().length < 2) return false;
+    if (lname.trim().length < 2) return false;
     const allowed = new Set([
       "BC",
       "AB",
@@ -129,7 +133,17 @@ export default function FighterOnboarding() {
 
     if (submitting) return false;
     return true;
-  }, [dateOfBirth, weightClass, fightStyle, region, gym, bio, submitting]);
+  }, [
+    fname,
+    lname,
+    dateOfBirth,
+    weightClass,
+    fightStyle,
+    region,
+    gym,
+    bio,
+    submitting,
+  ]);
 
   const onDobChange = (event, selectedDate) => {
     // Android fires "set" or "dismissed"
@@ -164,6 +178,8 @@ export default function FighterOnboarding() {
     setSubmitting(true);
     try {
       const payload = {
+        fname: fname.trim(),
+        lname: lname.trim(),
         date_of_birth: dateOfBirth,
         weight_class: weightClass,
         region: region.trim(),
@@ -236,6 +252,13 @@ export default function FighterOnboarding() {
         <Text style={styles.subtitle}>
           Set the basics so scouts can find and book you.
         </Text>
+
+        <NameFields
+          fname={fname}
+          lname={lname}
+          setFname={setFname}
+          setLname={setLname}
+        />
 
         <Text style={styles.label}>Date of birth *</Text>
         <TouchableOpacity
