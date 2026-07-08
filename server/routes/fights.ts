@@ -852,12 +852,23 @@ router.get(
         return res.status(500).json(supaErr(error));
       }
 
-      const typedSlots = (slots ?? []) as FightSlotRow[];
+      const now = new Date();
+
+      const typedSlots = ((slots ?? []) as FightSlotRow[]).filter((slot) => {
+        if (!slot.application_deadline) return true;
+
+        return new Date(slot.application_deadline) > now;
+      });
 
       const nextCursor =
         typedSlots.length === limit
           ? (typedSlots[typedSlots.length - 1]?.created_at ?? null)
           : null;
+
+      if (error) {
+        console.error("[open-slots] slots error", error);
+        return res.status(500).json(supaErr(error));
+      }
 
       const eventIds = [
         ...new Set(typedSlots.map((s) => s.event_id).filter(Boolean)),
