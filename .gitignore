@@ -1,10 +1,58 @@
-# .gitignore
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Environment variables / secrets
 .env
-client/fighthub_mobile/google-services.json
-client/fighthub_mobile/firebaseConfig.js
-client/fighthub_mobile/keys/keys.js
-client/fighthub_mobile/GoogleService-Info.plist
-server/.env
-node_modules
-/android
-/ios
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Keys / credentials
+keys/
+**/keys/
+
+# Node.js
+node_modules/
+**/node_modules/
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# Build output
+dist/
+build/
+**/dist/
+**/build/
+
+# Expo / React Native
+.expo/
+**/.expo/
+.expo-shared/
+**/.expo-shared/
+
+# Java / Spring Boot / Maven
+target/
+**/target/
+*.class
+
+# IntelliJ
+.idea/
+**/.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+**/.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
