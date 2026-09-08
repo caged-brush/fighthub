@@ -22,6 +22,7 @@ import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/apiFetch";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
+import { signInWithGoogle } from "../lib/googleAuth";
 
 const Login = () => {
   const navigation = useNavigation();
@@ -205,6 +206,59 @@ const Login = () => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    if (submitting) return;
+
+    setSubmitting(true);
+
+    try {
+      const authData = await signInWithGoogle();
+
+      if (!authData) {
+        return;
+      }
+
+      const session = authData.session;
+
+      if (!session?.access_token) {
+        throw new Error("No session returned.");
+      }
+
+      const token = session.access_token;
+
+      const me = await apiFetch("/auth/me", {
+        token,
+      });
+
+      const user = me?.user;
+
+      if (!user?.id || !user?.role) {
+        throw new Error("This Google account does not have a Kavyx profile.");
+      }
+
+      const { id, role, scout_onboarded, fighter_onboarded, coach_onboarded } =
+        user;
+
+      let isOnboarded = false;
+
+      if (role === "fighter") {
+        isOnboarded = !!fighter_onboarded;
+      } else if (role === "scout") {
+        isOnboarded = !!scout_onboarded;
+      } else if (role === "coach") {
+        isOnboarded = !!coach_onboarded;
+      }
+
+      await login(token, id, role, isOnboarded);
+    } catch (e) {
+      console.log("GOOGLE LOGIN ERROR:", e);
+
+      Alert.alert("Google Sign In failed", e?.message || "Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleForgotPassword = () => {
     // wire to your flow later
     Alert.alert("Forgot password", "Add your password reset flow here.");
@@ -312,6 +366,21 @@ const Login = () => {
                   style={styles.appleButton}
                   onPress={handleAppleLogin}
                 />
+              )}
+
+              {Platform.OS === "android" && (
+                <TouchableOpacity
+                  style={styles.googleButton}
+                  onPress={handleGoogleLogin}
+                  disabled={submitting}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="logo-google" size={20} color="#1A1A1A" />
+
+                  <Text style={styles.googleButtonText}>
+                    Continue with Google
+                  </Text>
+                </TouchableOpacity>
               )}
 
               <CustomButton
@@ -437,6 +506,22 @@ const styles = StyleSheet.create({
   appleButton: {
     width: "100%",
     height: 52,
+  },
+  googleButton: {
+    width: "100%",
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+
+  googleButtonText: {
+    color: "#1A1A1A",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
 

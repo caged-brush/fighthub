@@ -21,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { API_URL } from "../Constants";
+import { signInWithGoogle } from "../lib/googleAuth";
 
 const VALID_ROLES = ["fighter", "scout", "coach"];
 
@@ -310,6 +311,67 @@ const Signup = () => {
     }
   };
 
+  const handleGoogleSignup = async () => {
+    if (submitting) return;
+
+    if (!selectedRole || !VALID_ROLES.includes(selectedRole)) {
+      Alert.alert("Choose a role", "Please select a valid role.");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const authData = await signInWithGoogle();
+
+      // User closed the Google login window
+      if (!authData) {
+        return;
+      }
+
+      const accessToken = authData.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("No Supabase session returned.");
+      }
+
+      // Tell Kavyx backend which type of user this is
+      const roleRes = await fetch(`${API_URL}/auth/set-role`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          role: selectedRole,
+        }),
+      });
+
+      const roleJson = await roleRes.json();
+
+      if (!roleRes.ok) {
+        throw new Error(roleJson.message || "Failed to set account role.");
+      }
+
+      if (setUserRole) {
+        await setUserRole(selectedRole);
+      }
+
+      navigation.replace("Onboarding", {
+        role: selectedRole,
+      });
+    } catch (e) {
+      console.log("GOOGLE SIGNUP ERROR:", e);
+
+      Alert.alert(
+        "Google Sign Up failed",
+        e?.message || "Something went wrong. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleLogin = () => navigation.navigate("Login");
 
   return (
@@ -347,6 +409,19 @@ const Signup = () => {
                 after.
               </Text>
             </View>
+
+            {Platform.OS === "android" && (
+              <TouchableOpacity
+                style={styles.googleBtn}
+                onPress={handleGoogleSignup}
+                disabled={submitting}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="logo-google" size={20} color="#1A1A1A" />
+
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Apple is the primary path */}
             <AppleAuthentication.AppleAuthenticationButton
@@ -679,6 +754,23 @@ const styles = StyleSheet.create({
     color: "rgba(245,241,232,0.28)",
     fontSize: 12,
     lineHeight: 16,
+  },
+
+  googleBtn: {
+    width: "100%",
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+
+  googleBtnText: {
+    color: "#1A1A1A",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
 
