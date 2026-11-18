@@ -12,10 +12,15 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+const title = "Kavyx | Combat sports discovery and fight opportunities";
+const description = "Find fighters, publish open fight slots, and manage applications. Kavyx connects fighters, coaches, and scouts in one mobile app.";
+
 export const metadata = {
-  title: "KAVYX — Fight Intelligence & Discovery",
-  description:
-    "KAVYX helps fighters get discovered and scouts find talent—fast.",
+  title,
+  description,
+  applicationName: "Kavyx",
+  icons: { icon: "/images/kavyx-mark.svg" },
+  openGraph: { title, description, siteName: "Kavyx", type: "website" },
 };
 
 export default function RootLayout({ children }) {
