@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#0B0B0C"/>
+
+  <!-- Three angular slashes, centered -->
+  <g transform="translate(150,146)">
+    <path d="M0 0 L58 0 L24 220 L-34 220 Z" fill="#FF2D6E"/>
+    <path d="M72 0 L130 0 L96 220 L38 220 Z" fill="#FFC531"/>
+    <path d="M144 0 L202 0 L168 220 L110 220 Z" fill="#3B9CFF"/>
+  </g>
+</svg>
